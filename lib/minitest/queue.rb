@@ -6,6 +6,14 @@ module Minitest
 
     SuiteNotFound = Class.new(StandardError)
 
+    def loaded_tests
+      MiniTest::Test.runnables.flat_map do |suite|
+        suite.runnable_methods.map do |method|
+          "#{suite}##{method}"
+        end
+      end
+    end
+
     def __run(*args)
       if queue
         run_from_queue(*args)

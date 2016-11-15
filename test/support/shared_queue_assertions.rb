@@ -1,9 +1,9 @@
 module SharedQueueAssertions
   TEST_LIST = %w(
-    TestCaseA#test_foo
-    TestCaseA#test_bar
-    TestCaseB#test_foo
-    TestCaseB#test_bar
+    ATest#test_foo
+    ATest#test_bar
+    BTest#test_foo
+    BTest#test_bar
   ).freeze
 
   def test_progess

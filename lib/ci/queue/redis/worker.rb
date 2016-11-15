@@ -1,3 +1,5 @@
+require 'ci/queue/static'
+
 module CI
   module Queue
     module Redis
