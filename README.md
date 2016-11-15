@@ -1,5 +1,7 @@
 # CI::Queue
 
+[![Build Status](https://travis-ci.org/Shopify/ci-queue.svg?branch=master)](https://travis-ci.org/Shopify/ci-queue)
+
 Distribute tests over many workers using a queue. 
 
 ## Why a queue?
