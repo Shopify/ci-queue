@@ -18,7 +18,7 @@ module CI
       end
 
       def poll
-        while test = @queue.pop
+        while test = @queue.shift
           yield test
           @progress += 1
         end

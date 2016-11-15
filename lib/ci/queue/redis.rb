@@ -21,11 +21,17 @@ module CI
         end
 
         def size
-          sizes = redis.multi do
+          redis.multi do
             redis.llen(key('queue'))
             redis.zcard(key('running'))
-          end
-          sizes.inject(:+)
+          end.inject(:+)
+        end
+
+        def to_a
+          redis.multi do
+            redis.lrange(key('queue'), 0, -1)
+            redis.zrange(key('running'), 0, -1)
+          end.flatten.reverse
         end
 
         def progress
@@ -108,7 +114,7 @@ module CI
           end
         end
 
-        def to_a
+        def processed
           redis.lrange(key("worker:#{worker_id}:queue"), 0, -1)
         end
 

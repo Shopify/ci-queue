@@ -36,8 +36,14 @@ module SharedQueueAssertions
     assert_equal [], @queue.to_a
   end
 
+  def test_size_and_to_a
+    @queue.poll do
+      assert_equal @queue.to_a.size, @queue.size
+    end
+  end
+
   def test_poll_order
-    assert_equal TEST_LIST.reverse, @queue.to_enum(:poll).to_a
+    assert_equal TEST_LIST, @queue.to_enum(:poll).to_a
   end
   
 end
