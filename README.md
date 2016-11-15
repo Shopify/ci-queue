@@ -1,5 +1,6 @@
 # CI::Queue
 
+[![Gem Version](https://badge.fury.io/rb/ci-queue.svg)](https://rubygems.org/gems/ci-queue)
 [![Build Status](https://travis-ci.org/Shopify/ci-queue.svg?branch=master)](https://travis-ci.org/Shopify/ci-queue)
 
 Distribute tests over many workers using a queue. 
