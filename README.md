@@ -1,8 +1,13 @@
 # CI::Queue
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/ci/queue`. To experiment with that code, run `bin/console` for an interactive prompt.
+Distribute tests over many workers using a queue. 
 
-TODO: Delete this and the text above, and describe your gem
+## Why a queue?
+
+One big problem with distributed test suites, is test imbalance. Meaning that one worker would spend 10 minutes while all the others are done after 1 minute.
+There is algorithms available to balance perfectly your workers, but in practice your test performance tend to vary, and it's easier to consider tests as work unit in a queue and let workers pop them as fast as possible.
+
+Another advantage is that if you lose workers along the way, using a queue the other workers can pick up the job, making you resilient to failures.
 
 ## Installation
 
@@ -32,8 +37,7 @@ To install this gem onto your local machine, run `bundle exec rake install`. To 
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/ci-queue.
-
+Bug reports and pull requests are welcome on GitHub at https://github.com/Shopify/ci-queue.
 
 ## License
 
