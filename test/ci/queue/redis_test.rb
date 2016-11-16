@@ -31,22 +31,32 @@ class CI::Queue::RedisTest < Minitest::Test
   end
 
   def test_timed_out_test_are_picked_up_by_other_workers
-    mutex = Mutex.new
-    mutex.lock
+    second_queue = worker(2)
+    acquired = false
+    done = false
+    monitor = Monitor.new
+    condition = monitor.new_cond
+    processed_test = nil
+
     thread = Thread.start do
-      @queue.poll do
-        mutex.synchronize { }
+      monitor.synchronize do
+        condition.wait_until { acquired }
+        processed_test = second_queue.to_enum(:poll).to_a.sort
+        done = true
+        condition.signal
       end
     end
 
-    test_list = TEST_LIST.dup
-    first_test = test_list.shift
-    test_list << first_test
+    @queue.poll do
+      acquired = true
+      monitor.synchronize do
+        condition.signal
+        condition.wait_until { done }
+      end
+    end
 
-    assert_equal test_list, worker(2).to_enum(:poll).to_a
-    mutex.unlock
-    thread.join
-    assert_equal [first_test], @queue.retry_queue.to_a
+    assert_equal [TEST_LIST.first], @queue.retry_queue.to_a
+    assert_equal TEST_LIST.sort, second_queue.retry_queue.to_a.sort
   end
 
   private
