@@ -1,6 +1,7 @@
 require 'redis'
 require 'ci/queue/redis/base'
 require 'ci/queue/redis/worker'
+require 'ci/queue/redis/retry'
 require 'ci/queue/redis/supervisor'
 
 module CI

@@ -1,8 +1,26 @@
 require 'minitest'
 
+gem 'minitest-reporters', '~> 1.1'
+require 'minitest/reporters'
+
 module Minitest
   module Queue
-    attr_accessor :queue
+    attr_reader :queue
+
+    def queue=(queue)
+      @queue = queue
+      if queue.respond_to?(:minitest_reporters)
+        self.queue_reporters = queue.minitest_reporters
+      else
+        self.queue_reporters = []
+      end
+    end
+
+    def queue_reporters=(reporters)
+      @queue_reporters ||= []
+      Reporters.reporters = ((Reporters.reporters || []) - @queue_reporters) + reporters
+      @queue_reporters = reporters
+    end
 
     SuiteNotFound = Class.new(StandardError)
 
