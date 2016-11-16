@@ -35,7 +35,23 @@ module CI
         end
 
         def retry_queue
-          Static.new(redis.lrange(key("worker:#{worker_id}:queue"), 0, -1).reverse)
+          Retry.new(
+            redis.lrange(key("worker:#{worker_id}:queue"), 0, -1).reverse,
+            redis: redis,
+            build_id: build_id,
+            worker_id: worker_id,
+          )
+        end
+
+        def minitest_reporters
+          require 'minitest/reporters/redis_reporter'
+          @minitest_reporters ||= [
+            Minitest::Reporters::RedisReporter::Worker.new(
+              redis: redis,
+              build_id: build_id,
+              worker_id: worker_id,
+            )
+          ]
         end
 
         private

@@ -4,7 +4,7 @@ module CI
       class Base
         def initialize(redis:, build_id:)
           @redis = redis
-          @key = "build:#{build_id}"
+          @build_id = build_id
         end
 
         def empty?
@@ -44,10 +44,10 @@ module CI
 
         private
 
-        attr_reader :redis
+        attr_reader :redis, :build_id
 
         def key(*args)
-          [@key, *args].join(':')
+          ['build', build_id, *args].join(':')
         end
 
         def master_status
