@@ -9,6 +9,9 @@ require 'minitest/queue'
 require 'minitest/reporters/redis_reporter'
 require 'minitest/autorun'
 
+
+Minitest::Reporters.use!([Minitest::Reporters::SpecReporter.new])
+
 require 'thread'
 require 'stringio'
 

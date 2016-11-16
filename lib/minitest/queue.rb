@@ -43,11 +43,14 @@ module Minitest
     def run_from_queue(reporter, *)
       runnable_classes = Minitest::Runnable.runnables.map { |s| [s.name, s] }.to_h
 
-      queue.poll do |msg|
-        class_name, method = msg.split("#".freeze, 2)
+      queue.poll do |test_name|
+        class_name, method_name = test_name.split("#".freeze, 2)
 
-        if suite = runnable_classes[class_name]
-          Minitest::Runnable.run_one_method(suite, method, reporter)
+        if klass = runnable_classes[class_name]
+          test = Minitest.run_one_method(klass, method_name)
+          if queue.acknowledge(test_name, test.passed? || test.skipped?)
+            reporter.record(test)
+          end
         else
           raise SuiteNotFound, "Couldn't find suite matching: #{msg.inspect}"
         end

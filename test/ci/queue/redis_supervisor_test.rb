@@ -1,6 +1,8 @@
 require 'test_helper'
 
 class CI::Queue::Redis::SupervisorTest < Minitest::Test
+  include QueueHelper
+
   def setup
     @redis = ::Redis.new(db: 7)
     @redis.flushdb
@@ -30,7 +32,7 @@ class CI::Queue::Redis::SupervisorTest < Minitest::Test
       workers_done = @supervisor.wait_for_workers
     end
     thread.wakeup
-    worker(1).poll { }
+    poll(worker(1))
     thread.join
     assert_equal true, workers_done
   end

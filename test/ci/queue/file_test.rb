@@ -7,6 +7,6 @@ class CI::Queue::FileTest < Minitest::Test
 
   def setup
     File.write(TEST_LIST_PATH, TEST_LIST.join("\n"))
-    @queue = CI::Queue::File.new(TEST_LIST_PATH)
+    @queue = CI::Queue::File.new(TEST_LIST_PATH, max_requeues: 1)
   end
 end

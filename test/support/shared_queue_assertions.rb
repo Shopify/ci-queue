@@ -1,4 +1,6 @@
 module SharedQueueAssertions
+  include QueueHelper
+
   TEST_LIST = %w(
     ATest#test_foo
     ATest#test_bar
@@ -10,7 +12,7 @@ module SharedQueueAssertions
     count = 0
 
     assert_equal 0, @queue.progress
-    @queue.poll do
+    poll(@queue) do
       assert_equal count, @queue.progress
       count += 1
     end
@@ -20,30 +22,33 @@ module SharedQueueAssertions
 
   def test_size
     assert_equal TEST_LIST.size, @queue.size
-    @queue.poll { }
+    poll(@queue)
     assert_equal 0, @queue.size
   end
 
   def test_empty?
     refute_predicate @queue, :empty?
-    @queue.poll { }
+    poll(@queue)
     assert_predicate @queue, :empty?
   end
 
   def test_to_a
     assert_equal TEST_LIST, @queue.to_a
-    @queue.poll { }
+    poll(@queue)
     assert_equal [], @queue.to_a
   end
 
   def test_size_and_to_a
-    @queue.poll do
+    poll(@queue) do
       assert_equal @queue.to_a.size, @queue.size
     end
   end
 
   def test_poll_order
-    assert_equal TEST_LIST, @queue.to_enum(:poll).to_a
+    assert_equal TEST_LIST, poll(@queue)
   end
-  
+
+  def test_requeue
+    assert_equal [TEST_LIST.first, *TEST_LIST], poll(@queue, false)
+  end
 end

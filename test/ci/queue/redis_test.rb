@@ -6,16 +6,15 @@ class CI::Queue::RedisTest < Minitest::Test
   def setup
     @redis = ::Redis.new(db: 7)
     @redis.flushdb
-    @queue = worker(1)
+    @queue = worker(1, max_requeues: 1)
   end
 
   def test_retry_queue
-    test_order = @queue.to_enum(:poll).to_a
-    assert_equal test_order, @queue.retry_queue.to_enum(:poll).to_a
+    assert_equal poll(@queue), poll(@queue.retry_queue)
   end
 
   def test_shutdown
-    @queue.poll do
+    poll(@queue) do
       @queue.shutdown!
     end
     assert_equal TEST_LIST.size - 1, @queue.size
@@ -36,18 +35,17 @@ class CI::Queue::RedisTest < Minitest::Test
     done = false
     monitor = Monitor.new
     condition = monitor.new_cond
-    processed_test = nil
 
     thread = Thread.start do
       monitor.synchronize do
         condition.wait_until { acquired }
-        processed_test = second_queue.to_enum(:poll).to_a.sort
+        poll(second_queue)
         done = true
         condition.signal
       end
     end
 
-    @queue.poll do
+    poll(@queue) do
       acquired = true
       monitor.synchronize do
         condition.signal
@@ -61,13 +59,14 @@ class CI::Queue::RedisTest < Minitest::Test
 
   private
 
-  def worker(id)
+  def worker(id, **args)
     CI::Queue::Redis.new(
       TEST_LIST.dup,
       redis: @redis,
       build_id: '42',
       worker_id: id.to_s,
       timeout: 0.2,
+      **args,
     )
   end
 end

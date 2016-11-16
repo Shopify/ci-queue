@@ -3,10 +3,15 @@ require 'ci/queue/static'
 module CI
   module Queue
     module Redis
+      ReservationError = Class.new(StandardError)
+
       class Worker < Base
         attr_reader :total
 
-        def initialize(tests, redis:, build_id:, worker_id:, timeout:)
+        def initialize(tests, redis:, build_id:, worker_id:, timeout:, max_requeues: 0, global_max_requeues: nil)
+          @reserved_test = nil
+          @max_requeues = max_requeues
+          @global_max_requeues = global_max_requeues || max_requeues
           @shutdown_required = false
           super(redis: redis, build_id: build_id)
           @worker_id = worker_id
@@ -28,18 +33,22 @@ module CI
 
         def poll
           wait_for_master
-          while test = reserve
-            yield test
-            acknowledge(test)
+          until shutdown_required? || empty?
+            if test = reserve
+              yield test
+            else
+              sleep 0.05
+            end
           end
         end
 
-        def retry_queue
+        def retry_queue(**args)
           Retry.new(
-            redis.lrange(key("worker:#{worker_id}:queue"), 0, -1).reverse,
+            redis.lrange(key('worker', worker_id, 'queue'), 0, -1).reverse.uniq,
             redis: redis,
             build_id: build_id,
             worker_id: worker_id,
+            **args
           )
         end
 
@@ -54,9 +63,60 @@ module CI
           ]
         end
 
+        def acknowledge(test, success)
+          if @reserved_test == test
+            @reserved_test = nil
+          else
+            raise ReservationError, "Acknowledged #{test.inspect} but #{@reserved_test.inspect} was reserved"
+          end
+
+          if !success && should_requeue?(test)
+            requeue(test)
+            false
+          else
+            ack(test)
+            true
+          end
+        end
+
         private
 
-        attr_reader :worker_id, :timeout
+        attr_reader :worker_id, :timeout, :max_requeues, :global_max_requeues
+
+        def should_requeue?(test)
+          individual_requeues, global_requeues = redis.multi do
+            redis.hincrby(key('requeues'), test, 1)
+            redis.hincrby(key('requeues'), '___total___'.freeze, 1)
+          end
+
+          if individual_requeues.to_i > max_requeues || global_requeues.to_i > global_max_requeues
+            redis.multi do
+              redis.hincrby(key('requeues'), test, -1)
+              redis.hincrby(key('requeues'), '___total___'.freeze, -1)
+            end
+            return false
+          end
+
+          true
+        end
+
+        def requeue(test)
+          load_script(ACKNOWLEDGE)
+          redis.multi do
+            redis.decr(key('processed'))
+            redis.rpush(key('queue'), test)
+            ack(test)
+          end
+        end
+
+        def reserve
+          if @reserved_test
+            raise ReservationError, "#{@reserved_test.inspect} is already reserved. " \
+              "You have to acknowledge it before you can reserve another one"
+          end
+
+          @reserved_test = (try_to_reserve_lost_test || try_to_reserve_test)
+        end
 
         RESERVE_TEST = %{
           local queue_key = KEYS[1]
@@ -71,14 +131,8 @@ module CI
             return nil
           end
         }
-        def reserve
-          return if shutdown_required?
-
-          if test = eval_script(RESERVE_TEST, keys: [key('queue'), key('running')], argv: [Time.now.to_f])
-            return test
-          else
-            reserve_lost_test
-          end
+        def try_to_reserve_test
+          eval_script(RESERVE_TEST, keys: [key('queue'), key('running')], argv: [Time.now.to_f])
         end
 
         RESERVE_LOST_TEST = %{
@@ -94,14 +148,8 @@ module CI
             return nil
           end
         }
-        def reserve_lost_test
-          until redis.zcard(key('running')) == 0
-            if test = eval_script(RESERVE_LOST_TEST, keys: [key('running')], argv: [Time.now.to_f, timeout])
-              return test
-            end
-            sleep 0.1
-          end
-          nil
+        def try_to_reserve_lost_test
+          eval_script(RESERVE_LOST_TEST, keys: [key('running')], argv: [Time.now.to_f, timeout])
         end
 
         ACKNOWLEDGE = %{
@@ -113,9 +161,9 @@ module CI
             redis.call('incr', processed_count_key)
           end
         }
-        def acknowledge(test)
+        def ack(test)
           eval_script(ACKNOWLEDGE, keys: [key('running'), key('processed')], argv: [test])
-          redis.lpush(key("worker:#{worker_id}:queue"), test)
+          redis.lpush(key('worker', worker_id, 'queue'), test)
         end
 
         def push(tests)

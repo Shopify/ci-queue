@@ -55,9 +55,12 @@ module CI
         end
 
         def eval_script(script, *args)
+          redis.evalsha(load_script(script), *args)
+        end
+
+        def load_script(script)
           @scripts_cache ||= {}
-          sha = (@scripts_cache[script] ||= redis.script(:load, script))
-          redis.evalsha(sha, *args)
+          @scripts_cache[script] ||= redis.script(:load, script)
         end
       end
     end

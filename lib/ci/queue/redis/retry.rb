@@ -2,11 +2,11 @@ module CI
   module Queue
     module Redis
       class Retry < Static
-        def initialize(tests, redis:, build_id:, worker_id:)
+        def initialize(tests, redis:, build_id:, worker_id:, **args)
           @redis = redis
           @build_id = build_id
           @worker_id = worker_id
-          super(tests)
+          super(tests, **args)
         end
 
         def minitest_reporters

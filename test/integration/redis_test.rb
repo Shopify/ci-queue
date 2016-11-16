@@ -11,9 +11,9 @@ module Integration
 
     def test_redis_runner
       output = `ruby -Itest/fixtures test/fixtures/redis-runner.rb`.lines.map(&:strip).last
-      assert_equal '4 tests, 2 assertions, 1 failures, 1 errors, 1 skips', output
+      assert_equal '5 tests, 3 assertions, 1 failures, 1 errors, 1 skips', output
       output = `ruby -Itest/fixtures test/fixtures/redis-runner.rb retry`.lines.map(&:strip).last
-      assert_equal '4 tests, 2 assertions, 1 failures, 1 errors, 1 skips', output
+      assert_equal '5 tests, 3 assertions, 1 failures, 1 errors, 1 skips', output
     end
 
     def test_redis_reporter
@@ -23,24 +23,23 @@ module Integration
       )
 
       output = `ruby -Itest/fixtures test/fixtures/redis-runner.rb`.lines.map(&:strip).last
-      assert_equal '4 tests, 2 assertions, 1 failures, 1 errors, 1 skips', output
+      assert_equal '5 tests, 3 assertions, 1 failures, 1 errors, 1 skips', output
 
       io = StringIO.new
       summary.report(io: io)
       report = strip_heredoc <<-END
-        Ran 4 tests, 2 assertions, 1 failures, 1 errors, 1 skips in 0.00s (aggregated).
+        Ran 5 tests, 3 assertions, 1 failures, 1 errors, 1 skips in X.XXs (aggregated).
         FAIL ATest#test_bar
         Expected false to be truthy.
             test/fixtures/dummy_test.rb:9:in `test_bar'
-            lib/ci/queue/redis/worker.rb:32:in `poll'
 
         ERROR BTest#test_bar
         TypeError: String can't be coerced into Fixnum
-            test/fixtures/dummy_test.rb:19:in `+'
-            test/fixtures/dummy_test.rb:19:in `test_bar'
+            test/fixtures/dummy_test.rb:28:in `+'
+            test/fixtures/dummy_test.rb:28:in `test_bar'
 
       END
-      assert_equal report, decolorize_output(io.tap(&:rewind).read)
+      assert_equal report, freeze_timing(decolorize_output(io.tap(&:rewind).read))
     end
   end
 end
