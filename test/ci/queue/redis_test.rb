@@ -6,7 +6,7 @@ class CI::Queue::RedisTest < Minitest::Test
   def setup
     @redis = ::Redis.new(db: 7)
     @redis.flushdb
-    @queue = worker(1, max_requeues: 1)
+    @queue = worker(1, max_requeues: 1, requeue_tolerance: 0.1)
   end
 
   def test_retry_queue

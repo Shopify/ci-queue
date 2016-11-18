@@ -12,12 +12,12 @@ Minitest.queue = CI::Queue::Redis.new(
   worker_id: 1,
   timeout: 1,
   max_requeues: 2,
-  global_max_requeues: 20
+  requeue_tolerance: 0.5,
 )
 
 if ARGV.first == 'retry'
   Minitest.queue = Minitest.queue.retry_queue(
     max_requeues: 2,
-    global_max_requeues: 20,
+    requeue_tolerance: 0.5,
   )
 end

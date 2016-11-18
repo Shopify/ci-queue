@@ -3,12 +3,12 @@ module CI
     class Static
       attr_reader :progress, :total
 
-      def initialize(tests, max_requeues: 0, global_max_requeues: nil)
+      def initialize(tests, max_requeues: 0, requeue_tolerance: 0.0)
         @queue = tests
         @progress = 0
         @total = tests.size
         @max_requeues = max_requeues
-        @global_max_requeues = global_max_requeues || max_requeues
+        @global_max_requeues = (tests.size * requeue_tolerance).ceil
       end
 
       def to_a

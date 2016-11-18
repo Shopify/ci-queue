@@ -8,10 +8,10 @@ module CI
       class Worker < Base
         attr_reader :total
 
-        def initialize(tests, redis:, build_id:, worker_id:, timeout:, max_requeues: 0, global_max_requeues: nil)
+        def initialize(tests, redis:, build_id:, worker_id:, timeout:, max_requeues: 0, requeue_tolerance: 0.0)
           @reserved_test = nil
           @max_requeues = max_requeues
-          @global_max_requeues = global_max_requeues || max_requeues
+          @global_max_requeues = (tests.size * requeue_tolerance).ceil
           @shutdown_required = false
           super(redis: redis, build_id: build_id)
           @worker_id = worker_id
