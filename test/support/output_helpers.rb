@@ -11,6 +11,6 @@ module OutputHelpers
   end
 
   def freeze_timing(output)
-    output.gsub(/\s\d+\.\d+s\s/, ' X.XXs ')
+    output.gsub(/\s\d+\.\d+s/, ' X.XXs')
   end
 end

@@ -85,14 +85,14 @@ module CI
 
         def should_requeue?(test)
           individual_requeues, global_requeues = redis.multi do
-            redis.hincrby(key('requeues'), test, 1)
-            redis.hincrby(key('requeues'), '___total___'.freeze, 1)
+            redis.hincrby(key('requeues-count'), test, 1)
+            redis.hincrby(key('requeues-count'), '___total___'.freeze, 1)
           end
 
           if individual_requeues.to_i > max_requeues || global_requeues.to_i > global_max_requeues
             redis.multi do
-              redis.hincrby(key('requeues'), test, -1)
-              redis.hincrby(key('requeues'), '___total___'.freeze, -1)
+              redis.hincrby(key('requeues-count'), test, -1)
+              redis.hincrby(key('requeues-count'), '___total___'.freeze, -1)
             end
             return false
           end
