@@ -8,6 +8,15 @@ class ATest < Minitest::Test
   def test_bar
     assert false
   end
+
+  def test_flaky
+    if defined?(@@already_ran) && @@already_ran
+      assert true
+    else
+      @@already_ran = true
+      assert false
+    end
+  end
 end
 
 class BTest < Minitest::Test

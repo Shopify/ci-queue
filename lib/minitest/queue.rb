@@ -4,6 +4,46 @@ gem 'minitest-reporters', '~> 1.1'
 require 'minitest/reporters'
 
 module Minitest
+  class Requeue < Skip
+    attr_reader :failure
+
+    def initialize(failure)
+      super()
+      @failure = failure
+    end
+
+    def result_label
+      "Requeued"
+    end
+
+    def backtrace
+      failure.backtrace
+    end
+
+    def error
+      failure.error
+    end
+
+    def message
+      failure.message
+    end
+  end
+
+  module Requeueing
+    # Make requeues acts as skips for reporters not aware of the difference.
+    def skipped?
+      super || requeued?
+    end
+
+    def requeued?
+      Requeue === failure
+    end
+
+    def requeue!
+      self.failures.unshift(Requeue.new(self.failures.shift))
+    end
+  end
+
   module Queue
     attr_reader :queue
 
@@ -43,11 +83,15 @@ module Minitest
     def run_from_queue(reporter, *)
       runnable_classes = Minitest::Runnable.runnables.map { |s| [s.name, s] }.to_h
 
-      queue.poll do |msg|
-        class_name, method = msg.split("#".freeze, 2)
+      queue.poll do |test_name|
+        class_name, method_name = test_name.split("#".freeze, 2)
 
-        if suite = runnable_classes[class_name]
-          Minitest::Runnable.run_one_method(suite, method, reporter)
+        if klass = runnable_classes[class_name]
+          result = Minitest.run_one_method(klass, method_name)
+          unless queue.acknowledge(test_name, result.passed? || result.skipped?)
+            result.requeue!
+          end
+          reporter.record(result)
         else
           raise SuiteNotFound, "Couldn't find suite matching: #{msg.inspect}"
         end
@@ -57,3 +101,4 @@ module Minitest
 end
 
 MiniTest.singleton_class.prepend(MiniTest::Queue)
+MiniTest::Test.prepend(MiniTest::Requeueing)

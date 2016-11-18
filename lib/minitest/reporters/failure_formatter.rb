@@ -1,3 +1,4 @@
+require 'ansi'
 require 'delegate'
 
 module Minitest

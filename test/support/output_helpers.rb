@@ -9,4 +9,8 @@ module OutputHelpers
     indent = heredoc.scan(/^[ \t]*(?=\S)/).min.size || 0
     heredoc.gsub(/^[ \t]{#{indent}}/, '')
   end
+
+  def freeze_timing(output)
+    output.gsub(/\s\d+\.\d+s/, ' X.XXs')
+  end
 end

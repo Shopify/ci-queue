@@ -1,3 +1,4 @@
+require 'minitest/reporters'
 require 'minitest/reporters/failure_formatter'
 
 module Minitest
@@ -10,6 +11,7 @@ module Minitest
         errors
         failures
         skips
+        requeues
         total_time
       ).freeze
 
@@ -113,6 +115,10 @@ module Minitest
           fetch_summary['skips'].to_i
         end
 
+        def requeues
+          fetch_summary['requeues'].to_i
+        end
+
         def total_time
           fetch_summary['total_time'].to_f
         end
@@ -126,8 +132,8 @@ module Minitest
           [
             'Ran %d tests, %d assertions,' % [processed, assertions],
             success ? green(failures_count) : red(failures_count),
-            yellow("#{skips} skips"),
-            'in %.2fs (aggregated).' % total_time,
+            yellow("#{skips} skips, #{requeues} requeues"),
+            'in %.2fs (aggregated)' % total_time,
           ].join(' ')
         end
 
@@ -142,12 +148,15 @@ module Minitest
       end
 
       class Worker < Base
+        attr_accessor :requeues
+
         def initialize(worker_id:, **options)
           super
           @worker_id = worker_id
           self.failures = 0
           self.errors = 0
           self.skips = 0
+          self.requeues = 0
         end
 
         def report
@@ -158,7 +167,9 @@ module Minitest
           super
 
           self.total_time = Minitest.clock_time - start_time
-          if test.skipped?
+          if test.requeued?
+            self.requeues += 1
+          elsif test.skipped?
             self.skips += 1
           elsif test.error?
             self.errors += 1
