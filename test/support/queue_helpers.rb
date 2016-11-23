@@ -6,7 +6,7 @@ module QueueHelper
     queue.poll do |test|
       yield test if block_given?
       test_order << test
-      queue.acknowledge(test, success)
+      queue.acknowledge(test, success.respond_to?(:call) ? success.call(test) : success)
     end
     test_order
   end

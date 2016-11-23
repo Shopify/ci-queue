@@ -9,6 +9,27 @@ class CI::Queue::RedisTest < Minitest::Test
     @queue = worker(1, max_requeues: 1, requeue_tolerance: 0.1)
   end
 
+  def test_requeue # redefine the shared one
+    previous_offset = CI::Queue::Redis.requeue_offset
+    CI::Queue::Redis.requeue_offset = 2
+    failed_once = false
+    test_order = poll(@queue, ->(test) {
+      if test == TEST_LIST.last && !failed_once
+        failed_once = true
+        false
+      else
+        true
+      end
+    })
+
+    expected_order = TEST_LIST.dup
+    expected_order.insert(-CI::Queue::Redis.requeue_offset, TEST_LIST.last)
+
+    assert_equal expected_order, test_order
+  ensure
+    CI::Queue::Redis.requeue_offset = previous_offset
+  end
+
   def test_retry_queue
     assert_equal poll(@queue), poll(@queue.retry_queue)
   end
