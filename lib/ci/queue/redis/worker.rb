@@ -5,6 +5,11 @@ module CI
     module Redis
       ReservationError = Class.new(StandardError)
 
+      class << self
+        attr_accessor :requeue_offset
+      end
+      self.requeue_offset = 42
+
       class Worker < Base
         attr_reader :total
 
@@ -100,11 +105,24 @@ module CI
           true
         end
 
-        def requeue(test)
+        REQUEUE = %{
+          local queue_key = KEYS[1]
+          local test = ARGV[1]
+          local offset = ARGV[2]
+
+          local pivot = redis.call('lrange', queue_key, -1 - offset, 0 - offset)[1]
+          if pivot then
+            redis.call('linsert', queue_key, 'BEFORE', pivot, test)
+          else
+            redis.call('lpush', queue_key, test)
+          end
+        }
+        def requeue(test, offset: Redis.requeue_offset)
           load_script(ACKNOWLEDGE)
+          load_script(REQUEUE)
           redis.multi do
             redis.decr(key('processed'))
-            redis.rpush(key('queue'), test)
+            eval_script(REQUEUE, keys: [key('queue')], argv: [test, offset])
             ack(test)
           end
         end
