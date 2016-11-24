@@ -2,6 +2,8 @@ require 'test_helper'
 
 module Minitest::Reporters
   class RedisReporterTest < Minitest::Test
+    include ReporterTestHelper
+
     def setup
       @redis = ::Redis.new(db: 7)
       @redis.flushdb
@@ -43,13 +45,6 @@ module Minitest::Reporters
     end
 
     private
-
-    def runnable(name, failure = nil)
-      runnable = Minitest::Test.new(name)
-      runnable.failures << failure if failure
-      runnable.assertions += 1
-      runnable
-    end
 
     def worker(id)
       CI::Queue::Redis.new(
