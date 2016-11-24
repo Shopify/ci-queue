@@ -93,7 +93,7 @@ module Minitest
           end
           reporter.record(result)
         else
-          raise SuiteNotFound, "Couldn't find suite matching: #{msg.inspect}"
+          raise SuiteNotFound, "Couldn't find suite matching: #{test_name}"
         end
       end
     end
