@@ -10,10 +10,19 @@ module Integration
     end
 
     def test_redis_runner
-      output = normalize(`ruby -Itest/fixtures test/fixtures/redis-runner.rb`.lines.map(&:strip).last)
+      output = normalize(`ruby -Itest/fixtures test/fixtures/redis-runner.rb`.lines.last.strip)
       assert_equal 'Ran 8 tests, 5 assertions, 1 failures, 1 errors, 1 skips, 3 requeues in X.XXs', output
       output = normalize(`ruby -Itest/fixtures test/fixtures/redis-runner.rb retry`.lines.map(&:strip).last)
       assert_equal 'Ran 8 tests, 5 assertions, 1 failures, 1 errors, 1 skips, 3 requeues in X.XXs', output
+    end
+
+    def test_down_redis
+      previous_redis_host = ENV['REDIS_HOST']
+      ENV['REDIS_HOST'] = 'example.com'
+      output = normalize(`ruby -Itest/fixtures test/fixtures/redis-runner.rb`.lines.last.strip)
+      assert_equal 'Ran 0 tests, 0 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
+    ensure
+      ENV['REDIS_HOST'] = previous_redis_host
     end
 
     def test_redis_reporter
@@ -22,7 +31,7 @@ module Integration
         build_id: 1,
       )
 
-      output = normalize(`ruby -Itest/fixtures test/fixtures/redis-runner.rb`.lines.map(&:strip).last)
+      output = normalize(`ruby -Itest/fixtures test/fixtures/redis-runner.rb`.lines.last.strip)
       assert_equal 'Ran 8 tests, 5 assertions, 1 failures, 1 errors, 1 skips, 3 requeues in X.XXs', output
 
       io = StringIO.new

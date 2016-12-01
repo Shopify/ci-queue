@@ -45,6 +45,7 @@ module CI
               sleep 0.05
             end
           end
+        rescue ::Redis::BaseConnectionError
         end
 
         def retry_queue(**args)
@@ -193,6 +194,8 @@ module CI
               redis.set(key('master-status'), 'ready')
             end
           end
+        rescue ::Redis::BaseConnectionError
+          raise if @master
         end
       end
     end
