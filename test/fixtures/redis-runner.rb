@@ -10,7 +10,7 @@ Minitest::Reporters.use!([Minitest::Reporters::QueueReporter.new])
 
 Minitest.queue = CI::Queue::Redis.new(
   Minitest.loaded_tests,
-  redis: ::Redis.new(db: 7),
+  redis: ::Redis.new(host: ENV.fetch('REDIS_HOST', nil), db: 7, timeout: 1),
   build_id: 1,
   worker_id: 1,
   timeout: 1,
