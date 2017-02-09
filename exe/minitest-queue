@@ -1,0 +1,35 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+
+$LOAD_PATH.unshift('test/')
+require 'test_helper'
+
+require 'minitest/queue'
+
+module CLI
+  extend self
+
+  DEFAULT_OPTIONS = {}.freeze
+
+  def run
+    command
+  end
+
+  def options
+    @options ||= begin
+      options = DEFAULT_OPTIONS.dup
+      parser = OptionParser.new do |opts|
+        opts.banner = "Distributed runner for minitest"
+        opts.separator ""
+        opts.separator "Usage: minitest-queue COMMAND [OPTIONS] TEST_SUITE..."
+        opts.separator ""
+        opts.separator "Main options:"
+      end
+      parser.parse!
+      options
+    end
+  end
+end
+
+p ARGV
