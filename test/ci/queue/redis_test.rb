@@ -78,6 +78,12 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_equal TEST_LIST.sort, second_queue.retry_queue.to_a.sort
   end
 
+  def test_workers_register
+    assert_equal 1, @redis.scard(('build:42:workers'))
+    worker(2)
+    assert_equal 2, @redis.scard(('build:42:workers'))
+  end
+
   private
 
   def worker(id, **args)
