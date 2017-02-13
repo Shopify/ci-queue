@@ -5,7 +5,7 @@ module Minitest::Reporters
     include ReporterTestHelper
 
     def setup
-      @redis = ::Redis.new(db: 7)
+      @redis = ::Redis.new(db: 7, host: ENV.fetch('REDIS_HOST', nil))
       @redis.flushdb
       @queue = worker(1)
       @reporter = @queue.minitest_reporters.first

@@ -4,7 +4,7 @@ class CI::Queue::Redis::SupervisorTest < Minitest::Test
   include QueueHelper
 
   def setup
-    @redis = ::Redis.new(db: 7)
+    @redis = ::Redis.new(db: 7, host: ENV.fetch('REDIS_HOST', nil))
     @redis.flushdb
     @supervisor = supervisor
   end

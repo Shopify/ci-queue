@@ -5,7 +5,7 @@ module Integration
     include OutputHelpers
 
     def setup
-      @redis = Redis.new(db: 7)
+      @redis = Redis.new(db: 7, host: ENV.fetch('REDIS_HOST', nil))
       @redis.flushdb
     end
 
