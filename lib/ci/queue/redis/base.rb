@@ -42,6 +42,10 @@ module CI
           raise LostMaster, "The master worker is still `#{master_status}` after 10 seconds waiting."
         end
 
+        def workers_count
+          redis.scard(key('workers'))
+        end
+
         private
 
         attr_reader :redis, :build_id

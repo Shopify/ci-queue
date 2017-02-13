@@ -194,8 +194,13 @@ module CI
               redis.set(key('master-status'), 'ready')
             end
           end
+          register
         rescue ::Redis::BaseConnectionError
           raise if @master
+        end
+
+        def register
+          redis.sadd(key('workers'), worker_id)
         end
       end
     end

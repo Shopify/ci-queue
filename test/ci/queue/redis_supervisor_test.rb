@@ -37,6 +37,12 @@ class CI::Queue::Redis::SupervisorTest < Minitest::Test
     assert_equal true, workers_done
   end
 
+  def test_num_workers
+    assert_equal 0, @supervisor.workers_count
+    worker(1)
+    assert_equal 1, @supervisor.workers_count
+  end
+
   private
 
   def worker(id)
