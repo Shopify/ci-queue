@@ -4,7 +4,7 @@ class CI::Queue::RedisTest < Minitest::Test
   include SharedQueueAssertions
 
   def setup
-    @redis = ::Redis.new(db: 7)
+    @redis = ::Redis.new(db: 7, host: ENV.fetch('REDIS_HOST', nil))
     @redis.flushdb
     @queue = worker(1, max_requeues: 1, requeue_tolerance: 0.1)
   end
