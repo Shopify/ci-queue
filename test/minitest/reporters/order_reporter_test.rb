@@ -9,9 +9,9 @@ module Minitest::Reporters
       @reporter.start
     end
 
-    def test_record
-      @reporter.record(runnable('a'))
-      @reporter.record(runnable('b'))
+    def test_before_test
+      @reporter.before_test(runnable('a'))
+      @reporter.before_test(runnable('b'))
       @reporter.report
       assert_equal ['Minitest::Test#a', 'Minitest::Test#b'], File.readlines(log_path).map(&:chomp)
     end
