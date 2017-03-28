@@ -11,7 +11,8 @@ class Minitest::Reporters::OrderReporter < Minitest::Reporters::BaseReporter
     super
   end
 
-  def record(test)
+  def before_test(test)
+    super
     @file.puts("#{test.class}##{test.name}")
   end
 
