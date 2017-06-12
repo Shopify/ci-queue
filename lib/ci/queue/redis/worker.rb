@@ -19,7 +19,7 @@ module CI
           @global_max_requeues = (tests.size * requeue_tolerance).ceil
           @shutdown_required = false
           super(redis: redis, build_id: build_id)
-          @worker_id = worker_id
+          @worker_id = worker_id.to_s
           @timeout = timeout
           push(tests)
         end
@@ -90,12 +90,13 @@ module CI
         attr_reader :worker_id, :timeout, :max_requeues, :global_max_requeues
 
         def should_requeue?(test)
-          individual_requeues, global_requeues = redis.multi do
+          individual_requeues, global_requeues, owner = redis.multi do
             redis.hincrby(key('requeues-count'), test, 1)
             redis.hincrby(key('requeues-count'), '___total___'.freeze, 1)
+            redis.hget(key('owners'), test)
           end
 
-          if individual_requeues.to_i > max_requeues || global_requeues.to_i > global_max_requeues
+          if owner != worker_id || individual_requeues.to_i > max_requeues || global_requeues.to_i > global_max_requeues
             redis.multi do
               redis.hincrby(key('requeues-count'), test, -1)
               redis.hincrby(key('requeues-count'), '___total___'.freeze, -1)
@@ -140,48 +141,71 @@ module CI
         RESERVE_TEST = %{
           local queue_key = KEYS[1]
           local zset_key = KEYS[2]
-          local current_time = ARGV[1]
+          local owners_key = KEYS[3]
+          local worker_id = ARGV[1]
+          local current_time = ARGV[2]
 
           local test = redis.call('rpop', queue_key)
           if test then
             redis.call('zadd', zset_key, current_time, test)
+            redis.call('hset', owners_key, test, worker_id)
             return test
           else
             return nil
           end
         }
         def try_to_reserve_test
-          eval_script(RESERVE_TEST, keys: [key('queue'), key('running')], argv: [Time.now.to_f])
+          eval_script(
+            RESERVE_TEST,
+            keys: [key('queue'), key('running'), key('owners')],
+            argv: [worker_id, Time.now.to_f],
+          )
         end
 
         RESERVE_LOST_TEST = %{
           local zset_key = KEYS[1]
-          local current_time = ARGV[1]
-          local timeout = ARGV[2]
+          local owners_key = KEYS[2]
+          local worker_id = ARGV[1]
+          local current_time = ARGV[2]
+          local timeout = ARGV[3]
 
           local test = redis.call('zrangebyscore', zset_key, 0, current_time - timeout)[1]
           if test then
             redis.call('zadd', zset_key, current_time, test)
+            redis.call('hset', owners_key, test, worker_id)
             return test
           else
             return nil
           end
         }
         def try_to_reserve_lost_test
-          eval_script(RESERVE_LOST_TEST, keys: [key('running')], argv: [Time.now.to_f, timeout])
+          eval_script(
+            RESERVE_LOST_TEST,
+            keys: [key('running'), key('owners')],
+            argv: [worker_id, Time.now.to_f, timeout],
+          )
         end
 
         ACKNOWLEDGE = %{
           local zset_key = KEYS[1]
           local processed_count_key = KEYS[2]
-          local test = ARGV[1]
+          local owners_key = KEYS[3]
+          local worker_id = ARGV[1]
+          local test = ARGV[2]
 
-          if redis.call('zrem', zset_key, test) == 1 then
-            redis.call('incr', processed_count_key)
+          if redis.call('hget', owners_key, test) == worker_id then
+            redis.call('hdel', owners_key, test)
+            if redis.call('zrem', zset_key, test) == 1 then
+              redis.call('incr', processed_count_key)
+            end
           end
         }
         def ack(test)
-          eval_script(ACKNOWLEDGE, keys: [key('running'), key('processed')], argv: [test])
+          eval_script(
+            ACKNOWLEDGE,
+            keys: [key('running'), key('processed'), key('owners')],
+            argv: [worker_id, test],
+          )
           redis.lpush(key('worker', worker_id, 'queue'), test)
         end
 
