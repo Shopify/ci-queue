@@ -78,6 +78,34 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_equal TEST_LIST.sort, second_queue.retry_queue.to_a.sort
   end
 
+  def test_test_isnt_requeued_if_it_was_acknowledged_by_another_worker
+    second_queue = worker(2)
+    acquired = false
+    done = false
+    monitor = Monitor.new
+    condition = monitor.new_cond
+
+    thread = Thread.start do
+      monitor.synchronize do
+        condition.wait_until { acquired }
+        poll(second_queue)
+        done = true
+        condition.signal
+      end
+    end
+
+    poll(@queue, false) do
+      break if acquired
+      acquired = true
+      monitor.synchronize do
+        condition.signal
+        condition.wait_until { done }
+      end
+    end
+
+    assert_predicate @queue, :empty?
+  end
+
   def test_workers_register
     assert_equal 1, @redis.scard(('build:42:workers'))
     worker(2)
