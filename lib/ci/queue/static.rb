@@ -30,12 +30,14 @@ module CI
         @queue.empty?
       end
 
-      def acknowledge(test, success)
-        if !success && should_requeue?(test)
-          requeue(test)
-          return false
-        end
-        
+      def acknowledge(test)
+        true
+      end
+
+      def requeue(test)
+        return false unless should_requeue?(test)
+        requeues[test] += 1
+        @queue.unshift(test)
         true
       end
 
@@ -45,11 +47,6 @@ module CI
 
       def should_requeue?(test)
         requeues[test] < max_requeues && requeues.values.inject(0, :+) < global_max_requeues
-      end
-
-      def requeue(test)
-        requeues[test] += 1
-        @queue.unshift(test)
       end
 
       def requeues

@@ -51,4 +51,10 @@ module SharedQueueAssertions
   def test_requeue
     assert_equal [TEST_LIST.first, *TEST_LIST], poll(@queue, false)
   end
+
+  def test_acknowledge
+    @queue.poll do |test|
+      assert_equal true, @queue.acknowledge(test)
+    end
+  end
 end

@@ -69,25 +69,49 @@ module CI
           ]
         end
 
-        def acknowledge(test, success)
-          if @reserved_test == test
-            @reserved_test = nil
-          else
-            raise ReservationError, "Acknowledged #{test.inspect} but #{@reserved_test.inspect} was reserved"
-          end
+        def acknowledge(test)
+          raise_on_mismatching_test(test)
+          ack(test)
+        end
 
-          if !success && should_requeue?(test)
-            requeue(test)
-            false
+        REQUEUE = %{
+          local queue_key = KEYS[1]
+          local test = ARGV[1]
+          local offset = ARGV[2]
+
+          local pivot = redis.call('lrange', queue_key, -1 - offset, 0 - offset)[1]
+          if pivot then
+            redis.call('linsert', queue_key, 'BEFORE', pivot, test)
           else
-            ack(test)
-            true
+            redis.call('lpush', queue_key, test)
           end
+        }
+        def requeue(test, offset: Redis.requeue_offset)
+          return false unless should_requeue?(test) # TODO(byroot): inline `should_requeue?` to avoid race condition
+
+          raise_on_mismatching_test(test)
+
+          load_script(ACKNOWLEDGE)
+          load_script(REQUEUE)
+          redis.multi do
+            redis.decr(key('processed'))
+            eval_script(REQUEUE, keys: [key('queue')], argv: [test, offset])
+            ack(test)
+          end
+          true
         end
 
         private
 
         attr_reader :worker_id, :timeout, :max_requeues, :global_max_requeues
+
+        def raise_on_mismatching_test(test)
+          if @reserved_test == test
+            @reserved_test = nil
+          else
+            raise ReservationError, "Acknowledged #{test.inspect} but #{@reserved_test.inspect} was reserved"
+          end
+        end
 
         def should_requeue?(test)
           individual_requeues, global_requeues, owner = redis.multi do
@@ -105,28 +129,6 @@ module CI
           end
 
           true
-        end
-
-        REQUEUE = %{
-          local queue_key = KEYS[1]
-          local test = ARGV[1]
-          local offset = ARGV[2]
-
-          local pivot = redis.call('lrange', queue_key, -1 - offset, 0 - offset)[1]
-          if pivot then
-            redis.call('linsert', queue_key, 'BEFORE', pivot, test)
-          else
-            redis.call('lpush', queue_key, test)
-          end
-        }
-        def requeue(test, offset: Redis.requeue_offset)
-          load_script(ACKNOWLEDGE)
-          load_script(REQUEUE)
-          redis.multi do
-            redis.decr(key('processed'))
-            eval_script(REQUEUE, keys: [key('queue')], argv: [test, offset])
-            ack(test)
-          end
         end
 
         def reserve
@@ -197,16 +199,19 @@ module CI
             redis.call('hdel', owners_key, test)
             if redis.call('zrem', zset_key, test) == 1 then
               redis.call('incr', processed_count_key)
+              return true
             end
           end
+
+          return false
         }
         def ack(test)
+          redis.lpush(key('worker', worker_id, 'queue'), test)
           eval_script(
             ACKNOWLEDGE,
             keys: [key('running'), key('processed'), key('owners')],
             argv: [worker_id, test],
-          )
-          redis.lpush(key('worker', worker_id, 'queue'), test)
+          ) == 1
         end
 
         def push(tests)

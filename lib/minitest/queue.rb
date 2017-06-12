@@ -88,10 +88,15 @@ module Minitest
 
         if klass = runnable_classes[class_name]
           result = Minitest.run_one_method(klass, method_name)
-          unless queue.acknowledge(test_name, result.passed? || result.skipped?)
+          failed = !(result.passed? || result.skipped?)
+          if failed && queue.requeue(test_name)
             result.requeue!
+            reporter.record(result)
+          elsif queue.acknowledge(test_name) || !failed
+            # If the test was already acknowledged by another worker (we timed out)
+            # Then we only record it if it is successful.
+            reporter.record(result)
           end
-          reporter.record(result)
         else
           raise SuiteNotFound, "Couldn't find suite matching: #{test_name}"
         end

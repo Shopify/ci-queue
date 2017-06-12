@@ -74,11 +74,12 @@ class CI::Queue::RedisTest < Minitest::Test
       end
     end
 
+    assert_predicate @queue, :empty?
     assert_equal [TEST_LIST.first], @queue.retry_queue.to_a
     assert_equal TEST_LIST.sort, second_queue.retry_queue.to_a.sort
   end
 
-  def test_test_isnt_requeued_if_it_was_acknowledged_by_another_worker
+  def test_test_isnt_requeued_if_it_was_picked_up_by_another_worker
     second_queue = worker(2)
     acquired = false
     done = false
@@ -100,6 +101,37 @@ class CI::Queue::RedisTest < Minitest::Test
       monitor.synchronize do
         condition.signal
         condition.wait_until { done }
+      end
+    end
+
+    assert_predicate @queue, :empty?
+  end
+
+  def test_acknowledge_returns_false_if_the_test_was_picked_up_by_another_worker
+    second_queue = worker(2)
+    acquired = false
+    done = false
+    monitor = Monitor.new
+    condition = monitor.new_cond
+
+    thread = Thread.start do
+      monitor.synchronize do
+        condition.wait_until { acquired }
+        second_queue.poll do |test|
+          assert_equal true, second_queue.acknowledge(test)
+        end
+        done = true
+        condition.signal
+      end
+    end
+
+    @queue.poll do |test|
+      break if acquired
+      acquired = true
+      monitor.synchronize do
+        condition.signal
+        condition.wait_until { done }
+        assert_equal false, @queue.acknowledge(test)
       end
     end
 
