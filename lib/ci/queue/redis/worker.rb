@@ -78,6 +78,7 @@ module CI
           local owners_key = KEYS[1]
           local requeues_count_key = KEYS[2]
           local queue_key = KEYS[3]
+          local zset_key = KEYS[4]
 
           local worker_id = ARGV[1]
           local max_requeues = tonumber(ARGV[2])
@@ -109,25 +110,22 @@ module CI
             redis.call('lpush', queue_key, test)
           end
 
+          redis.call('hdel', owners_key, test)
+          redis.call('zrem', zset_key, test)
+
           return true
         }
         def requeue(test, offset: Redis.requeue_offset)
           raise_on_mismatching_test(test)
 
-          requeued = p(eval_script(
+          requeued = eval_script(
             REQUEUE,
-            keys: [key('owners'), key('requeues-count'), key('queue')],
+            keys: [key('owners'), key('requeues-count'), key('queue'), key('running')],
             argv: [worker_id, max_requeues, global_max_requeues, test, offset],
-          )) == 1
+          ) == 1
 
-          if requeued
-            # TODO(byroot): there is still a race condition left between the requeue and the ack
-            ack(test, processed: false)
-            true
-          else
-            @reserved_test = test
-            false
-          end
+          @reserved_test = test unless requeued
+          requeued
         end
 
         private
@@ -206,26 +204,23 @@ module CI
 
           local worker_id = ARGV[1]
           local test = ARGV[2]
-          local processed = ARGV[3] == '1'
 
           if redis.call('hget', owners_key, test) == worker_id then
             redis.call('hdel', owners_key, test)
             if redis.call('zrem', zset_key, test) == 1 then
-              if processed then
-                redis.call('incr', processed_count_key)
-              end
+              redis.call('incr', processed_count_key)
               return true
             end
           end
 
           return false
         }
-        def ack(test, processed: true)
+        def ack(test)
           redis.lpush(key('worker', worker_id, 'queue'), test)
           eval_script(
             ACKNOWLEDGE,
             keys: [key('running'), key('processed'), key('owners')],
-            argv: [worker_id, test, processed ? '1' : '0'],
+            argv: [worker_id, test],
           ) == 1
         end
 
