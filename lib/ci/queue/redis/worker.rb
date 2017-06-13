@@ -69,9 +69,24 @@ module CI
           ]
         end
 
+
+        ACKNOWLEDGE = %{
+          local zset_key = KEYS[1]
+          local processed_key = KEYS[2]
+
+          local worker_id = ARGV[1]
+          local test = ARGV[2]
+
+          redis.call('zrem', zset_key, test)
+          return redis.call('sadd', processed_key, test)
+        }
         def acknowledge(test)
           raise_on_mismatching_test(test)
-          ack(test)
+          eval_script(
+            ACKNOWLEDGE,
+            keys: [key('running'), key('processed')],
+            argv: [worker_id, test],
+          ) == 1
         end
 
         REQUEUE = %{
@@ -151,21 +166,24 @@ module CI
           local queue_key = KEYS[1]
           local zset_key = KEYS[2]
           local processed_key = KEYS[3]
+          local worker_queue_key = KEYS[4]
 
           local current_time = ARGV[1]
 
           local test = redis.call('rpop', queue_key)
           if test then
             redis.call('zadd', zset_key, current_time, test)
+            redis.call('lpush', worker_queue_key, test)
             return test
           else
             return nil
           end
         }
+
         def try_to_reserve_test
           eval_script(
             RESERVE_TEST,
-            keys: [key('queue'), key('running'), key('processed')],
+            keys: [key('queue'), key('running'), key('processed'), key('worker', worker_id, 'queue')],
             argv: [Time.now.to_f],
           )
         end
@@ -173,6 +191,8 @@ module CI
         RESERVE_LOST_TEST = %{
           local zset_key = KEYS[1]
           local processed_key = KEYS[2]
+          local worker_queue_key = KEYS[3]
+
           local current_time = ARGV[1]
           local timeout = ARGV[2]
 
@@ -180,6 +200,7 @@ module CI
           for _, test in ipairs(lost_tests) do
             if redis.call('sismember', processed_key, test) == 0 then
               redis.call('zadd', zset_key, current_time, test)
+              redis.call('lpush', worker_queue_key, test)
               return test
             end
           end
@@ -189,28 +210,9 @@ module CI
         def try_to_reserve_lost_test
           eval_script(
             RESERVE_LOST_TEST,
-            keys: [key('running'), key('completed')],
+            keys: [key('running'), key('completed'), key('worker', worker_id, 'queue')],
             argv: [Time.now.to_f, timeout],
           )
-        end
-
-        ACKNOWLEDGE = %{
-          local zset_key = KEYS[1]
-          local processed_key = KEYS[2]
-
-          local worker_id = ARGV[1]
-          local test = ARGV[2]
-
-          redis.call('zrem', zset_key, test)
-          return redis.call('sadd', processed_key, test)
-        }
-        def ack(test)
-          redis.lpush(key('worker', worker_id, 'queue'), test)
-          eval_script(
-            ACKNOWLEDGE,
-            keys: [key('running'), key('processed')],
-            argv: [worker_id, test],
-          ) == 1
         end
 
         def push(tests)
