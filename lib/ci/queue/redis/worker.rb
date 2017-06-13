@@ -75,9 +75,32 @@ module CI
         end
 
         REQUEUE = %{
-          local queue_key = KEYS[1]
-          local test = ARGV[1]
-          local offset = ARGV[2]
+          local owners_key = KEYS[1]
+          local requeues_count_key = KEYS[2]
+          local queue_key = KEYS[3]
+
+          local worker_id = ARGV[1]
+          local max_requeues = tonumber(ARGV[2])
+          local global_max_requeues = tonumber(ARGV[3])
+          local test = ARGV[4]
+          local offset = ARGV[5]
+
+          if not (redis.call('hget', owners_key, test) == worker_id) then
+            return false
+          end
+
+          local global_requeues = tonumber(redis.call('hget', requeues_count_key, '___total___'))
+          if global_requeues and global_requeues >= tonumber(global_max_requeues) then
+            return false
+          end
+
+          local requeues = tonumber(redis.call('hget', requeues_count_key, test))
+          if requeues and requeues >= max_requeues then
+            return false
+          end
+
+          redis.call('hincrby', requeues_count_key, '___total___', 1)
+          redis.call('hincrby', requeues_count_key, test, 1)
 
           local pivot = redis.call('lrange', queue_key, -1 - offset, 0 - offset)[1]
           if pivot then
@@ -85,20 +108,26 @@ module CI
           else
             redis.call('lpush', queue_key, test)
           end
+
+          return true
         }
         def requeue(test, offset: Redis.requeue_offset)
-          return false unless should_requeue?(test) # TODO(byroot): inline `should_requeue?` to avoid race condition
-
           raise_on_mismatching_test(test)
 
-          load_script(ACKNOWLEDGE)
-          load_script(REQUEUE)
-          redis.multi do
-            redis.decr(key('processed'))
-            eval_script(REQUEUE, keys: [key('queue')], argv: [test, offset])
-            ack(test)
+          requeued = p(eval_script(
+            REQUEUE,
+            keys: [key('owners'), key('requeues-count'), key('queue')],
+            argv: [worker_id, max_requeues, global_max_requeues, test, offset],
+          )) == 1
+
+          if requeued
+            # TODO(byroot): there is still a race condition left between the requeue and the ack
+            ack(test, processed: false)
+            true
+          else
+            @reserved_test = test
+            false
           end
-          true
         end
 
         private
@@ -111,24 +140,6 @@ module CI
           else
             raise ReservationError, "Acknowledged #{test.inspect} but #{@reserved_test.inspect} was reserved"
           end
-        end
-
-        def should_requeue?(test)
-          individual_requeues, global_requeues, owner = redis.multi do
-            redis.hincrby(key('requeues-count'), test, 1)
-            redis.hincrby(key('requeues-count'), '___total___'.freeze, 1)
-            redis.hget(key('owners'), test)
-          end
-
-          if owner != worker_id || individual_requeues.to_i > max_requeues || global_requeues.to_i > global_max_requeues
-            redis.multi do
-              redis.hincrby(key('requeues-count'), test, -1)
-              redis.hincrby(key('requeues-count'), '___total___'.freeze, -1)
-            end
-            return false
-          end
-
-          true
         end
 
         def reserve
@@ -192,25 +203,29 @@ module CI
           local zset_key = KEYS[1]
           local processed_count_key = KEYS[2]
           local owners_key = KEYS[3]
+
           local worker_id = ARGV[1]
           local test = ARGV[2]
+          local processed = ARGV[3] == '1'
 
           if redis.call('hget', owners_key, test) == worker_id then
             redis.call('hdel', owners_key, test)
             if redis.call('zrem', zset_key, test) == 1 then
-              redis.call('incr', processed_count_key)
+              if processed then
+                redis.call('incr', processed_count_key)
+              end
               return true
             end
           end
 
           return false
         }
-        def ack(test)
+        def ack(test, processed: true)
           redis.lpush(key('worker', worker_id, 'queue'), test)
           eval_script(
             ACKNOWLEDGE,
             keys: [key('running'), key('processed'), key('owners')],
-            argv: [worker_id, test],
+            argv: [worker_id, test, processed ? '1' : '0'],
           ) == 1
         end
 
