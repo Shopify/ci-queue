@@ -64,7 +64,12 @@ module CI
 
         def load_script(script)
           @scripts_cache ||= {}
-          @scripts_cache[script] ||= redis.script(:load, script)
+          @scripts_cache[script] ||= redis.script(:load, read_script(script))
+        end
+
+        SCRIPTS_ROOT = ::File.expand_path('../../../../../redis', __FILE__)
+        def read_script(name)
+          ::File.read(::File.join(SCRIPTS_ROOT, "#{name}.lua"))
         end
       end
     end
