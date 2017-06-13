@@ -8,3 +8,5 @@
 /pkg/
 /spec/reports/
 /tmp/
+/lib/ci/queue/redis/*.lua
+
