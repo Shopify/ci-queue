@@ -144,11 +144,36 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_equal 2, @redis.scard(('build:42:workers'))
   end
 
+  def test_continuously_timing_out_tests
+    3.times do
+      @redis.flushdb
+      begin
+        threads = 2.times.map do |i|
+          Thread.new do
+            queue = worker(i, tests: %w(a), build_id: '24')
+            queue.poll do |test|
+              sleep 1 # timeout
+              queue.acknowledge(test)
+            end
+          end
+        end
+
+        threads.each { |t| t.join(3) }
+        threads.each { |t| refute_predicate t, :alive? }
+
+        assert_predicate @queue, :empty?
+      ensure
+        threads.each(&:kill)
+      end
+    end
+  end
+
   private
 
   def worker(id, **args)
+    test_list = args.delete(:tests) || TEST_LIST.dup
     CI::Queue::Redis.new(
-      TEST_LIST.dup,
+      test_list,
       redis: @redis,
       build_id: '42',
       worker_id: id.to_s,

@@ -64,7 +64,7 @@ module Minitest
         end
 
         def processed
-          redis.get(key('processed')).to_i
+          redis.scard(key('processed')).to_i
         end
 
         def completed?

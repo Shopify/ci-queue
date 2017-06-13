@@ -75,18 +75,17 @@ module CI
         end
 
         REQUEUE = %{
-          local owners_key = KEYS[1]
+          local processed_key = KEYS[1]
           local requeues_count_key = KEYS[2]
           local queue_key = KEYS[3]
           local zset_key = KEYS[4]
 
-          local worker_id = ARGV[1]
-          local max_requeues = tonumber(ARGV[2])
-          local global_max_requeues = tonumber(ARGV[3])
-          local test = ARGV[4]
-          local offset = ARGV[5]
+          local max_requeues = tonumber(ARGV[1])
+          local global_max_requeues = tonumber(ARGV[2])
+          local test = ARGV[3]
+          local offset = ARGV[4]
 
-          if not (redis.call('hget', owners_key, test) == worker_id) then
+          if redis.call('sismember', processed_key, test) == 1 then
             return false
           end
 
@@ -110,7 +109,6 @@ module CI
             redis.call('lpush', queue_key, test)
           end
 
-          redis.call('hdel', owners_key, test)
           redis.call('zrem', zset_key, test)
 
           return true
@@ -120,8 +118,8 @@ module CI
 
           requeued = eval_script(
             REQUEUE,
-            keys: [key('owners'), key('requeues-count'), key('queue'), key('running')],
-            argv: [worker_id, max_requeues, global_max_requeues, test, offset],
+            keys: [key('processed'), key('requeues-count'), key('queue'), key('running')],
+            argv: [max_requeues, global_max_requeues, test, offset],
           ) == 1
 
           @reserved_test = test unless requeued
@@ -152,14 +150,13 @@ module CI
         RESERVE_TEST = %{
           local queue_key = KEYS[1]
           local zset_key = KEYS[2]
-          local owners_key = KEYS[3]
-          local worker_id = ARGV[1]
-          local current_time = ARGV[2]
+          local processed_key = KEYS[3]
+
+          local current_time = ARGV[1]
 
           local test = redis.call('rpop', queue_key)
           if test then
             redis.call('zadd', zset_key, current_time, test)
-            redis.call('hset', owners_key, test, worker_id)
             return test
           else
             return nil
@@ -168,58 +165,50 @@ module CI
         def try_to_reserve_test
           eval_script(
             RESERVE_TEST,
-            keys: [key('queue'), key('running'), key('owners')],
-            argv: [worker_id, Time.now.to_f],
+            keys: [key('queue'), key('running'), key('processed')],
+            argv: [Time.now.to_f],
           )
         end
 
         RESERVE_LOST_TEST = %{
           local zset_key = KEYS[1]
-          local owners_key = KEYS[2]
-          local worker_id = ARGV[1]
-          local current_time = ARGV[2]
-          local timeout = ARGV[3]
+          local processed_key = KEYS[2]
+          local current_time = ARGV[1]
+          local timeout = ARGV[2]
 
-          local test = redis.call('zrangebyscore', zset_key, 0, current_time - timeout)[1]
-          if test then
-            redis.call('zadd', zset_key, current_time, test)
-            redis.call('hset', owners_key, test, worker_id)
-            return test
-          else
-            return nil
+          local lost_tests = redis.call('zrangebyscore', zset_key, 0, current_time - timeout)
+          for _, test in ipairs(lost_tests) do
+            if redis.call('sismember', processed_key, test) == 0 then
+              redis.call('zadd', zset_key, current_time, test)
+              return test
+            end
           end
+
+          return nil
         }
         def try_to_reserve_lost_test
           eval_script(
             RESERVE_LOST_TEST,
-            keys: [key('running'), key('owners')],
-            argv: [worker_id, Time.now.to_f, timeout],
+            keys: [key('running'), key('completed')],
+            argv: [Time.now.to_f, timeout],
           )
         end
 
         ACKNOWLEDGE = %{
           local zset_key = KEYS[1]
-          local processed_count_key = KEYS[2]
-          local owners_key = KEYS[3]
+          local processed_key = KEYS[2]
 
           local worker_id = ARGV[1]
           local test = ARGV[2]
 
-          if redis.call('hget', owners_key, test) == worker_id then
-            redis.call('hdel', owners_key, test)
-            if redis.call('zrem', zset_key, test) == 1 then
-              redis.call('incr', processed_count_key)
-              return true
-            end
-          end
-
-          return false
+          redis.call('zrem', zset_key, test)
+          return redis.call('sadd', processed_key, test)
         }
         def ack(test)
           redis.lpush(key('worker', worker_id, 'queue'), test)
           eval_script(
             ACKNOWLEDGE,
-            keys: [key('running'), key('processed'), key('owners')],
+            keys: [key('running'), key('processed')],
             argv: [worker_id, test],
           ) == 1
         end
