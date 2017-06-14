@@ -1,0 +1,12 @@
+/.byebug_history
+/.bundle/
+/.yardoc
+/Gemfile.lock
+/_yardoc/
+/coverage/
+/doc/
+/pkg/
+/spec/reports/
+/tmp/
+/lib/ci/queue/redis/*.lua
+

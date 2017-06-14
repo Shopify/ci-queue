@@ -67,9 +67,10 @@ module CI
           @scripts_cache[script] ||= redis.script(:load, read_script(script))
         end
 
-        SCRIPTS_ROOT = ::File.expand_path('../../../../../redis', __FILE__)
         def read_script(name)
-          ::File.read(::File.join(SCRIPTS_ROOT, "#{name}.lua"))
+          ::File.read(::File.join(DEV_SCRIPTS_ROOT, "#{name}.lua"))
+        rescue SystemCallError
+          ::File.read(::File.join(RELEASE_SCRIPTS_ROOT, "#{name}.lua"))
         end
       end
     end

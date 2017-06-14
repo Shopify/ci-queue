@@ -2,6 +2,10 @@
 lib = File.expand_path('../lib', __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 require 'ci/queue/version'
+require 'pathname'
+
+dir = Pathname.new(CI::Queue::RELEASE_SCRIPTS_ROOT).relative_path_from(Pathname.new(__dir__).realpath)
+lua_scripts = Dir[dir.join('*.lua').to_s]
 
 Gem::Specification.new do |spec|
   spec.name          = 'ci-queue'
@@ -14,9 +18,10 @@ Gem::Specification.new do |spec|
   spec.homepage      = 'https://github.com/Shopify/ci-queue'
   spec.license       = 'MIT'
 
-  spec.files         = `git ls-files -z`.split("\x0").reject do |f|
+  spec.files         = lua_scripts + `git ls-files -z`.split("\x0").reject do |f|
     f.match(%r{^(test|spec|features)/})
   end
+
   spec.bindir        = 'exe'
   spec.executables   = spec.files.grep(%r{^exe/}) { |f| File.basename(f) }
   spec.require_paths = ['lib']
