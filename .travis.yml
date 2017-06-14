@@ -5,5 +5,11 @@ language: ruby
 rvm:
   - '2.3'
 before_install:
-  - cd ruby
   - gem install bundler -v 1.5.1
+  - cd python
+  - pip install --user -r requirements.txt
+  - cd ../ruby
+
+after_script:
+  - cd ../python
+  - PYTHONPATH='.' py.test tests/

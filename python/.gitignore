@@ -1,4 +1,5 @@
 tests/__pycache__
 *.pyc
 .cache
+*.egg-info/
 
