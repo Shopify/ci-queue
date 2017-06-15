@@ -1,2 +1,3 @@
-from static import Static
-from file import File
+from ciqueue.static import Static
+from ciqueue.file import File
+import distributed

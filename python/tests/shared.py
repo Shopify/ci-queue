@@ -1,9 +1,9 @@
 class QueueImplementation(object):
   TEST_LIST = [
-    'ATest#test_foo'
-    'ATest#test_bar'
-    'BTest#test_foo'
-    'BTest#test_bar'
+    'ATest#test_foo',
+    'ATest#test_bar',
+    'BTest#test_foo',
+    'BTest#test_bar',
   ]
 
   def test_progress(self):
@@ -43,3 +43,10 @@ class QueueImplementation(object):
 
     for test in queue:
       assert queue.acknowledge(test) is True
+
+  def work_off(self, queue):
+    test_order = []
+    for test in queue:
+      test_order.append(test)
+      queue.acknowledge(test)
+    return test_order
