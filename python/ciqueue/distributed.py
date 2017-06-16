@@ -135,9 +135,12 @@ class Worker(Base):
 
   def _eval_script(self, script_name, keys=[], args=[]):
     if not script_name in self._scripts:
-      # TODO(byroot): Handle packaging of scripts inside the egg
-      relative_path = '../../redis/' + script_name + '.lua'
-      path = os.path.join(os.path.dirname(__file__), relative_path)
+      filename = 'redis/' + script_name + '.lua'
+
+      path = os.path.join(os.path.dirname(__file__), '../../', filename)
+      if not os.path.exists(path):
+        path = os.path.join(os.path.dirname(__file__), filename)
+
       with open(path) as f:
         self._scripts[script_name] = self.redis.register_script(f.read())
     
