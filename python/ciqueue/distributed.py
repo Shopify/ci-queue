@@ -112,11 +112,12 @@ class Worker(Base):
     return self._try_to_reserve_lost_test() or self._try_to_reserve_test()
 
   def _try_to_reserve_lost_test(self):
-    return self._eval_script(
-      'reserve_lost',
-      keys=[self.key('running'), self.key('completed'), self.key('worker', self.worker_id, 'queue')],
-      args=[time.time(), self.timeout],
-    )
+    if self.timeout:
+      return self._eval_script(
+        'reserve_lost',
+        keys=[self.key('running'), self.key('completed'), self.key('worker', self.worker_id, 'queue')],
+        args=[time.time(), self.timeout],
+      )
 
   def _try_to_reserve_test(self):
     return self._eval_script(

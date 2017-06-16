@@ -1,0 +1,3 @@
+tests/shared.py@TestStatic.test_len
+tests/shared.py@TestDistributed.test_acknowledge
+tests/shared.py@TestStatic.test_requeue
