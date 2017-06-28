@@ -8,7 +8,7 @@ Distribute tests over many workers using a queue.
 ## Why a queue?
 
 One big problem with distributed test suites, is test imbalance. Meaning that one worker would spend 10 minutes while all the others are done after 1 minute.
-There is algorithms available to balance perfectly your workers, but in practice your test performance tend to vary, and it's easier to consider tests as work unit in a queue and let workers pop them as fast as possible.
+There are algorithms available to balance perfectly your workers, but in practice your test performance tend to vary, and it's easier to consider tests as work unit in a queue and let workers pop them as fast as possible.
 
 Another advantage is that if you lose workers along the way, using a queue the other workers can pick up the job, making you resilient to failures.
 
