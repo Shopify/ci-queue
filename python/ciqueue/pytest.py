@@ -1,7 +1,8 @@
-from StringIO import StringIO
-import py.io
-import ciqueue
-import ciqueue.distributed
+from __future__ import absolute_import
+from tblib import pickling_support
+pickling_support.install()
+import pickle
+import pytest
 from ciqueue.pytest_queue_url import build_queue
 
 
@@ -13,68 +14,28 @@ def pytest_addoption(parser):
 
 
 class RedisReporter(object):
-    class TestCase(object):
-        def __init__(self):
-            self.passed = False
-            self.failed = False
-            self.messages = []
-
-        def append_pass(self, report):
-            self.passed = True
-
-        def append_failure(self, report):
-            self.failed = True
-            self.messages.append(self._serialize(report))
-
-        def __str__(self):
-            if self.failed:
-                return "\n".join(self.messages)
-            return ''
-
-        def _serialize(self, report):
-            io = StringIO()
-            io.isatty = lambda: True
-            tw = py.io.TerminalWriter(file=io)
-            report.longrepr.toterminal(tw)
-            io.seek(0)
-            return io.read()
 
     def __init__(self, config, queue):
         self.config = config
         self.redis = queue.redis
         self.errors_key = queue.key('error-reports')
-        self.reporter = self.TestCase()
 
-    def __str__(self):
-        errors = self.redis.hgetall(self.errors_key)
-        if errors:
-            return "\n".join(errors.values())
-        return ''
-
-    def finalize(self, report):
-        old_reporter = self.reporter
-        self.reporter = self.TestCase()
-
-        if old_reporter.passed:
-            self.redis.hdel(self.errors_key, ItemIndex.key(report))
-        elif old_reporter.failed:
+    def pytest_runtest_makereport(self, item, call):
+        if call.excinfo:
+            if not hasattr(item, 'error_reports'):
+                item.error_reports = {call.when: call.__dict__}
+            else:
+                item.error_reports[call.when] = call.__dict__
             self.redis.hset(
                 self.errors_key,
-                ItemIndex.key(report),
-                str(old_reporter))
-
-    def pytest_runtest_logreport(self, report):
-        if report.passed:
-            if report.when == "call":  # ignore setup/teardown
-                self.reporter.append_pass(report)
-        elif report.failed:
-            self.reporter.append_failure(report)
-
-        if report.when == "teardown":
-            self.finalize(report)
+                ItemIndex.key(item),
+                pickle.dumps(item.error_reports))
+        elif call.when == 'teardown' and not hasattr(item, 'error_reports'):
+            self.redis.hdel(self.errors_key, ItemIndex.key(item))
 
 
 class ItemIndex(object):
+
     def __init__(self, items):
         self.index = dict((self.key(i), i) for i in items)
 
@@ -97,6 +58,7 @@ class ItemIndex(object):
 
 
 class ItemList(object):
+
     def __init__(self, index, queue):
         self.index = index
         self.queue = queue
@@ -116,6 +78,7 @@ class ItemList(object):
             self.queue.acknowledge(test)
 
 
+@pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(session, config, items):
     tests_index = ItemIndex(items)
     queue = build_queue(config.getoption('queue'), tests_index)

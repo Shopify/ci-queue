@@ -26,7 +26,7 @@ lint:
 autolint: autopep8 lint
 
 run_tests: clean
-	py.test --durations=10 .
+	py.test --durations=10 tests
 
 test: autopep8 run_tests lint
 
@@ -42,4 +42,3 @@ upload_test: release
 
 upload_pypi: release
 	@twine upload dist/* -r pypi
-

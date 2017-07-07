@@ -1,6 +1,8 @@
 import ciqueue
+import ciqueue.distributed
 import redis
-from urlparse import urlparse, parse_qs
+from urlparse import parse_qs
+from uritools import urisplit
 
 
 class InvalidRedisUrl(Exception):
@@ -10,11 +12,13 @@ class InvalidRedisUrl(Exception):
 def parse_redis_args(query_string):
     args = parse_qs(query_string)
 
-    if not 'worker' in args or not args['worker']:
-        raise InvalidRedisUrl("Missing `worker` parameter")
+    if 'worker' not in args or not args['worker']:
+        raise InvalidRedisUrl("Missing `worker` parameter in {}"
+                              .format(query_string))
 
-    if not 'build' in args or not args['build']:
-        raise InvalidRedisUrl("Missing `build` parameter")
+    if 'build' not in args or not args['build']:
+        raise InvalidRedisUrl("Missing `build` parameter in {}"
+                              .format(query_string))
 
     return {
         'worker_id': args['worker'][0],
@@ -27,17 +31,18 @@ def parse_redis_args(query_string):
 
 
 def build_queue(queue_url, tests_index=None):
-    spec = urlparse(queue_url)
+    spec = urisplit(queue_url)
     if spec.scheme == 'list':
         return ciqueue.Static(spec.path.split(':'))
     elif spec.scheme == 'file':
         return ciqueue.File(spec.path)
     elif spec.scheme == 'redis':
-        redis_options = {'host': spec.hostname}
+
+        redis_options = {'host': spec.authority.split(':')[0],
+                         'db': int(spec.path[1:] or 0)}
         if spec.port:
             redis_options['port'] = spec.port
         redis_client = redis.StrictRedis(**redis_options)
-
         kwargs = parse_redis_args(spec.query)
         retry = bool(kwargs['retry'])
         del kwargs['retry']

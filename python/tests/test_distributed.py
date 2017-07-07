@@ -5,6 +5,7 @@ from shared import QueueImplementation
 
 
 class TestDistributed(QueueImplementation):
+
     def setup_method(self, test_method):
         self._redis = redis.StrictRedis(
             host=os.getenv('REDIS_HOST')
@@ -29,7 +30,6 @@ class TestDistributed(QueueImplementation):
         for test in queue:
             test_order.append(test)
             queue.requeue(test)
-
         assert test_order == self.TEST_LIST + [self.TEST_LIST[0]]
 
     def test_retry_queue(self):

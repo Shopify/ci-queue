@@ -11,6 +11,7 @@ class LostMaster(Exception):
 
 
 class Base(object):
+
     def __init__(self, redis, build_id):
         self.redis = redis
         self.build_id = str(build_id)
@@ -24,7 +25,7 @@ class Base(object):
         if self.is_master:
             return True
 
-        for _ in range(timeout * 10 + 1):
+        for _ in xrange(timeout * 10 + 1):
             master_status = self._master_status()
             if master_status in ['ready', 'finished']:
                 return True
@@ -156,7 +157,7 @@ class Worker(Base):
         )
 
     def _eval_script(self, script_name, keys=[], args=[]):
-        if not script_name in self._scripts:
+        if script_name not in self._scripts:
             filename = 'redis/' + script_name + '.lua'
 
             path = os.path.join(os.path.dirname(__file__), '../../', filename)
@@ -172,14 +173,15 @@ class Worker(Base):
 
 
 class Supervisor(Base):
+
     def __init__(self, redis, build_id, *args, **kwargs):
         super(Supervisor, self).__init__(redis=redis, build_id=build_id)
 
     def _push(self, tests):
         pass
 
-    def wait_for_workers(self):
-        if not self.wait_for_master():
+    def wait_for_workers(self, master_timeout=None):
+        if not self.wait_for_master(timeout=master_timeout):
             return False
 
         while len(self):
