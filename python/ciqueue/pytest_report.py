@@ -2,8 +2,7 @@ from __future__ import absolute_import
 
 import pytest
 import pickle
-from ciqueue.pytest_queue_url import build_queue
-from ciqueue.pytest import ItemIndex
+from ciqueue._pytest.utils import build_queue, key_item, DESER
 
 
 def pytest_addoption(parser):
@@ -17,7 +16,7 @@ def noop():
     pass
 
 
-@pytest.hookimpl(tryfirst=True)
+@pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(session, config, items):
     session.queue = build_queue(session.config.getoption('queue'))
     session.queue.wait_for_workers(master_timeout=300)
@@ -28,11 +27,20 @@ def pytest_collection_modifyitems(session, config, items):
         item.setup = noop
         item.runtest = noop
         item.teardown = noop
-        key = ItemIndex.key(item)
+
+        key = key_item(item)
         if key in error_reports:
             item.error_reports = pickle.loads(error_reports[key])
 
 
+@pytest.hookimpl(tryfirst=True)
 def pytest_runtest_makereport(item, call):
+    # all errors should come off the error-reports queue
+    call.excinfo = None
     if hasattr(item, 'error_reports') and call.when in item.error_reports:
-        call.__dict__ = item.error_reports[call.when]
+        new_d = item.error_reports[call.when]
+        if new_d['excinfo'].type in DESER:
+            tipe = DESER[new_d['excinfo'].type]
+            tup = (tipe, tipe(new_d['excinfo'].value.args), new_d['excinfo'].tb)
+            new_d['excinfo'] = type(new_d['excinfo'])(tup)
+        call.__dict__ = new_d

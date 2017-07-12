@@ -1,3 +1,10 @@
+import pytest
+
+
+class Unserializable(Exception):
+    __module__ = 'builtins'
+
+
 def success(self, test_method):
     pass
 
@@ -12,6 +19,24 @@ def t_success(self):
 
 def t_fail(self):
     assert False
+
+
+def t_ufail(self):
+    raise Unserializable()
+
+
+@pytest.mark.skip
+def t_mskip(self):
+    pass
+
+
+def t_mfail(self):
+    pytest.fail()
+
+
+@pytest.mark.xfail
+def t_mxfail(self):
+    pass
 
 
 def methods(setup_method, test_method, teardown_method):
@@ -36,3 +61,11 @@ TestSadTestTeardown = type('TestSadTestTeardown', (),
                            methods(success, t_fail, fail))
 TestSad = type('TestSad', (),
                methods(fail, t_fail, fail))
+TestSkip = type('TestSkip', (),
+                methods(success, t_mskip, success))
+TestXFail = type('TestXFail', (),
+                 methods(success, t_mxfail, success))
+TestFail = type('TestFail', (),
+                methods(success, t_mfail, success))
+TestUnserializableException = type('TestUnserializableException', (),
+                                   methods(success, t_ufail, success))

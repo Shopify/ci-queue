@@ -1,12 +1,32 @@
+from __future__ import absolute_import
 import ciqueue
 import ciqueue.distributed
 import redis
+from _pytest import runner
 from urlparse import parse_qs
 from uritools import urisplit
 
 
 class InvalidRedisUrl(Exception):
     pass
+
+
+class Skipped(Exception):
+    pass
+
+
+class Failed(Exception):
+    pass
+
+SER = {runner.Skipped: Skipped,
+       runner.Failed: Failed}
+DESER = {Skipped: runner.Skipped,
+         Failed: runner.Failed}
+
+
+def key_item(item):
+    # TODO: discuss better identifier
+    return item.location[0] + '@' + item.location[2]
 
 
 def parse_redis_args(query_string):
