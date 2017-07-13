@@ -27,7 +27,7 @@ def get_lua_scripts():
 setup(
     name='ciqueue',
     version='0.1',
-    packages=['ciqueue'],
+    packages=['ciqueue', 'ciqueue._pytest'],
     install_requires=['redis', 'tblib', 'uritools'],
     package_data={'': get_lua_scripts()},
     include_package_data=True,
