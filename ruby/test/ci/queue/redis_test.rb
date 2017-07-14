@@ -57,7 +57,7 @@ class CI::Queue::RedisTest < Minitest::Test
     monitor = Monitor.new
     condition = monitor.new_cond
 
-    thread = Thread.start do
+    Thread.start do
       monitor.synchronize do
         condition.wait_until { acquired }
         poll(second_queue)
@@ -86,7 +86,7 @@ class CI::Queue::RedisTest < Minitest::Test
     monitor = Monitor.new
     condition = monitor.new_cond
 
-    thread = Thread.start do
+    Thread.start do
       monitor.synchronize do
         condition.wait_until { acquired }
         poll(second_queue)
@@ -114,7 +114,7 @@ class CI::Queue::RedisTest < Minitest::Test
     monitor = Monitor.new
     condition = monitor.new_cond
 
-    thread = Thread.start do
+    Thread.start do
       monitor.synchronize do
         condition.wait_until { acquired }
         second_queue.poll do |test|
