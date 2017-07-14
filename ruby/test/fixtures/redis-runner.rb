@@ -4,6 +4,7 @@ require_relative 'dummy_test'
 
 require 'minitest/queue'
 require 'minitest/reporters/queue_reporter'
+require 'ci/queue'
 require 'ci/queue/redis'
 
 Minitest::Reporters.use!([Minitest::Reporters::QueueReporter.new])

@@ -68,9 +68,9 @@ module CI
         end
 
         def read_script(name)
-          ::File.read(::File.join(DEV_SCRIPTS_ROOT, "#{name}.lua"))
+          ::File.read(::File.join(CI::Queue::DEV_SCRIPTS_ROOT, "#{name}.lua"))
         rescue SystemCallError
-          ::File.read(::File.join(RELEASE_SCRIPTS_ROOT, "#{name}.lua"))
+          ::File.read(::File.join(CI::Queue::RELEASE_SCRIPTS_ROOT, "#{name}.lua"))
         end
       end
     end
