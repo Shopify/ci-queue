@@ -57,26 +57,6 @@ class RedisReporter(object):
         self.redis = queue.redis
         self.errors_key = queue.key('error-reports')
 
-    # @staticmethod
-    # def ensure_serializable(excinfo):
-    #     def picklable(o):
-    #         try:
-    #             cPickle.dumps(o)
-    #             return True
-    #         except:
-    #             return False
-
-    #     if excinfo.type in SER:
-    #         cls = SER[excinfo.type]
-    #         tup = (cls, cls(*excinfo.value.args), excinfo.tb)
-    #         excinfo = ExceptionInfo(tup)
-    #     elif not picklable(excinfo):
-    #         tup = (UnserializableException,
-    #                UnserializableException("Actual Exception thrown on test node was %r" % excinfo.value),
-    #                excinfo.tb)
-    #         excinfo = ExceptionInfo(tup)
-    #     return excinfo
-
     @pytest.hookimpl(tryfirst=True)
     def pytest_runtest_makereport(self, item, call):
         if call.excinfo:
