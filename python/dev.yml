@@ -1,0 +1,19 @@
+# This file is for Shopify employees development environment.
+# If you are an external contributor you don't have to bother with it.
+name: ci-queue
+
+up:
+- railgun
+
+commands:
+  test: PYTHONPATH='.' py.test tests/
+
+railgun:
+  image: dev:railgun-common-services-0.2.x
+  services:
+    redis: 6379
+  ip_address: 192.168.64.245
+  memory: 1G
+  cores: 1
+  disk: 512M
+

@@ -74,7 +74,7 @@ module CI
           eval_script(
             :acknowledge,
             keys: [key('running'), key('processed')],
-            argv: [worker_id, test],
+            argv: [test],
           ) == 1
         end
 

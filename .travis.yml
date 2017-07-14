@@ -1,9 +1,18 @@
-sudo: false
+sudo: true
 services:
   - redis-server
 language: ruby
 rvm:
   - '2.3'
 before_install:
-  - cd ruby
   - gem install bundler -v 1.5.1
+  - cd python
+  - sudo pip install -U pip 
+  - sudo pip install setuptools==33.1.1
+  - pip --version
+  - sudo pip install -r requirements.txt
+  - cd ../ruby
+
+after_script:
+  - cd ../python
+  - PYTHONPATH='.' py.test tests/

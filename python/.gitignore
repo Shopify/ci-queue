@@ -1,0 +1,6 @@
+tests/__pycache__
+*.pyc
+.cache
+*.egg-info/
+ciqueue/redis/*.lua
+build/
