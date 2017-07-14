@@ -25,7 +25,7 @@ def t_ufail(self):
     raise Unserializable()
 
 
-@pytest.mark.skip
+@pytest.mark.skip("message")
 def t_mskip(self):
     pass
 

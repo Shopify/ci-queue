@@ -3,8 +3,12 @@ import ciqueue
 import ciqueue.distributed
 import redis
 from _pytest import runner
+from _pytest._code import code
 from urlparse import parse_qs
 from uritools import urisplit
+from tblib import pickling_support
+pickling_support.install()
+import cPickle
 
 
 class InvalidRedisUrl(Exception):
@@ -12,16 +16,51 @@ class InvalidRedisUrl(Exception):
 
 
 class Skipped(Exception):
-    pass
+    "placeholder for runner.Skipped which is not serializable"
 
 
 class Failed(Exception):
-    pass
+    "placeholder for runner.Failed which is not serializable"
+
+
+class UnserializableException(Exception):
+    "placeholder for any Exceptions that cannnot be serialized"
+
 
 SER = {runner.Skipped: Skipped,
        runner.Failed: Failed}
 DESER = {Skipped: runner.Skipped,
          Failed: runner.Failed}
+
+
+def swap_in_serializable(excinfo):
+    def picklable(o):
+        try:
+            cPickle.dumps(o)
+            return True
+        except BaseException:
+            return False
+
+    if excinfo.type in SER:
+        cls = SER[excinfo.type]
+        tup = (cls, cls(*excinfo.value.args), excinfo.tb)
+        excinfo = code.ExceptionInfo(tup)
+    elif not picklable(excinfo):
+        tup = (UnserializableException,
+               UnserializableException(
+                   "Actual Exception thrown on test node was %r" %
+                   excinfo.value),
+               excinfo.tb)
+        excinfo = code.ExceptionInfo(tup)
+    return excinfo
+
+
+def swap_back_original(excinfo):
+    if excinfo.type in DESER:
+        tipe = DESER[excinfo.type]
+        tup = (tipe, tipe(*excinfo.value.args), excinfo.tb)
+        return code.ExceptionInfo(tup)
+    return excinfo
 
 
 def key_item(item):

@@ -1,14 +1,7 @@
-from __future__ import absolute_import
-from tblib import pickling_support
-pickling_support.install()
-import cPickle
+from __future__ import absolute_import, print_function
 import pytest
-from _pytest._code import ExceptionInfo
-from ciqueue._pytest.utils import build_queue, key_item, SER
-
-
-class UnserializableException(Exception):
-    "placeholder Exception for any exceptions that cannnot be serialized"
+from ciqueue._pytest.utils import build_queue, key_item, swap_in_serializable
+import cPickle
 
 
 def pytest_addoption(parser):
@@ -16,51 +9,6 @@ def pytest_addoption(parser):
     parser.addoption('--queue', metavar='queue_url',
                      type=str, help='The queue url',
                      required=True)
-
-
-class RedisReporter(object):
-
-    def __init__(self, config, queue):
-        self.config = config
-        self.redis = queue.redis
-        self.errors_key = queue.key('error-reports')
-
-    @staticmethod
-    def ensure_serializable(excinfo):
-        def picklable(o):
-            try:
-                cPickle.dumps(o)
-                return True
-            except:
-                return False
-
-        if excinfo.type in SER:
-            cls = SER[excinfo.type]
-            tup = (cls, cls(*excinfo.value.args), excinfo.tb)
-            excinfo = ExceptionInfo(tup)
-        elif not picklable(excinfo):
-            tup = (UnserializableException,
-                   UnserializableException("Actual Exception thrown on test node was %r" % excinfo.value),
-                   excinfo.tb)
-            excinfo = ExceptionInfo(tup)
-        return excinfo
-
-    def pytest_runtest_makereport(self, item, call):
-        if call.excinfo:
-            payload = call.__dict__.copy()
-            payload['excinfo'] = self.ensure_serializable(payload['excinfo'])
-
-            if not hasattr(item, 'error_reports'):
-                item.error_reports = {call.when: payload}
-            else:
-                item.error_reports[call.when] = payload
-
-            self.redis.hset(
-                self.errors_key,
-                key_item(item),
-                cPickle.dumps(item.error_reports))
-        elif call.when == 'teardown' and not hasattr(item, 'error_reports'):
-            self.redis.hdel(self.errors_key, key_item(item))
 
 
 class ItemIndex(object):
@@ -100,6 +48,52 @@ class ItemList(object):
             yield self.index[test]
             # TODO: Find proper hook for acknowledge / requeue
             self.queue.acknowledge(test)
+
+
+class RedisReporter(object):
+
+    def __init__(self, config, queue):
+        self.config = config
+        self.redis = queue.redis
+        self.errors_key = queue.key('error-reports')
+
+    # @staticmethod
+    # def ensure_serializable(excinfo):
+    #     def picklable(o):
+    #         try:
+    #             cPickle.dumps(o)
+    #             return True
+    #         except:
+    #             return False
+
+    #     if excinfo.type in SER:
+    #         cls = SER[excinfo.type]
+    #         tup = (cls, cls(*excinfo.value.args), excinfo.tb)
+    #         excinfo = ExceptionInfo(tup)
+    #     elif not picklable(excinfo):
+    #         tup = (UnserializableException,
+    #                UnserializableException("Actual Exception thrown on test node was %r" % excinfo.value),
+    #                excinfo.tb)
+    #         excinfo = ExceptionInfo(tup)
+    #     return excinfo
+
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_runtest_makereport(self, item, call):
+        if call.excinfo:
+            payload = call.__dict__.copy()
+            payload['excinfo'] = swap_in_serializable(payload['excinfo'])
+
+            if not hasattr(item, 'error_reports'):
+                item.error_reports = {call.when: payload}
+            else:
+                item.error_reports[call.when] = payload
+
+            self.redis.hset(
+                self.errors_key,
+                key_item(item),
+                cPickle.dumps(item.error_reports))
+        elif call.when == 'teardown' and not hasattr(item, 'error_reports'):
+            self.redis.hdel(self.errors_key, key_item(item))
 
 
 @pytest.hookimpl(trylast=True)
