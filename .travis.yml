@@ -14,4 +14,5 @@ before_install:
   - cd ../ruby
 script:
   - cd ../ruby && bundle exec rake
-  - cd ../python && PYTHONPATH='.' make test
+  - cd ../python && make run_tests
+  - make lint
