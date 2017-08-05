@@ -10,9 +10,8 @@ before_install:
   - sudo pip install -U pip
   - sudo pip install setuptools==33.1.1
   - pip --version
-  - sudo pip install -r requirements.txt
+  - sudo make install
   - cd ../ruby
 script:
   - cd ../ruby && bundle exec rake
-  - cd ../python && PYTHONPATH='.' make run_tests
-  - PYTHONPATH='.' make lint
+  - cd ../python && PYTHONPATH='.' make test
