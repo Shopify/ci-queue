@@ -1,7 +1,7 @@
 from __future__ import absolute_import, print_function
 
 import pytest
-import cPickle
+import dill
 from ciqueue._pytest.utils import build_queue, key_item, swap_back_original
 from _pytest import runner
 
@@ -33,7 +33,7 @@ def pytest_collection_modifyitems(session, config, items):
         # store the errors on setup/test/teardown to item.error_reports
         key = key_item(item)
         if key in error_reports:
-            item.error_reports = cPickle.loads(error_reports[key])
+            item.error_reports = dill.loads(error_reports[key])
             for when, call_dict in item.error_reports.items():
                 call_dict['excinfo'] = swap_back_original(call_dict['excinfo'])
 

@@ -8,7 +8,7 @@ from urlparse import parse_qs
 from uritools import urisplit
 from tblib import pickling_support
 pickling_support.install()
-import cPickle
+import dill
 
 
 class InvalidRedisUrl(Exception):
@@ -34,18 +34,11 @@ DESER = {Skipped: runner.Skipped,
 
 
 def swap_in_serializable(excinfo):
-    def picklable(o):
-        try:
-            cPickle.dumps(o)
-            return True
-        except BaseException:
-            return False
-
     if excinfo.type in SER:
         cls = SER[excinfo.type]
         tup = (cls, cls(*excinfo.value.args), excinfo.tb)
         excinfo = code.ExceptionInfo(tup)
-    elif not picklable(excinfo):
+    elif not dill.pickles(excinfo):
         tup = (UnserializableException,
                UnserializableException(
                    "Actual Exception thrown on test node was %r" %

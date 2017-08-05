@@ -12,7 +12,7 @@ before_install:
   - pip --version
   - sudo pip install -r requirements.txt
   - cd ../ruby
-
-after_script:
+script:
+  - bundle exec rake
   - cd ../python
   - PYTHONPATH='.' py.test -v tests/

@@ -1,7 +1,7 @@
 from __future__ import absolute_import, print_function
 import pytest
 from ciqueue._pytest.utils import build_queue, key_item, swap_in_serializable
-import cPickle
+import dill
 
 
 def pytest_addoption(parser):
@@ -71,7 +71,7 @@ class RedisReporter(object):
             self.redis.hset(
                 self.errors_key,
                 key_item(item),
-                cPickle.dumps(item.error_reports))
+                dill.dumps(item.error_reports))
         elif call.when == 'teardown' and not hasattr(item, 'error_reports'):
             self.redis.hdel(self.errors_key, key_item(item))
 
