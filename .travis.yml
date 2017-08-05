@@ -11,8 +11,6 @@ before_install:
   - sudo pip install setuptools==33.1.1
   - pip --version
   - sudo pip install -r requirements.txt
-  - cd ../ruby
 script:
-  - bundle exec rake
-  - cd ../python
-  - PYTHONPATH='.' py.test -v tests/
+  - cd ../ruby && bundle exec rake
+  - cd ../python && PYTHONPATH='.' make test
