@@ -33,14 +33,14 @@ setuplib.setup(
     version='0.1',
     packages=['ciqueue', 'ciqueue._pytest'],
     install_requires=[
-        'redis>=2.10.5',
         'dill>=0.2.7',
+        'pytest>=2.7,<=3.1.3',
+        'redis>=2.10.5',
         'tblib>=1.3.2',
         'uritools>=2.0.0'
     ],
     extras_require={
         'test': [
-            'pytest>=3.1.3',
             'shopify_python==0.4.1',
             'pycodestyle == 2.2.0',
         ]
