@@ -1,9 +1,9 @@
 import os
 import time
 import math
-from redis import ConnectionError
+import redis
 
-from ciqueue.static import Static
+from ciqueue import static
 
 
 class LostMaster(Exception):
@@ -16,6 +16,7 @@ class Base(object):
         self.redis = redis
         self.build_id = str(build_id)
         self.is_master = False
+        self.total = None
         self._scripts = {}
 
     def key(self, *args):
@@ -53,7 +54,7 @@ class Base(object):
 class Worker(Base):
     distributed = True
 
-    def __init__(self, tests, worker_id, redis, build_id,
+    def __init__(self, tests, worker_id, redis, build_id,  # pylint: disable=too-many-arguments
                  timeout, max_requeues=0, requeue_tolerance=0):
         super(Worker, self).__init__(redis=redis, build_id=build_id)
         self.timeout = timeout
@@ -67,13 +68,13 @@ class Worker(Base):
     def __iter__(self):
         self.wait_for_master()
 
-        while not self.shutdown_required and len(self):
+        while not self.shutdown_required and len(self):  # pylint: disable=len-as-condition
             test = self._reserve()
             if test:
                 yield test
             else:
-                return
                 time.sleep(0.05)
+                return
 
     def shutdown(self):
         self.shutdown_required = True
@@ -107,18 +108,23 @@ class Worker(Base):
         )
 
     def _push(self, tests):
+        def push(tests):
+            transaction = self.redis.pipeline(transaction=True)
+            transaction.lpush(self.key('queue'), *tests)
+            transaction.set(self.key('total'), self.total)
+            transaction.set(self.key('master-status'), 'ready')
+            transaction.execute()
+
         try:
             self.is_master = self.redis.setnx(
-                self.key('master-status'), 'setup')
+                self.key('master-status'),
+                'setup'
+            )
             if self.is_master:
-                transaction = self.redis.pipeline(transaction=True)
-                transaction.lpush(self.key('queue'), *tests)
-                transaction.set(self.key('total'), self.total)
-                transaction.set(self.key('master-status'), 'ready')
-                transaction.execute()
+                push(tests)
 
             self._register()
-        except ConnectionError:
+        except redis.ConnectionError:
             if self.is_master:
                 raise
 
@@ -156,7 +162,9 @@ class Worker(Base):
             ],
         )
 
-    def _eval_script(self, script_name, keys=[], args=[]):
+    def _eval_script(self, script_name, keys=None, args=None):
+        keys = keys or []
+        args = args or []
         if script_name not in self._scripts:
             filename = 'redis/' + script_name + '.lua'
 
@@ -164,9 +172,9 @@ class Worker(Base):
             if not os.path.exists(path):
                 path = os.path.join(os.path.dirname(__file__), filename)
 
-            with open(path) as f:
+            with open(path) as script_file:
                 self._scripts[script_name] = self.redis.register_script(
-                    f.read())
+                    script_file.read())
 
         script = self._scripts[script_name]
         return script(keys=keys, args=args)
@@ -174,7 +182,7 @@ class Worker(Base):
 
 class Supervisor(Base):
 
-    def __init__(self, redis, build_id, *args, **kwargs):
+    def __init__(self, redis, build_id, *args, **kwargs):  # pylint: disable=unused-argument
         super(Supervisor, self).__init__(redis=redis, build_id=build_id)
 
     def _push(self, tests):
@@ -184,13 +192,13 @@ class Supervisor(Base):
         if not self.wait_for_master(timeout=master_timeout):
             return False
 
-        while len(self):
+        while len(self):  # pylint: disable=len-as-condition
             time.sleep(0.1)
 
         return True
 
 
-class Retry(Static):
+class Retry(static.Static):
     distributed = True
 
     def __init__(self, tests, redis, build_id):

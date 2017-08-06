@@ -1,14 +1,15 @@
 from __future__ import absolute_import
+import urlparse
 import ciqueue
 import ciqueue.distributed
+import dill
 import redis
+import uritools
 from _pytest import runner
 from _pytest._code import code
-from urlparse import parse_qs
-from uritools import urisplit
 from tblib import pickling_support
+
 pickling_support.install()
-import dill
 
 
 class InvalidRedisUrl(Exception):
@@ -57,12 +58,12 @@ def swap_back_original(excinfo):
 
 
 def key_item(item):
-    # TODO: discuss better identifier
+    # TODO: discuss better identifier # pylint: disable=fixme
     return item.location[0] + '@' + item.location[2]
 
 
 def parse_redis_args(query_string):
-    args = parse_qs(query_string)
+    args = urlparse.parse_qs(query_string)
 
     if 'worker' not in args or not args['worker']:
         raise InvalidRedisUrl("Missing `worker` parameter in {}"
@@ -83,7 +84,7 @@ def parse_redis_args(query_string):
 
 
 def build_queue(queue_url, tests_index=None):
-    spec = urisplit(queue_url)
+    spec = uritools.urisplit(queue_url)
     if spec.scheme == 'list':
         return ciqueue.Static(spec.path.split(':'))
     elif spec.scheme == 'file':

@@ -20,7 +20,7 @@ class Static(object):
             yield self.queue.pop(0)
             self.progress += 1
 
-    def acknowledge(self, test):
+    def acknowledge(self, test):  # pylint: disable=no-self-use,unused-argument
         return True
 
     def requeue(self, test):

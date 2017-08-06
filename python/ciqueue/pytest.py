@@ -1,7 +1,10 @@
-from __future__ import absolute_import, print_function
-import pytest
-from ciqueue._pytest.utils import build_queue, key_item, swap_in_serializable
+from __future__ import absolute_import
+from __future__ import print_function
+from ciqueue._pytest import utils
 import dill
+import pytest
+
+# pylint: disable=too-few-public-methods
 
 
 def pytest_addoption(parser):
@@ -14,7 +17,7 @@ def pytest_addoption(parser):
 class ItemIndex(object):
 
     def __init__(self, items):
-        self.index = dict((key_item(i), i) for i in items)
+        self.index = dict((utils.key_item(i), i) for i in items)
 
     def __len__(self):
         return len(self.index)
@@ -37,7 +40,7 @@ class ItemList(object):
 
     def __len__(self):
         # HACK: Prevent pytest from grabbing the next test
-        # TODO: Check if we could return a fake next test instead
+        # TODO: Check if we could return a fake next test instead # pylint: disable=fixme
         return 0
 
     def __getitem__(self, index):
@@ -46,7 +49,7 @@ class ItemList(object):
     def __iter__(self):
         for test in self.queue:
             yield self.index[test]
-            # TODO: Find proper hook for acknowledge / requeue
+            # TODO: Find proper hook for acknowledge / requeue # pylint: disable=fixme
             self.queue.acknowledge(test)
 
 
@@ -61,7 +64,7 @@ class RedisReporter(object):
     def pytest_runtest_makereport(self, item, call):
         if call.excinfo:
             payload = call.__dict__.copy()
-            payload['excinfo'] = swap_in_serializable(payload['excinfo'])
+            payload['excinfo'] = utils.swap_in_serializable(payload['excinfo'])
 
             if not hasattr(item, 'error_reports'):
                 item.error_reports = {call.when: payload}
@@ -70,16 +73,16 @@ class RedisReporter(object):
 
             self.redis.hset(
                 self.errors_key,
-                key_item(item),
+                utils.key_item(item),
                 dill.dumps(item.error_reports))
         elif call.when == 'teardown' and not hasattr(item, 'error_reports'):
-            self.redis.hdel(self.errors_key, key_item(item))
+            self.redis.hdel(self.errors_key, utils.key_item(item))
 
 
 @pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(session, config, items):
     tests_index = ItemIndex(items)
-    queue = build_queue(config.getoption('queue'), tests_index)
+    queue = utils.build_queue(config.getoption('queue'), tests_index)
     if queue.distributed:
         config.pluginmanager.register(RedisReporter(config, queue))
     session.items = ItemList(tests_index, queue)

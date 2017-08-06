@@ -1,6 +1,10 @@
 import os
 import glob
-from setuptools import setup
+
+try:
+    import setuptools as setuplib
+except ImportError:
+    import distutils.core as setuplib
 
 SCRIPTS_PATH = 'ciqueue/redis'
 
@@ -24,11 +28,23 @@ def get_lua_scripts():
     return paths
 
 
-setup(
+setuplib.setup(
     name='ciqueue',
     version='0.1',
     packages=['ciqueue', 'ciqueue._pytest'],
-    install_requires=['redis', 'dill', 'tblib', 'uritools'],
+    install_requires=[
+        'redis>=2.10.5',
+        'dill>=0.2.7',
+        'tblib>=1.3.2',
+        'uritools>=2.0.0'
+    ],
+    extras_require={
+        'test': [
+            'pytest>=3.1.3',
+            'shopify_python==0.4.1',
+            'pycodestyle == 2.2.0',
+        ]
+    },
     package_data={'': get_lua_scripts()},
     include_package_data=True,
 )

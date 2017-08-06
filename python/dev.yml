@@ -6,7 +6,7 @@ up:
 - railgun
 
 commands:
-  test: PYTHONPATH='.' py.test tests/
+  test: make test
 
 railgun:
   image: dev:railgun-common-services-0.2.x
@@ -16,4 +16,3 @@ railgun:
   memory: 1G
   cores: 1
   disk: 512M
-

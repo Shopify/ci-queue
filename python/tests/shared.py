@@ -6,6 +6,9 @@ class QueueImplementation(object):
         'BTest#test_bar',
     ]
 
+    def build_queue(self, **kwargs):
+        raise NotImplementedError()
+
     def test_progress(self):
         queue = self.build_queue()
         expected_progress = 0
@@ -28,15 +31,17 @@ class QueueImplementation(object):
 
         assert test_order == self.TEST_LIST
 
-    def test_requeue(self):
+    def requeue(self):
         queue = self.build_queue()
 
         test_order = []
         for test in queue:
             test_order.append(test)
             queue.requeue(test)
+        return test_order
 
-        assert test_order == [self.TEST_LIST[0]] + self.TEST_LIST
+    def test_requeue(self):
+        assert self.requeue() == [self.TEST_LIST[0]] + self.TEST_LIST
 
     def test_acknowledge(self):
         queue = self.build_queue()
@@ -44,7 +49,8 @@ class QueueImplementation(object):
         for test in queue:
             assert queue.acknowledge(test) is True
 
-    def work_off(self, queue):
+    @staticmethod
+    def work_off(queue):
         test_order = []
         for test in queue:
             test_order.append(test)
