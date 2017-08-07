@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 from __future__ import print_function
-from ciqueue._pytest import utils
+from ciqueue._pytest import test_queue
+from ciqueue._pytest import outcomes
 import dill
 import pytest
 
@@ -17,7 +18,7 @@ def pytest_addoption(parser):
 class ItemIndex(object):
 
     def __init__(self, items):
-        self.index = dict((utils.key_item(i), i) for i in items)
+        self.index = dict((test_queue.key_item(i), i) for i in items)
 
     def __len__(self):
         return len(self.index)
@@ -64,7 +65,7 @@ class RedisReporter(object):
     def pytest_runtest_makereport(self, item, call):
         if call.excinfo:
             payload = call.__dict__.copy()
-            payload['excinfo'] = utils.swap_in_serializable(payload['excinfo'])
+            payload['excinfo'] = outcomes.swap_in_serializable(payload['excinfo'])
 
             if not hasattr(item, 'error_reports'):
                 item.error_reports = {call.when: payload}
@@ -73,16 +74,16 @@ class RedisReporter(object):
 
             self.redis.hset(
                 self.errors_key,
-                utils.key_item(item),
+                test_queue.key_item(item),
                 dill.dumps(item.error_reports))
         elif call.when == 'teardown' and not hasattr(item, 'error_reports'):
-            self.redis.hdel(self.errors_key, utils.key_item(item))
+            self.redis.hdel(self.errors_key, test_queue.key_item(item))
 
 
 @pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(session, config, items):
     tests_index = ItemIndex(items)
-    queue = utils.build_queue(config.getoption('queue'), tests_index)
+    queue = test_queue.build_queue(config.getoption('queue'), tests_index)
     if queue.distributed:
         config.pluginmanager.register(RedisReporter(config, queue))
     session.items = ItemList(tests_index, queue)

@@ -3,7 +3,8 @@ from __future__ import print_function
 import dill
 import pytest
 from _pytest import runner
-from ciqueue._pytest import utils
+from ciqueue._pytest import test_queue
+from ciqueue._pytest import outcomes
 
 
 def pytest_addoption(parser):
@@ -19,7 +20,7 @@ def noop():
 
 @pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(session, config, items):  # pylint: disable=unused-argument
-    session.queue = utils.build_queue(session.config.getoption('queue'))
+    session.queue = test_queue.build_queue(session.config.getoption('queue'))
     session.queue.wait_for_workers(master_timeout=300)
     error_reports = session.queue.redis.hgetall(
         session.queue.key('error-reports')
@@ -31,11 +32,11 @@ def pytest_collection_modifyitems(session, config, items):  # pylint: disable=un
         item.teardown = noop
 
         # store the errors on setup/test/teardown to item.error_reports
-        key = utils.key_item(item)
+        key = test_queue.key_item(item)
         if key in error_reports:
             item.error_reports = dill.loads(error_reports[key])
             for _, call_dict in item.error_reports.items():
-                call_dict['excinfo'] = utils.swap_back_original(call_dict['excinfo'])
+                call_dict['excinfo'] = outcomes.swap_back_original(call_dict['excinfo'])
 
 
 @pytest.hookimpl(tryfirst=True)
