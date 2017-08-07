@@ -6,7 +6,7 @@ import redis
 def test_integration():
     def expected_messages(output):
         assert '4 failed, 2 passed, 1 skipped, 1 xpassed, 6 error' in output, output
-        assert 'skipping test message' in output, output
+        assert 'integrations/pytest/test_all.py:27: skipping test message' in output, output
 
     strict_redis = redis.StrictRedis(host=os.getenv('REDIS_HOST'))
     strict_redis.flushdb()
