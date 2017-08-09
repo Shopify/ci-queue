@@ -19,15 +19,15 @@ class UnserializableException(Exception):
     "placeholder for any Exceptions that cannnot be serialized"
 
 
-SER = {runner.Skipped: Skipped,
-       runner.Failed: Failed}
-DESER = {Skipped: runner.Skipped,
-         Failed: runner.Failed}
+SERIALIZE_TYPES = {runner.Skipped: Skipped,
+                   runner.Failed: Failed}
+DESERIALIZE_TYPES = {Skipped: runner.Skipped,
+                     Failed: runner.Failed}
 
 
 def swap_in_serializable(excinfo):
-    if excinfo.type in SER:
-        cls = SER[excinfo.type]
+    if excinfo.type in SERIALIZE_TYPES:
+        cls = SERIALIZE_TYPES[excinfo.type]
         tup = (cls, cls(*excinfo.value.args), excinfo.tb)
         excinfo = code.ExceptionInfo(tup)
     elif not dill.pickles(excinfo):
@@ -41,8 +41,8 @@ def swap_in_serializable(excinfo):
 
 
 def swap_back_original(excinfo):
-    if excinfo.type in DESER:
-        tipe = DESER[excinfo.type]
+    if excinfo.type in DESERIALIZE_TYPES:
+        tipe = DESERIALIZE_TYPES[excinfo.type]
         tup = (tipe, tipe(*excinfo.value.args), excinfo.tb)
         return code.ExceptionInfo(tup)
     return excinfo

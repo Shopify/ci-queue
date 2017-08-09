@@ -17,10 +17,6 @@ autopep8:
 lint:
 	@echo 'Linting...'
 	@pylint --rcfile=pylintrc setup.py ciqueue tests
-	@if [ "$(python_version_major)" = "3" ]; then \
-		echo 'Checking type annotations...'; \
-		mypy --py2 ciqueue tests --ignore-missing-imports; \
-	fi
 	@pycodestyle
 
 autolint: autopep8 lint

@@ -20,7 +20,7 @@ class Base(object):
         self._scripts = {}
 
     def key(self, *args):
-        return ':'.join(['build', self.build_id] + map(str, args))
+        return ':'.join(['build', self.build_id] + [str(i) for i in args])
 
     def wait_for_master(self, timeout=10):
         if self.is_master:

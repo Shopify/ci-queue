@@ -3,7 +3,12 @@
 name: ci-queue
 
 up:
-- railgun
+  - python: 2.7.11
+  - custom:
+      name: "link development ci-queue as a package"
+      met?: "pip show ciqueue | grep -i \"Location: $(pwd)\""
+      meet: "make install"
+  - railgun
 
 commands:
   test: make test
