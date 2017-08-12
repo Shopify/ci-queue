@@ -1,3 +1,8 @@
+"""
+This is the pytest plugin for running distributed tests.
+Example usage (run on each node):
+py.test -p ciqueue.pytest --queue redis://<host>:6379?worker=<worker_id>&build=<build_id>&retry=<n>
+"""
 from __future__ import absolute_import
 from __future__ import print_function
 from ciqueue._pytest import test_queue
@@ -63,6 +68,9 @@ class RedisReporter(object):
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_runtest_makereport(self, item, call):
+        # This function hooks into pytest's reporting of test results, and pushes a failed test's error report
+        # onto the redis queue. A test can fail in any of the 3 call stages: setup, test, or teardown.
+        # This is captured by pushing a dict of {call_state: error} for each failed test.
         if call.excinfo:
             payload = call.__dict__.copy()
             payload['excinfo'] = outcomes.swap_in_serializable(payload['excinfo'])
@@ -76,12 +84,15 @@ class RedisReporter(object):
                 self.errors_key,
                 test_queue.key_item(item),
                 dill.dumps(item.error_reports))
+        # if the test passed, we remove it from the errors queue
         elif call.when == 'teardown' and not hasattr(item, 'error_reports'):
             self.redis.hdel(self.errors_key, test_queue.key_item(item))
 
 
 @pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(session, config, items):
+    # This function hooks into pytest's list of tests to run, and replaces
+    # those `items` with a redis test queue iterator.
     tests_index = ItemIndex(items)
     queue = test_queue.build_queue(config.getoption('queue'), tests_index)
     if queue.distributed:

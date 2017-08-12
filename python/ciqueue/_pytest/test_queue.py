@@ -14,25 +14,28 @@ def key_item(item):
     return item.location[0] + '@' + item.location[2]
 
 
-def parse_redis_args(query_string):
+def parse_redis_args(query_string, tests_index):
     args = urlparse.parse_qs(query_string)
-
-    if 'worker' not in args or not args['worker']:
-        raise InvalidRedisUrl("Missing `worker` parameter in {}"
-                              .format(query_string))
 
     if 'build' not in args or not args['build']:
         raise InvalidRedisUrl("Missing `build` parameter in {}"
                               .format(query_string))
 
-    return {
-        'worker_id': args['worker'][0],
+    result = {
         'build_id': args['build'][0],
         'timeout': float(args.get('timeout', [0])[0]),
         'max_requeues': int(args.get('max_requeues', [0])[0]),
         'requeue_tolerance': float(args.get('requeue_tolerance', [0])[0]),
         'retry': int(args.get('retry', [0])[0]),
     }
+
+    if tests_index:
+        if 'worker' not in args or not args['worker']:
+            raise InvalidRedisUrl("Missing `worker` parameter in {}"
+                                  .format(query_string))
+        result['worker_id'] = args['worker'][0]
+
+    return result
 
 
 def build_queue(queue_url, tests_index=None):
@@ -48,7 +51,7 @@ def build_queue(queue_url, tests_index=None):
         if spec.port:
             redis_options['port'] = spec.port
         redis_client = redis.StrictRedis(**redis_options)
-        kwargs = parse_redis_args(spec.query)
+        kwargs = parse_redis_args(spec.query, tests_index)
         retry = bool(kwargs['retry'])
         del kwargs['retry']
 

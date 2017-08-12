@@ -1,3 +1,14 @@
+"""
+This module exists because pytest adds the field `__module__ = 'builtins'`
+to the Skipped and Failed exception classes, rendering them unserializable.
+We get around this by creating our own serializable version of
+these classes, which we swap in in place of the original when we want to
+be put them on the redis queue. Then, we swap back in the original exception
+when reading off the queue. These operations are performed by
+`swap_in_serializable` and `swap_back_original`, respectively.
+"""
+
+
 from __future__ import absolute_import
 import dill
 from _pytest import runner

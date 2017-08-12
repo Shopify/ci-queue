@@ -28,6 +28,7 @@ def test_integration():
 
     # test that pytest_report only reports what's on the redis queue
     strict_redis.delete('build:foo:error-reports')
+    queue = "'redis://localhost:6379/0?build=foo&retry=0'"
     output = subprocess.check_output(
         "py.test -v -r a -p ciqueue.pytest_report --queue {} integrations/pytest; exit 0".format(queue),
         shell=True, stderr=subprocess.STDOUT)
