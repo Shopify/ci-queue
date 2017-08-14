@@ -26,9 +26,9 @@ def noop():
 
 @pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(session, config, items):  # pylint: disable=unused-argument
-    # this function hooks into pytest's list of tests to run, converts all of them into
-    # noop's, and downloads the result of each test run from the redis queue. Test errors are
-    # attached to each test's `error_reports` field.
+    """this function hooks into pytest's list of tests to run, converts all of them into
+    noop's, and downloads the result of each test run from the redis queue. Test errors are
+    attached to each test's `error_reports` field."""
     session.queue = test_queue.build_queue(session.config.getoption('queue'))
     session.queue.wait_for_workers(master_timeout=300)
     error_reports = session.queue.redis.hgetall(
@@ -50,8 +50,8 @@ def pytest_collection_modifyitems(session, config, items):  # pylint: disable=un
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_makereport(item, call):
-    # This function hooks into pytest's reporting of test results, and replaces the
-    # result of each test's setup/runtest/teardown call with the result from the redis queue
+    """This function hooks into pytest's reporting of test results, and replaces the
+    result of each test's setup/runtest/teardown call with the result from the redis queue"""
 
     # ensure all errors should come off the error-reports queue
     call.excinfo = None

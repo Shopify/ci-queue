@@ -68,9 +68,9 @@ class RedisReporter(object):
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_runtest_makereport(self, item, call):
-        # This function hooks into pytest's reporting of test results, and pushes a failed test's error report
-        # onto the redis queue. A test can fail in any of the 3 call stages: setup, test, or teardown.
-        # This is captured by pushing a dict of {call_state: error} for each failed test.
+        """This function hooks into pytest's reporting of test results, and pushes a failed test's error report
+        onto the redis queue. A test can fail in any of the 3 call stages: setup, test, or teardown.
+        This is captured by pushing a dict of {call_state: error} for each failed test."""
         if call.excinfo:
             payload = call.__dict__.copy()
             payload['excinfo'] = outcomes.swap_in_serializable(payload['excinfo'])
@@ -91,8 +91,8 @@ class RedisReporter(object):
 
 @pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(session, config, items):
-    # This function hooks into pytest's list of tests to run, and replaces
-    # those `items` with a redis test queue iterator.
+    """This function hooks into pytest's list of tests to run, and replaces
+    those `items` with a redis test queue iterator."""
     tests_index = ItemIndex(items)
     queue = test_queue.build_queue(config.getoption('queue'), tests_index)
     if queue.distributed:
