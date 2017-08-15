@@ -19,15 +19,15 @@ pickling_support.install()
 
 
 class Skipped(Exception):
-    "placeholder for runner.Skipped which is not serializable"
+    """placeholder for runner.Skipped which is not serializable"""
 
 
 class Failed(Exception):
-    "placeholder for runner.Failed which is not serializable"
+    """placeholder for runner.Failed which is not serializable"""
 
 
 class UnserializableException(Exception):
-    "placeholder for any Exceptions that cannnot be serialized"
+    """placeholder for any Exceptions that cannnot be serialized"""
 
 
 SERIALIZE_TYPES = {runner.Skipped: Skipped,
