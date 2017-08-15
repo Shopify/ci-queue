@@ -1,8 +1,9 @@
-from ciqueue import Static
-from shared import QueueImplementation
+import ciqueue
+from tests import shared
 
 
-class TestStatic(QueueImplementation):
-    def build_queue(self):
-        return Static(list(self.TEST_LIST), max_requeues=1,
-                      requeue_tolerance=0.1)
+class TestStatic(shared.QueueImplementation):
+
+    def build_queue(self, **kwargs):
+        return ciqueue.Static(list(self.TEST_LIST), max_requeues=1,
+                              requeue_tolerance=0.1)

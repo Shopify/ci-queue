@@ -1,21 +1,23 @@
 import os
 import redis
 from ciqueue import distributed
-from shared import QueueImplementation
+from tests import shared
 
 
-class TestDistributed(QueueImplementation):
-    def setup_method(self, test_method):
+class TestDistributed(shared.QueueImplementation):
+    _redis = None
+
+    def setup_method(self, _):
         self._redis = redis.StrictRedis(
             host=os.getenv('REDIS_HOST')
         )
         self._redis.flushdb()
 
-    def build_queue(self, id=1):
+    def build_queue(self, worker_id=1, **kwargs):  # pylint: disable=arguments-differ
         return distributed.Worker(
             self.TEST_LIST,
             redis=self._redis,
-            worker_id=str(id),
+            worker_id=str(worker_id),
             build_id=42,
             timeout=0.2,
             max_requeues=1,
@@ -23,14 +25,7 @@ class TestDistributed(QueueImplementation):
         )
 
     def test_requeue(self):
-        queue = self.build_queue()
-
-        test_order = []
-        for test in queue:
-            test_order.append(test)
-            queue.requeue(test)
-
-        assert test_order == self.TEST_LIST + [self.TEST_LIST[0]]
+        assert self.requeue() == self.TEST_LIST + [self.TEST_LIST[0]]
 
     def test_retry_queue(self):
         queue = self.build_queue()
@@ -45,7 +40,7 @@ class TestDistributed(QueueImplementation):
         queue = self.build_queue()
         count = 0
 
-        for test in queue:
+        for _ in queue:
             count += 1
             queue.shutdown()
 

@@ -16,22 +16,18 @@ autopep8:
 
 lint:
 	@echo 'Linting...'
-	@pylint --rcfile=pylintrc setup.py shopify_python tests.shopify_python
-	@if [ "$(python_version_major)" = "3" ]; then \
-		echo 'Checking type annotations...'; \
-		mypy --py2 shopify_python tests/shopify_python --ignore-missing-imports; \
-	fi
+	@pylint --rcfile=pylintrc setup.py ciqueue tests
 	@pycodestyle
 
 autolint: autopep8 lint
 
 run_tests: clean
-	py.test --durations=10 .
+	py.test --durations=10 tests
 
 test: autopep8 run_tests lint
 
 install:
-	pip install -e .[dev]
+	pip install -e .[test]
 
 release:
 	rm -rf build dist
@@ -42,4 +38,3 @@ upload_test: release
 
 upload_pypi: release
 	@twine upload dist/* -r pypi
-

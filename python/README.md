@@ -13,7 +13,16 @@ Another advantage is that if you lose workers along the way, using a queue the o
 
 ## Integrations
 
-There is no integration for Python tests frameworks yet.
+There is a pytest plugin that can be used as follows.
+To start up the workers which execute the tests, run a command like the following on each worker node:
+```sh
+py.test -p ciqueue.pytest --queue redis://<host>:6379?worker=<worker_id>&build=<build_id>&retry=<n>
+```
+
+Then, to then get a summary report of all the tests, run the following on another node:
+```sh
+py.test -p ciqueue.pytest_report --queue redis://<host>:6379?build=<build_id>&retry=<n>
+```
 
 ## Implementing a new integration
 
@@ -110,4 +119,3 @@ Which mean any worker can crash at any point, without compromising the entire bu
 Workers record the tests they ran in a Redis list, and this methods returns a new queue instance that will replay the test order.
 
 It's useful for CI system that allow to retry a single job.
-
