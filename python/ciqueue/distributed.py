@@ -74,7 +74,6 @@ class Worker(Base):
                 yield test
             else:
                 time.sleep(0.05)
-                return
 
     def shutdown(self):
         self.shutdown_required = True
