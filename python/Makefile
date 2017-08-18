@@ -22,7 +22,7 @@ lint:
 autolint: autopep8 lint
 
 run_tests: clean
-	py.test --durations=10 tests
+	py.test --durations=10 -vv tests
 
 test: autopep8 run_tests lint
 
