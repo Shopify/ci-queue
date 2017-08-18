@@ -36,8 +36,9 @@ class QueueImplementation(object):
 
         test_order = []
         for test in queue:
-            test_order.append(test)
             queue.requeue(test)
+            queue.acknowledge(test)
+            test_order.append(test)
         return test_order
 
     def test_requeue(self):
