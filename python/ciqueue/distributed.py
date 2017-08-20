@@ -1,8 +1,8 @@
 import os
 import time
 import math
-import redis
 import datetime
+import redis
 from ciqueue import static
 
 
@@ -202,9 +202,9 @@ class Supervisor(Base):
         tests_remaining = len(self)
         while tests_remaining:  # pylint: disable=len-as-condition
             if datetime.datetime.now() - last_update > update_interval:
-                print("{} tests remain".format(tests_remaining))
+                print "{} tests remain".format(tests_remaining)
                 if tests_remaining < 10:
-                    print(', '.join(self.redis.lrange(self.key('queue'), 0 , -1)))
+                    print ', '.join(self.redis.lrange(self.key('queue'), 0, -1))
                 last_update = datetime.datetime.now()
             time.sleep(0.1)
 
