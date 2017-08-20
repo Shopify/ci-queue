@@ -67,6 +67,8 @@ class Worker(Base):
 
     def __iter__(self):
         def poll():
+            self.wait_for_master()
+
             while not self.shutdown_required and len(self):  # pylint: disable=len-as-condition
                 test = self._reserve()
                 if test:
