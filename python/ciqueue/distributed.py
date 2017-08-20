@@ -68,8 +68,6 @@ class Worker(Base):
 
     def __iter__(self):
         def poll():
-            self.wait_for_master()
-
             while not self.shutdown_required and len(self):  # pylint: disable=len-as-condition
                 test = self._reserve()
                 if test:
@@ -209,7 +207,7 @@ class Supervisor(Base):
         tests_remaining = len(self)
         while tests_remaining:  # pylint: disable=len-as-condition
             if datetime.datetime.now() - last_update > update_interval:
-                self.logger.info("{} tests remain".format(tests_remaining))
+                self.logger.info("%d tests remain", tests_remaining)
                 if tests_remaining < 10:
                     self.logger.info(', '.join(self.redis.lrange(self.key('queue'), 0, -1)))
                 last_update = datetime.datetime.now()
