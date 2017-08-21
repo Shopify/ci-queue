@@ -52,7 +52,7 @@ class Base(object):
         return self.total - len(self)
 
 
-class Worker(Base):
+class Worker(Base):  # pylint: disable=too-many-instance-attributes
     distributed = True
 
     def __init__(self, tests, worker_id, redis, build_id,  # pylint: disable=too-many-arguments
@@ -65,18 +65,33 @@ class Worker(Base):
         self.worker_id = worker_id
         self.shutdown_required = False
         self._push(tests)
+        self.twriter = None
 
     def __iter__(self):
+        write = self.twriter.write if self.twriter else print
+
         def poll():
+            update_interval = datetime.timedelta(seconds=10)
+            last_update = datetime.datetime.now()
             while not self.shutdown_required and len(self):  # pylint: disable=len-as-condition
                 test = self._reserve()
                 if test:
+                    write('reserved {}\n'.format(test))
                     yield test
                 else:
                     time.sleep(0.05)
+                    if datetime.datetime.now() - last_update > update_interval:
+                        tests_remaining = len(self)
+                        write("%d tests remain\n" % tests_remaining)
+                        if tests_remaining < 10:
+                            write('queue: ' + ', '.join(self.redis.lrange(self.key('queue'), 0, -1)) + '\n')
+                            write('running: ' + ', '.join(self.redis.zrange(self.key('running'), 0, -1)) + '\n')
+                            last_update = datetime.datetime.now()
 
         try:
+            write('wait for master\n')
             self.wait_for_master()
+            write('master\n')
             for i in poll():
                 yield i
         except redis.ConnectionError:
@@ -209,7 +224,8 @@ class Supervisor(Base):
             if datetime.datetime.now() - last_update > update_interval:
                 write("%d tests remain\n" % tests_remaining)
                 if tests_remaining < 10:
-                    write(', '.join(self.redis.lrange(self.key('queue'), 0, -1)) + '\n')
+                    write('queue: ' + ', '.join(self.redis.lrange(self.key('queue'), 0, -1)) + '\n')
+                    write('running: ' + ', '.join(self.redis.zrange(self.key('running'), 0, -1)) + '\n')
                 last_update = datetime.datetime.now()
             time.sleep(0.1)
             tests_remaining = len(self)
