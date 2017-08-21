@@ -35,7 +35,7 @@ class Base(object):
         raise LostMaster(
             "The master worker is still `" +
             repr(master_status) +
-            "` after 10 seconds waiting.")
+            "` after {} seconds waiting.".format(timeout))
 
     def _master_status(self):
         return self.redis.get(self.key('master-status'))
@@ -66,14 +66,20 @@ class Worker(Base):
         self._push(tests)
 
     def __iter__(self):
-        self.wait_for_master()
+        def poll():
+            while not self.shutdown_required and len(self):  # pylint: disable=len-as-condition
+                test = self._reserve()
+                if test:
+                    yield test
+                else:
+                    time.sleep(0.05)
 
-        while not self.shutdown_required and len(self):  # pylint: disable=len-as-condition
-            test = self._reserve()
-            if test:
-                yield test
-            else:
-                time.sleep(0.05)
+        try:
+            self.wait_for_master()
+            for i in poll():
+                yield i
+        except redis.ConnectionError:
+            pass
 
     def shutdown(self):
         self.shutdown_required = True
