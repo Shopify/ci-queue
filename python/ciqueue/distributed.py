@@ -1,9 +1,10 @@
 import os
 import datetime
 import time
-import logging
 import math
+import sys
 import redis
+import py
 from ciqueue import static
 
 
@@ -190,26 +191,26 @@ class Supervisor(Base):
 
     def __init__(self, redis, build_id, *args, **kwargs):  # pylint: disable=unused-argument
         super(Supervisor, self).__init__(redis=redis, build_id=build_id)
-        logging.basicConfig(level=logging.INFO)
-        self.logger = logging.getLogger(__name__)
+        self._tw = py.io.TerminalWriter(file=sys.stdout)  # pylint:disable=no-member
 
     def _push(self, tests):
         pass
 
     def wait_for_workers(self, master_timeout=None):
-        self.logger.info("wait for master")
+        self._tw.write("wait for master\n")
         if not self.wait_for_master(timeout=master_timeout):
             return False
 
-        self.logger.info("master")
+        self._tw.write("master\n")
         update_interval = datetime.timedelta(seconds=10)
         last_update = datetime.datetime.now()
         tests_remaining = len(self)
         while tests_remaining:  # pylint: disable=len-as-condition
             if datetime.datetime.now() - last_update > update_interval:
-                self.logger.info("%d tests remain", tests_remaining)
+                self._tw.write("%d tests remain\n" % tests_remaining)
                 if tests_remaining < 10:
-                    self.logger.info(', '.join(self.redis.lrange(self.key('queue'), 0, -1)))
+                    self._tw.write(', '.join(self.redis.lrange(self.key('queue'), 0, -1)))
+                    self._tw.line()
                 last_update = datetime.datetime.now()
             time.sleep(0.1)
             tests_remaining = len(self)
