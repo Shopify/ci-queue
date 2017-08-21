@@ -93,8 +93,10 @@ class RedisReporter(object):
                     test_queue.key_item(item),
                     dill.dumps(item.error_reports))
 
-            except redis.ConnectionError:
-                pass
+            except redis.ConnectionError as e:
+                self.twriter.write('redis error: {}\n'.format(e))
+            except Exception as e:
+                self.twriter.write('error: %r' % e)
 
         # if the test passed, we remove it from the errors queue
         elif call.when == 'teardown' and not hasattr(item, 'error_reports'):
