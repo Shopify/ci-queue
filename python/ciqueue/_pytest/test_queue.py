@@ -38,6 +38,24 @@ def parse_redis_args(query_string, tests_index):
     return result
 
 
+def parse_redis_client_args(spec):
+    query = urlparse.parse_qs(spec.query)
+
+    result = {'host': spec.authority.split(':')[0],
+              'db': int(spec.path[1:] or 0)}
+
+    if spec.port:
+        result['port'] = spec.port
+    if 'socket_timeout' in query:
+        result['socket_timeout'] = int(query['socket_timeout'][0])
+    if 'socket_connect_timeout' in query:
+        result['socket_connect_timeout'] = int(query['socket_connect_timeout'][0])
+    if 'retry_on_timeout' in query:
+        result['retry_on_timeout'] = bool(query['retry_on_timeout'][0])
+
+    return result
+
+
 def build_queue(queue_url, tests_index=None):
     spec = uritools.urisplit(queue_url)
     if spec.scheme == 'list':
@@ -45,12 +63,9 @@ def build_queue(queue_url, tests_index=None):
     elif spec.scheme == 'file':
         return ciqueue.File(spec.path)
     elif spec.scheme == 'redis':
-
-        redis_options = {'host': spec.authority.split(':')[0],
-                         'db': int(spec.path[1:] or 0)}
-        if spec.port:
-            redis_options['port'] = spec.port
+        redis_options = parse_redis_client_args(spec)
         redis_client = redis.StrictRedis(**redis_options)
+
         kwargs = parse_redis_args(spec.query, tests_index)
         retry = bool(kwargs['retry'])
         del kwargs['retry']
