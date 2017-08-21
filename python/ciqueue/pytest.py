@@ -9,6 +9,7 @@ from ciqueue._pytest import test_queue
 from ciqueue._pytest import outcomes
 import dill
 import pytest
+import redis
 
 # pylint: disable=too-few-public-methods
 
@@ -86,10 +87,15 @@ class RedisReporter(object):
             else:
                 item.error_reports[call.when] = payload
 
-            self.redis.hset(
-                self.errors_key,
-                test_queue.key_item(item),
-                dill.dumps(item.error_reports))
+            try:
+                self.redis.hset(
+                    self.errors_key,
+                    test_queue.key_item(item),
+                    dill.dumps(item.error_reports))
+
+            except redis.ConnectionError:
+                pass
+
         # if the test passed, we remove it from the errors queue
         elif call.when == 'teardown' and not hasattr(item, 'error_reports'):
             self.twriter.write('deleting from errros: {}\n'.format(test_queue.key_item(item)))

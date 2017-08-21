@@ -5,24 +5,24 @@ class Unserializable(Exception):
     __module__ = 'builtins'
 
 
-def success(self, test_method):
-    pass
+# def success(self, test_method):
+#     pass
 
 
-def fail(self, test_method):
-    assert False
+# def fail(self, test_method):
+#     assert False
 
 
-def t_success(self):
-    pass
+# def t_success(self):
+#     pass
 
 
-def t_fail(self):
-    assert False
+# def t_fail(self):
+#     assert False
 
 
-def t_ufail(self):
-    raise Unserializable()
+# def t_ufail(self):
+#     raise Unserializable()
 
 
 @pytest.mark.skip("skipping test message")
@@ -30,13 +30,13 @@ def t_mskip(self):
     pass
 
 
-def t_mfail(self):
-    pytest.fail()
+# def t_mfail(self):
+#     pytest.fail()
 
 
-@pytest.mark.xfail
-def t_mxfail(self):
-    pass
+# @pytest.mark.xfail
+# def t_mxfail(self):
+#     pass
 
 
 def methods(setup_method, test_method, teardown_method):
