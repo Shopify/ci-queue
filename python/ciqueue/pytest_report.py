@@ -30,6 +30,7 @@ def pytest_collection_modifyitems(session, config, items):  # pylint: disable=un
     noop's, and downloads the result of each test run from the redis queue. Test errors are
     attached to each test's `error_reports` field."""
     session.queue = test_queue.build_queue(session.config.getoption('queue'))
+    session.queue.twriter = config.get_terminal_writer()
     session.queue.wait_for_workers(master_timeout=300)
     error_reports = session.queue.redis.hgetall(
         session.queue.key('error-reports')
