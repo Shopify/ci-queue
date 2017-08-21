@@ -95,7 +95,7 @@ class RedisReporter(object):
 
             except redis.ConnectionError as error:
                 self.twriter.write('redis error: {}\n'.format(error))
-            except Exception as error:  # pytest: disable=broad-except
+            except Exception as error:  # pylint: disable=broad-except
                 self.twriter.write('error: %r' % error)
 
         # if the test passed, we remove it from the errors queue
