@@ -79,20 +79,22 @@ class RedisReporter(object):
 
         self.twriter.write(call.when)
         if call.excinfo:
+            self.twriter.write('excinfo: {}\n'.format(call.excinfo))
             payload = call.__dict__.copy()
+            self.twriter.write('payload\n')
             payload['excinfo'] = outcomes.swap_in_serializable(payload['excinfo'])
-
+            self.twriter.write('swapped in\n')
             if not hasattr(item, 'error_reports'):
                 item.error_reports = {call.when: payload}
             else:
                 item.error_reports[call.when] = payload
-
+            self.twriter.write('item\n')
             try:
                 self.redis.hset(
                     self.errors_key,
                     test_queue.key_item(item),
                     dill.dumps(item.error_reports))
-
+                self.twriter.write('error_report pushed')
             except redis.ConnectionError as error:
                 self.twriter.write('redis error: {}\n'.format(error))
             except Exception as error:  # pylint: disable=broad-except
@@ -113,5 +115,6 @@ def pytest_collection_modifyitems(session, config, items):
     queue = test_queue.build_queue(config.getoption('queue'), tests_index)
     if queue.distributed:
         queue.twriter = config.get_terminal_writer()
+        queue.twriter.write('timeout_options: {}\n'.format(queue.redis.connection_pool.connection_kwargs))
         config.pluginmanager.register(RedisReporter(config, queue))
     session.items = ItemList(tests_index, queue)
