@@ -41,7 +41,9 @@ class TestIntegration(object):
         assert 'integrations/pytest/test_all.py:27: message' not in output, output
 
     def test_retries(self):
-        queue = 'redis://localhost:6379/0?worker=0&build=bar&retry=0&timeout=5&max_requeues=1&requeue_tolerance=0.2&socket_timeout=5&socket_connect_timeout=5&retry_on_timeout=true'  # pylint: disable=line-too-long
+        queue = ('redis://localhost:6379/0?worker=0&build=bar&retry=0&timeout=5'
+                 '&max_requeues=1&requeue_tolerance=0.2'
+                 '&socket_timeout=5&socket_connect_timeout=5&retry_on_timeout=true')
         filename = 'test_all.py'
 
         output = check_output(self.no_check_cmd.format(queue, filename))
