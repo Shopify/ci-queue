@@ -92,6 +92,9 @@ class Worker(Base):
         ) == 1
 
     def requeue(self, test, offset=42):
+        if not (self.max_requeues > 0 and self.global_max_requeues > 0.0):
+            return False
+
         return self._eval_script(
             'requeue',
             keys=[

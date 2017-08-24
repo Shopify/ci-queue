@@ -1,4 +1,5 @@
 import urlparse
+from distutils import util  # pylint: disable=no-name-in-module, import-modules-only
 import ciqueue
 import ciqueue.distributed
 import redis
@@ -14,7 +15,7 @@ def key_item(item):
     return item.location[0] + '@' + item.location[2]
 
 
-def parse_redis_args(query_string, tests_index):
+def parse_worker_args(query_string, tests_index):
     args = urlparse.parse_qs(query_string)
 
     if 'build' not in args or not args['build']:
@@ -38,6 +39,24 @@ def parse_redis_args(query_string, tests_index):
     return result
 
 
+def parse_redis_args(spec):
+    query = urlparse.parse_qs(spec.query)
+
+    result = {'host': spec.authority.split(':')[0],
+              'db': int(spec.path[1:] or 0)}
+
+    if spec.port:
+        result['port'] = spec.port
+    if 'socket_timeout' in query:
+        result['socket_timeout'] = int(query['socket_timeout'][0])
+    if 'socket_connect_timeout' in query:
+        result['socket_connect_timeout'] = int(query['socket_connect_timeout'][0])
+    if 'retry_on_timeout' in query:
+        result['retry_on_timeout'] = bool(util.strtobool(query['retry_on_timeout'][0] or 'false'))
+
+    return result
+
+
 def build_queue(queue_url, tests_index=None):
     spec = uritools.urisplit(queue_url)
     if spec.scheme == 'list':
@@ -45,20 +64,17 @@ def build_queue(queue_url, tests_index=None):
     elif spec.scheme == 'file':
         return ciqueue.File(spec.path)
     elif spec.scheme == 'redis':
+        redis_args = parse_redis_args(spec)
+        redis_client = redis.StrictRedis(**redis_args)
 
-        redis_options = {'host': spec.authority.split(':')[0],
-                         'db': int(spec.path[1:] or 0)}
-        if spec.port:
-            redis_options['port'] = spec.port
-        redis_client = redis.StrictRedis(**redis_options)
-        kwargs = parse_redis_args(spec.query, tests_index)
-        retry = bool(kwargs['retry'])
-        del kwargs['retry']
+        worker_args = parse_worker_args(spec.query, tests_index)
+        retry = bool(worker_args['retry'])
+        del worker_args['retry']
 
         klass = ciqueue.distributed.Worker
         if tests_index is None:
             klass = ciqueue.distributed.Supervisor
-        queue = klass(tests=tests_index, redis=redis_client, **kwargs)
+        queue = klass(tests=tests_index, redis=redis_client, **worker_args)
         if retry and tests_index:
             queue = queue.retry_queue()
         return queue
