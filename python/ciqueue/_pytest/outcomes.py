@@ -90,6 +90,10 @@ def mark_as_skipped(call, item, stats, msg):
     for key in ('passed', 'error', 'failed'):
         clear_out_stats(key)
 
-    # and rollback the testsfailed number like it never happened
+    # rollback the testsfailed number like it never happened
     item.session.testsfailed -= len([v for k, v in item.error_reports.iteritems()
                                      if not issubclass(v['excinfo'].type, Skipped) and k != 'teardown'])
+
+    # and clear out any state on the item like it never happened
+    if hasattr(item, 'error_reports'):
+        del item.error_reports

@@ -100,7 +100,6 @@ class RedisReporter(object):
             # The method will return `False` if the test couldn't be requeued
             if test_failed and self.queue.requeue(test_name):
                 outcomes.mark_as_skipped(call, item, self.terminalreporter.stats, "RETRYING")
-                del item.error_reports
                 self.terminalwriter.write(' RETRYING ', green=True)
 
             # If the test was already acknowledged by another worker (we timed out)
