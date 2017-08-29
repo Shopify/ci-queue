@@ -47,6 +47,7 @@ class ItemList(object):
     def __len__(self):
         # HACK: Prevent pytest from grabbing the next test
         # TODO: Check if we could return a fake next test instead # pylint: disable=fixme
+        print('__len__')
         return 0
 
     def __getitem__(self, index):
@@ -54,7 +55,9 @@ class ItemList(object):
 
     def __iter__(self):
         for test in self.queue:
+            print('yielding item')
             yield self.index[test]
+            print('yielded item')
 
 
 class RedisReporter(object):
@@ -83,7 +86,9 @@ class RedisReporter(object):
         """This function hooks into pytest's reporting of test results, and pushes a failed test's error report
         onto the redis queue. A test can fail in any of the 3 call stages: setup, test, or teardown.
         This is captured by pushing a dict of {call_state: error} for each failed test."""
+        print('enter pytest pytest_runtest_makereport {}'.format(call.when))
         if call.excinfo:
+            print('enter pytest pytest_runtest_makereport {} exinfo'.format(call.when))
             payload = call.__dict__.copy()
             payload['excinfo'] = outcomes.swap_in_serializable(payload['excinfo'])
 
@@ -91,8 +96,10 @@ class RedisReporter(object):
                 item.error_reports = {call.when: payload}
             else:
                 item.error_reports[call.when] = payload
+            print('exit pytest pytest_runtest_makereport {} exinfo'.format(call.when))
 
         if call.when == 'teardown':
+            print('enter pytest pytest_runtest_makereport {} ack/retry'.format(call.when))
             test_name = test_queue.key_item(item)
             test_failed = outcomes.failed(item)
 
@@ -112,6 +119,8 @@ class RedisReporter(object):
             else:
                 outcomes.mark_as_skipped(call, item, self.terminalreporter.stats, "TIMED OUT")
                 self.terminalwriter.write(' TIMED OUT ', green=True)
+            print('exit pytest pytest_runtest_makereport {} ack/retry'.format(call.when))
+        print('exit pytest pytest_runtest_makereport {}'.format(call.when))
 
 
 @pytest.hookimpl(trylast=True)
