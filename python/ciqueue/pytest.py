@@ -47,6 +47,7 @@ class ItemList(object):
     def __len__(self):
         # HACK: Prevent pytest from grabbing the next test
         # TODO: Check if we could return a fake next test instead # pylint: disable=fixme
+        print('__len__')
         return 0
 
     def __getitem__(self, index):
@@ -54,24 +55,40 @@ class ItemList(object):
 
     def __iter__(self):
         for test in self.queue:
+            print('yielding item')
             yield self.index[test]
-            # TODO: Find proper hook for acknowledge / requeue # pylint: disable=fixme
-            self.queue.acknowledge(test)
+            print('yielded item')
 
 
 class RedisReporter(object):
 
     def __init__(self, config, queue):
         self.config = config
+        self.queue = queue
         self.redis = queue.redis
         self.errors_key = queue.key('error-reports')
+        self.terminalreporter = config.pluginmanager.get_plugin('terminalreporter')
+        self.terminalwriter = config.get_terminal_writer()
+
+    def record(self, item):
+        # if the test passed, we remove it from the errors queue
+        # otherwise we add it
+        if hasattr(item, 'error_reports'):
+            self.redis.hset(
+                self.errors_key,
+                test_queue.key_item(item),
+                dill.dumps(item.error_reports))
+        else:
+            self.redis.hdel(self.errors_key, test_queue.key_item(item))
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_runtest_makereport(self, item, call):
         """This function hooks into pytest's reporting of test results, and pushes a failed test's error report
         onto the redis queue. A test can fail in any of the 3 call stages: setup, test, or teardown.
         This is captured by pushing a dict of {call_state: error} for each failed test."""
+        print('enter pytest pytest_runtest_makereport {}'.format(call.when))
         if call.excinfo:
+            print('enter pytest pytest_runtest_makereport {} exinfo'.format(call.when))
             payload = call.__dict__.copy()
             payload['excinfo'] = outcomes.swap_in_serializable(payload['excinfo'])
 
@@ -79,14 +96,31 @@ class RedisReporter(object):
                 item.error_reports = {call.when: payload}
             else:
                 item.error_reports[call.when] = payload
+            print('exit pytest pytest_runtest_makereport {} exinfo'.format(call.when))
 
-            self.redis.hset(
-                self.errors_key,
-                test_queue.key_item(item),
-                dill.dumps(item.error_reports))
-        # if the test passed, we remove it from the errors queue
-        elif call.when == 'teardown' and not hasattr(item, 'error_reports'):
-            self.redis.hdel(self.errors_key, test_queue.key_item(item))
+        if call.when == 'teardown':
+            print('enter pytest pytest_runtest_makereport {} ack/retry'.format(call.when))
+            test_name = test_queue.key_item(item)
+            test_failed = outcomes.failed(item)
+
+            # Only attempt to requeue if the test failed.
+            # The method will return `False` if the test couldn't be requeued
+            if test_failed and self.queue.requeue(test_name):
+                outcomes.mark_as_skipped(call, item, self.terminalreporter.stats, "RETRYING")
+                self.terminalwriter.write(' RETRYING ', green=True)
+
+            # If the test was already acknowledged by another worker (we timed out)
+            # Then we only record it if it was successful.
+            elif self.queue.acknowledge(test_name) or not test_failed:
+                self.record(item)
+
+            # The test timed out and failed, mark it as skipped so that it doesn't
+            # fail the build
+            else:
+                outcomes.mark_as_skipped(call, item, self.terminalreporter.stats, "TIMED OUT")
+                self.terminalwriter.write(' TIMED OUT ', green=True)
+            print('exit pytest pytest_runtest_makereport {} ack/retry'.format(call.when))
+        print('exit pytest pytest_runtest_makereport {}'.format(call.when))
 
 
 @pytest.hookimpl(trylast=True)
