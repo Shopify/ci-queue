@@ -22,17 +22,21 @@ module Minitest
 
       class Error
         class << self
+          attr_accessor :coder
+
           def load(payload)
-            Marshal.load(payload)
+            new(coder.load(payload))
           end
         end
+
+        self.coder = Marshal
 
         def initialize(data)
           @data = data
         end
 
         def dump
-          Marshal.dump(self)
+          self.class.coder.dump(@data)
         end
 
         def test_name
