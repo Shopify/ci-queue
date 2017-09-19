@@ -49,7 +49,7 @@ class TestIntegration(object):
         output = check_output(self.no_check_cmd.format(queue, filename))
         assert '= 4 failed, 2 passed, 4 skipped, 1 xpassed, 6 error in' in output, output
         assert 'integrations/pytest/test_all.py:27: skipping test message' in output, output
-        assert ' RETRYING ' in output, output
+        assert ' WILL_RETRY ' in output, output
 
         expected_messages(check_output(self.no_check_report_cmd.format(queue, filename)))
 

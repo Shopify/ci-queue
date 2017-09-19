@@ -5,6 +5,7 @@ py.test -p ciqueue.pytest --queue redis://<host>:6379?worker=<worker_id>&build=<
 """
 from __future__ import absolute_import
 from __future__ import print_function
+import zlib
 from ciqueue._pytest import test_queue
 from ciqueue._pytest import outcomes
 import dill
@@ -44,11 +45,6 @@ class ItemList(object):
         self.index = index
         self.queue = queue
 
-    def __len__(self):
-        # HACK: Prevent pytest from grabbing the next test
-        # TODO: Check if we could return a fake next test instead # pylint: disable=fixme
-        return 0
-
     def __getitem__(self, index):
         return None
 
@@ -74,7 +70,7 @@ class RedisReporter(object):
             self.redis.hset(
                 self.errors_key,
                 test_queue.key_item(item),
-                dill.dumps(item.error_reports))
+                zlib.compress(dill.dumps(item.error_reports)))
         else:
             self.redis.hdel(self.errors_key, test_queue.key_item(item))
 
@@ -99,8 +95,8 @@ class RedisReporter(object):
             # Only attempt to requeue if the test failed.
             # The method will return `False` if the test couldn't be requeued
             if test_failed and self.queue.requeue(test_name):
-                outcomes.mark_as_skipped(call, item, self.terminalreporter.stats, "RETRYING")
-                self.terminalwriter.write(' RETRYING ', green=True)
+                outcomes.mark_as_skipped(call, item, self.terminalreporter.stats, "WILL_RETRY")
+                self.terminalwriter.write(' WILL_RETRY ', green=True)
 
             # If the test was already acknowledged by another worker (we timed out)
             # Then we only record it if it was successful.
@@ -114,12 +110,25 @@ class RedisReporter(object):
                 self.terminalwriter.write(' TIMED OUT ', green=True)
 
 
-@pytest.hookimpl(trylast=True)
-def pytest_collection_modifyitems(session, config, items):
-    """This function hooks into pytest's list of tests to run, and replaces
-    those `items` with a redis test queue iterator."""
-    tests_index = ItemIndex(items)
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtestloop(session):
+    if (session.testsfailed and
+            not session.config.option.continue_on_collection_errors):
+        raise session.Interrupted(
+            "%d errors during collection" % session.testsfailed)
+
+    if session.config.option.collectonly:
+        return True
+
+    config = session.config
+    tests_index = ItemIndex(session.items)
     queue = test_queue.build_queue(config.getoption('queue'), tests_index)
     if queue.distributed:
         config.pluginmanager.register(RedisReporter(config, queue))
     session.items = ItemList(tests_index, queue)
+
+    for item in session.items:
+        item.config.hook.pytest_runtest_protocol(item=item, nextitem=None)
+        if session.shouldstop:
+            raise session.Interrupted(session.shouldstop)
+    return True

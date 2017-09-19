@@ -11,8 +11,7 @@ class InvalidRedisUrl(Exception):
 
 
 def key_item(item):
-    # TODO: discuss better identifier # pylint: disable=fixme
-    return item.location[0] + '@' + item.location[2]
+    return item.nodeid
 
 
 def parse_worker_args(query_string, tests_index):
