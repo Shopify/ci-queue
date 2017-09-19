@@ -6,6 +6,7 @@ py.test -p ciqueue.pytest_report --queue redis://<host>:6379?build=<build_id>&re
 
 from __future__ import absolute_import
 from __future__ import print_function
+import zlib
 import dill
 import pytest
 from _pytest import runner
@@ -43,7 +44,7 @@ def pytest_collection_modifyitems(session, config, items):  # pylint: disable=un
         # store the errors on setup/test/teardown to item.error_reports
         key = test_queue.key_item(item)
         if key in error_reports:
-            item.error_reports = dill.loads(error_reports[key])
+            item.error_reports = dill.loads(zlib.decompress(error_reports[key]))
             for _, call_dict in item.error_reports.items():
                 call_dict['excinfo'] = outcomes.swap_back_original(call_dict['excinfo'])
 
