@@ -40,11 +40,17 @@ DESERIALIZE_TYPES = {Skipped: runner.Skipped,
 
 
 def swap_in_serializable(excinfo):
+    def pickles(excinfo):
+        try:
+            return dill.pickles(excinfo)
+        except:  # pylint: disable=bare-except
+            return False
+
     if excinfo.type in SERIALIZE_TYPES:
         cls = SERIALIZE_TYPES[excinfo.type]
         tup = (cls, cls(*excinfo.value.args), excinfo.tb)
         excinfo = code.ExceptionInfo(tup)
-    elif not dill.pickles(excinfo):
+    elif not pickles(excinfo):
         tup = (UnserializableException,
                UnserializableException(
                    "Actual Exception thrown on test node was %r" %
