@@ -6,7 +6,7 @@ class CI::Queue::RedisTest < Minitest::Test
   def setup
     @redis = ::Redis.new(db: 7, host: ENV.fetch('REDIS_HOST', nil))
     @redis.flushdb
-    @queue = worker(1, max_requeues: 1, requeue_tolerance: 0.1)
+    super
   end
 
   def test_requeue # redefine the shared one
@@ -31,7 +31,11 @@ class CI::Queue::RedisTest < Minitest::Test
   end
 
   def test_retry_queue
-    assert_equal poll(@queue), poll(@queue.retry_queue)
+    test_order = poll(@queue)
+    retry_queue = @queue.retry_queue
+    populate(retry_queue)
+    retry_test_order = poll(retry_queue)
+    assert_equal test_order, retry_test_order
   end
 
   def test_shutdown
@@ -48,6 +52,20 @@ class CI::Queue::RedisTest < Minitest::Test
     @redis.flushdb
     assert_predicate worker(2), :master?
     refute_predicate worker(1), :master?
+  end
+
+  def test_exhausted_while_not_populated
+    assert_predicate @queue, :populated?
+
+    second_worker = worker(2, populate: false)
+
+    refute_predicate second_worker, :populated?
+    refute_predicate second_worker, :exhausted?
+
+    poll(@queue)
+
+    refute_predicate second_worker, :populated?
+    assert_predicate second_worker, :exhausted?
   end
 
   def test_timed_out_test_are_picked_up_by_other_workers
@@ -74,9 +92,9 @@ class CI::Queue::RedisTest < Minitest::Test
       end
     end
 
-    assert_predicate @queue, :empty?
-    assert_equal [TEST_LIST.first], @queue.retry_queue.to_a
-    assert_equal TEST_LIST.sort, second_queue.retry_queue.to_a.sort
+    assert_predicate @queue, :exhausted?
+    assert_equal [TEST_LIST.first], populate(@queue.retry_queue).to_a
+    assert_equal TEST_LIST.sort, populate(second_queue.retry_queue).to_a.sort
   end
 
   def test_test_isnt_requeued_if_it_was_picked_up_by_another_worker
@@ -104,7 +122,7 @@ class CI::Queue::RedisTest < Minitest::Test
       end
     end
 
-    assert_predicate @queue, :empty?
+    assert_predicate @queue, :exhausted?
   end
 
   def test_acknowledge_returns_false_if_the_test_was_picked_up_by_another_worker
@@ -135,7 +153,7 @@ class CI::Queue::RedisTest < Minitest::Test
       end
     end
 
-    assert_predicate @queue, :empty?
+    assert_predicate @queue, :exhausted?
   end
 
   def test_workers_register
@@ -150,7 +168,7 @@ class CI::Queue::RedisTest < Minitest::Test
       begin
         threads = 2.times.map do |i|
           Thread.new do
-            queue = worker(i, tests: %w(a), build_id: '24')
+            queue = worker(i, tests: [TEST_LIST.first], build_id: '24')
             queue.poll do |test|
               sleep 1 # timeout
               queue.acknowledge(test)
@@ -161,7 +179,9 @@ class CI::Queue::RedisTest < Minitest::Test
         threads.each { |t| t.join(3) }
         threads.each { |t| refute_predicate t, :alive? }
 
-        assert_predicate @queue, :empty?
+        queue = worker(12, build_id: '24')
+        assert_predicate queue, :queue_initialized?
+        assert_predicate queue, :exhausted?
       ensure
         threads.each(&:kill)
       end
@@ -170,15 +190,28 @@ class CI::Queue::RedisTest < Minitest::Test
 
   private
 
+  def build_queue
+    worker(1, max_requeues: 1, requeue_tolerance: 0.1, populate: false)
+  end
+
+  def populate(worker, tests: TEST_LIST.dup)
+    worker.populate(tests, &:name)
+  end
+
   def worker(id, **args)
-    test_list = args.delete(:tests) || TEST_LIST.dup
-    CI::Queue::Redis.new(
-      test_list,
+    tests = args.delete(:tests) || TEST_LIST.dup
+    skip_populate = args.delete(:populate) == false
+    queue = CI::Queue::Redis.new(
       redis: @redis,
       build_id: '42',
       worker_id: id.to_s,
       timeout: 0.2,
       **args,
     )
+    if skip_populate
+      return queue
+    else
+      populate(queue, tests: tests)
+    end
   end
 end
