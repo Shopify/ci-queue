@@ -42,7 +42,7 @@ setuplib.setup(
     extras_require={
         'test': [
             'shopify_python==0.4.1',
-            'pycodestyle == 2.2.0',
+            'pycodestyle == 2.3.0',
         ]
     },
     package_data={'': get_lua_scripts()},
