@@ -11,7 +11,7 @@ module CI
         private
 
         def parse_query(query)
-          CGI.parse(query).map { |k, v| [k.to_sym, v.size > 1 ? v : v.first] }.to_h
+          CGI.parse(query.to_s).map { |k, v| [k.to_sym, v.size > 1 ? v : v.first] }.to_h
         end
       end
 
@@ -23,6 +23,10 @@ module CI
         @total = tests.size
         @max_requeues = Integer(max_requeues)
         @global_max_requeues = (tests.size * Float(requeue_tolerance)).ceil
+      end
+
+      def retry_queue
+        self
       end
 
       def populate(tests, &indexer)

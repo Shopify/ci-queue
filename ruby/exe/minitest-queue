@@ -1,0 +1,9 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+require 'minitest/queue'
+require 'minitest/queue/runner'
+require 'minitest/reporters/queue_reporter'
+require 'ci/queue'
+
+Minitest::Queue::Runner.invoke(ARGV)

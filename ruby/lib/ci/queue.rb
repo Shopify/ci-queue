@@ -15,7 +15,7 @@ module CI
       implementation = case uri.scheme
       when 'list'
         Static
-      when 'file'
+      when 'file', nil
         File
       when 'redis'
         require 'ci/queue/redis'
