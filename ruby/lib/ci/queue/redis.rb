@@ -10,8 +10,25 @@ module CI
       Error = Class.new(StandardError)
       LostMaster = Class.new(Error)
 
-      def self.new(*args)
-        Worker.new(*args)
+      class << self
+
+        def new(*args)
+          Worker.new(*args)
+        end
+
+        def from_uri(uri)
+          options = parse_query(uri.query)
+          redis_uri = uri.dup
+          redis_uri.query = nil
+          options[:redis] = ::Redis.new(url: redis_uri.to_s)
+          new(**options)
+        end
+
+        private
+
+        def parse_query(query)
+          CGI.parse(query).map { |k, v| [k.to_sym, v.size > 1 ? v : v.first] }.to_h
+        end
       end
     end
   end

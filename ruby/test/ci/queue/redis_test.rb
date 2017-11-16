@@ -4,9 +4,20 @@ class CI::Queue::RedisTest < Minitest::Test
   include SharedQueueAssertions
 
   def setup
-    @redis = ::Redis.new(db: 7, host: ENV.fetch('REDIS_HOST', nil))
+    @redis_url = "redis://#{ENV.fetch('REDIS_HOST', 'localhost')}/7"
+    @redis = ::Redis.new(url: @redis_url)
     @redis.flushdb
     super
+  end
+
+  def test_from_uri
+    second_queue = populate(
+      CI::Queue.from_uri("#{@redis_url}?max_requeues=42&requeue_tolerance=0.7&timeout=30&build_id=42&worker_id=2")
+    )
+    assert_instance_of CI::Queue::Redis::Worker, second_queue
+    assert_equal @queue.to_a, second_queue.to_a
+    assert_equal 42, second_queue.max_requeues
+    assert_equal 3, second_queue.global_max_requeues
   end
 
   def test_requeue # redefine the shared one

@@ -1,14 +1,28 @@
 module CI
   module Queue
     class Static
-      attr_reader :progress, :total
+      class << self
+        def from_uri(uri)
+          path, query = uri.opaque.split('?', 2)
+          tests = path.split(':').map { |t| CGI.unescape(t) }
+          new(tests, **parse_query(query))
+        end
+
+        private
+
+        def parse_query(query)
+          CGI.parse(query).map { |k, v| [k.to_sym, v.size > 1 ? v : v.first] }.to_h
+        end
+      end
+
+      attr_reader :progress, :total, :max_requeues, :global_max_requeues
 
       def initialize(tests, max_requeues: 0, requeue_tolerance: 0.0)
         @queue = tests
         @progress = 0
         @total = tests.size
-        @max_requeues = max_requeues
-        @global_max_requeues = (tests.size * requeue_tolerance).ceil
+        @max_requeues = Integer(max_requeues)
+        @global_max_requeues = (tests.size * Float(requeue_tolerance)).ceil
       end
 
       def populate(tests, &indexer)
@@ -53,7 +67,7 @@ module CI
 
       private
 
-      attr_reader :max_requeues, :global_max_requeues, :index
+      attr_reader :index
 
       def should_requeue?(key)
         requeues[key] < max_requeues && requeues.values.inject(0, :+) < global_max_requeues

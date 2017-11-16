@@ -11,12 +11,12 @@ module CI
       self.requeue_offset = 42
 
       class Worker < Base
-        attr_reader :total
+        attr_reader :total, :worker_id, :timeout, :max_requeues, :global_max_requeues, :requeue_tolerance
 
         def initialize(redis:, build_id:, worker_id:, timeout:, max_requeues: 0, requeue_tolerance: 0.0)
           @reserved_test = nil
-          @max_requeues = max_requeues
-          @requeue_tolerance = requeue_tolerance
+          @max_requeues = Integer(max_requeues)
+          @requeue_tolerance = Float(requeue_tolerance)
           @shutdown_required = false
           super(redis: redis, build_id: build_id)
           @worker_id = worker_id.to_s
@@ -105,7 +105,7 @@ module CI
 
         private
 
-        attr_reader :worker_id, :timeout, :max_requeues, :global_max_requeues, :requeue_tolerance, :index
+        attr_reader :index
 
         def raise_on_mismatching_test(test)
           if @reserved_test == test
