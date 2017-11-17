@@ -13,15 +13,24 @@ module CI
       class Worker < Base
         attr_reader :total
 
-        def initialize(tests, redis:, build_id:, worker_id:, timeout:, max_requeues: 0, requeue_tolerance: 0.0)
+        def initialize(redis:, build_id:, worker_id:, timeout:, max_requeues: 0, requeue_tolerance: 0.0)
           @reserved_test = nil
           @max_requeues = max_requeues
-          @global_max_requeues = (tests.size * requeue_tolerance).ceil
+          @requeue_tolerance = requeue_tolerance
           @shutdown_required = false
           super(redis: redis, build_id: build_id)
           @worker_id = worker_id.to_s
           @timeout = timeout
-          push(tests)
+        end
+
+        def populate(tests, &indexer)
+          @index = Index.new(tests, &indexer)
+          push(tests.map { |t| index.key(t) })
+          self
+        end
+
+        def populated?
+          !!defined?(@index)
         end
 
         def shutdown!
@@ -38,9 +47,9 @@ module CI
 
         def poll
           wait_for_master
-          until shutdown_required? || empty?
+          until shutdown_required? || exhausted?
             if test = reserve
-              yield test
+              yield index.fetch(test)
             else
               sleep 0.05
             end
@@ -49,8 +58,9 @@ module CI
         end
 
         def retry_queue(**args)
+          log = redis.lrange(key('worker', worker_id, 'queue'), 0, -1).reverse.uniq
           Retry.new(
-            redis.lrange(key('worker', worker_id, 'queue'), 0, -1).reverse.uniq,
+            log,
             redis: redis,
             build_id: build_id,
             worker_id: worker_id,
@@ -70,30 +80,32 @@ module CI
         end
 
         def acknowledge(test)
-          raise_on_mismatching_test(test)
+          test_key = index.key(test)
+          raise_on_mismatching_test(test_key)
           eval_script(
             :acknowledge,
             keys: [key('running'), key('processed')],
-            argv: [test],
+            argv: [test_key],
           ) == 1
         end
 
         def requeue(test, offset: Redis.requeue_offset)
-          raise_on_mismatching_test(test)
+          test_key = index.key(test)
+          raise_on_mismatching_test(test_key)
 
           requeued = eval_script(
             :requeue,
             keys: [key('processed'), key('requeues-count'), key('queue'), key('running')],
-            argv: [max_requeues, global_max_requeues, test, offset],
+            argv: [max_requeues, global_max_requeues, test_key, offset],
           ) == 1
 
-          @reserved_test = test unless requeued
+          @reserved_test = test_key unless requeued
           requeued
         end
 
         private
 
-        attr_reader :worker_id, :timeout, :max_requeues, :global_max_requeues
+        attr_reader :worker_id, :timeout, :max_requeues, :global_max_requeues, :requeue_tolerance, :index
 
         def raise_on_mismatching_test(test)
           if @reserved_test == test
@@ -111,9 +123,6 @@ module CI
 
           @reserved_test = (try_to_reserve_lost_test || try_to_reserve_test)
         end
-
-        RESERVE_TEST = %{
-        }
 
         def try_to_reserve_test
           eval_script(
@@ -133,6 +142,8 @@ module CI
 
         def push(tests)
           @total = tests.size
+          @global_max_requeues = (tests.size * requeue_tolerance).ceil
+
           if @master = redis.setnx(key('master-status'), 'setup')
             redis.multi do
               redis.lpush(key('queue'), tests)

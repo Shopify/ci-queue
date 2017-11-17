@@ -10,7 +10,6 @@ require 'ci/queue/redis'
 Minitest::Reporters.use!([Minitest::Reporters::QueueReporter.new])
 
 Minitest.queue = CI::Queue::Redis.new(
-  Minitest.loaded_tests,
   redis: ::Redis.new(host: ENV.fetch('REDIS_HOST', nil), db: 7, timeout: 1),
   build_id: 1,
   worker_id: 1,
@@ -25,3 +24,5 @@ if ARGV.first == 'retry'
     requeue_tolerance: 1.0,
   )
 end
+
+Minitest.queue.populate(Minitest.loaded_tests, &:to_s)

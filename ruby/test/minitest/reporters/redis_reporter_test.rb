@@ -48,12 +48,11 @@ module Minitest::Reporters
 
     def worker(id)
       CI::Queue::Redis.new(
-        ['Foo'],
         redis: @redis,
         build_id: '42',
         worker_id: id.to_s,
         timeout: 0.2,
-      )
+      ).populate(%w(a b c d e f g).map { |n| runnable(n) }, &:name)
     end
 
     def summary

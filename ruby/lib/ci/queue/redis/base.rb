@@ -7,8 +7,8 @@ module CI
           @build_id = build_id
         end
 
-        def empty?
-          size == 0
+        def exhausted?
+          queue_initialized? && size == 0
         end
 
         def size
@@ -22,7 +22,7 @@ module CI
           redis.multi do
             redis.lrange(key('queue'), 0, -1)
             redis.zrange(key('running'), 0, -1)
-          end.flatten.reverse
+          end.flatten.reverse.map { |k| index.fetch(k) }
         end
 
         def progress
@@ -32,8 +32,7 @@ module CI
         def wait_for_master(timeout: 10)
           return true if master?
           (timeout * 10 + 1).to_i.times do
-            case master_status
-            when 'ready', 'finished'
+            if queue_initialized?
               return true
             else
               sleep 0.1
@@ -56,6 +55,13 @@ module CI
 
         def master_status
           redis.get(key('master-status'))
+        end
+
+        def queue_initialized?
+          @queue_initialized ||= begin
+            status = master_status
+            status == 'ready' || status == 'finished'
+          end
         end
 
         def eval_script(script, *args)

@@ -11,8 +11,17 @@ module CI
         @global_max_requeues = (tests.size * requeue_tolerance).ceil
       end
 
+      def populate(tests, &indexer)
+        @index = Index.new(tests, &indexer)
+        self
+      end
+
+      def populated?
+        !!defined?(@index)
+      end
+
       def to_a
-        @queue.dup
+        @queue.map { |i| index.fetch(i) }
       end
 
       def size
@@ -21,12 +30,12 @@ module CI
 
       def poll
         while test = @queue.shift
-          yield test
+          yield index.fetch(test)
           @progress += 1
         end
       end
 
-      def empty?
+      def exhausted?
         @queue.empty?
       end
 
@@ -35,18 +44,19 @@ module CI
       end
 
       def requeue(test)
-        return false unless should_requeue?(test)
-        requeues[test] += 1
-        @queue.unshift(test)
+        key = index.key(test)
+        return false unless should_requeue?(key)
+        requeues[key] += 1
+        @queue.unshift(index.key(test))
         true
       end
 
       private
 
-      attr_reader :max_requeues, :global_max_requeues
+      attr_reader :max_requeues, :global_max_requeues, :index
 
-      def should_requeue?(test)
-        requeues[test] < max_requeues && requeues.values.inject(0, :+) < global_max_requeues
+      def should_requeue?(key)
+        requeues[key] < max_requeues && requeues.values.inject(0, :+) < global_max_requeues
       end
 
       def requeues

@@ -47,12 +47,11 @@ class CI::Queue::Redis::SupervisorTest < Minitest::Test
 
   def worker(id)
     CI::Queue::Redis.new(
-      SharedQueueAssertions::TEST_LIST,
       redis: @redis,
       build_id: '42',
       worker_id: id.to_s,
       timeout: 0.2,
-    )
+    ).populate(SharedQueueAssertions::TEST_LIST, &:name)
   end
 
   def supervisor

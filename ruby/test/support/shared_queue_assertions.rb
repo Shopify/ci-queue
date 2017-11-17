@@ -1,4 +1,24 @@
 module SharedQueueAssertions
+  class TestCase
+    attr_reader :name
+
+    def initialize(name)
+      @name = name
+    end
+
+    def inspect
+      "#<TestCase #{name}>"
+    end
+
+    def to_s
+      inspect
+    end
+
+    def <=>(other)
+      self.name <=> other
+    end
+  end
+
   include QueueHelper
 
   TEST_LIST = %w(
@@ -6,7 +26,11 @@ module SharedQueueAssertions
     ATest#test_bar
     BTest#test_foo
     BTest#test_bar
-  ).freeze
+  ).map { |n| TestCase.new(n).freeze }.freeze
+
+  def setup
+    @queue = populate(build_queue)
+  end
 
   def test_progess
     count = 0
@@ -26,10 +50,13 @@ module SharedQueueAssertions
     assert_equal 0, @queue.size
   end
 
-  def test_empty?
-    refute_predicate @queue, :empty?
-    poll(@queue)
-    assert_predicate @queue, :empty?
+  def test_exhausted?
+    queue = build_queue
+    refute_predicate queue, :exhausted?
+    populate(queue)
+    refute_predicate queue, :exhausted?
+    poll(queue)
+    assert_predicate queue, :exhausted?
   end
 
   def test_to_a
@@ -56,5 +83,11 @@ module SharedQueueAssertions
     @queue.poll do |test|
       assert_equal true, @queue.acknowledge(test)
     end
+  end
+
+  private
+
+  def populate(queue, tests: TEST_LIST.dup)
+    queue.populate(tests, &:name)
   end
 end

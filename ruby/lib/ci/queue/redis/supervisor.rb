@@ -9,7 +9,7 @@ module CI
         def wait_for_workers
           return false unless wait_for_master
 
-          sleep 0.1 until empty?
+          sleep 0.1 until exhausted?
           true
         end
       end
