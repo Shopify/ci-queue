@@ -7,8 +7,9 @@ module Minitest::Reporters
     def setup
       @redis_url = "redis://#{ENV.fetch('REDIS_HOST', 'localhost')}/7"
       @redis = ::Redis.new(url: @redis_url)
+      @redis.flushdb
       @queue = worker(1)
-      @reporter = @queue.minitest_reporters.first
+      @reporter = @queue.minitest_reporters.last
       @reporter.start
     end
 
@@ -17,7 +18,7 @@ module Minitest::Reporters
       @reporter.record(runnable('b', Minitest::UnexpectedError.new(StandardError.new)))
 
       second_queue = worker(2)
-      second_reporter = second_queue.minitest_reporters.first
+      second_reporter = second_queue.minitest_reporters.last
       second_reporter.start
 
       second_reporter.record(runnable('c', Minitest::Assertion.new))
@@ -37,7 +38,7 @@ module Minitest::Reporters
       assert_equal 1, summary.error_reports.size
 
       second_queue = worker(2)
-      second_reporter = second_queue.minitest_reporters.first
+      second_reporter = second_queue.minitest_reporters.last
       second_reporter.start
 
       second_reporter.record(runnable('a'))

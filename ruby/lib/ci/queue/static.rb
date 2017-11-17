@@ -17,6 +17,13 @@ module CI
         @total = tests.size
       end
 
+      def minitest_reporters
+        require 'minitest/reporters/queue_reporter'
+        @minitest_reporters ||= [
+          Minitest::Reporters::QueueReporter.new,
+        ]
+      end
+
       def retry_queue
         self
       end

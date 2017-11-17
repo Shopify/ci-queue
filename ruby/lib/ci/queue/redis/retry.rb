@@ -8,8 +8,10 @@ module CI
         end
 
         def minitest_reporters
+          require 'minitest/reporters/queue_reporter'
           require 'minitest/reporters/redis_reporter'
           @minitest_reporters ||= [
+            Minitest::Reporters::QueueReporter.new,
             Minitest::Reporters::RedisReporter::Worker.new(
               redis: redis,
               build_id: config.build_id,
