@@ -11,16 +11,12 @@ module CI
       self.requeue_offset = 42
 
       class Worker < Base
-        attr_reader :total, :worker_id, :timeout, :max_requeues, :global_max_requeues, :requeue_tolerance
+        attr_reader :total
 
-        def initialize(redis:, build_id:, worker_id:, timeout:, max_requeues: 0, requeue_tolerance: 0.0)
+        def initialize(redis, config)
           @reserved_test = nil
-          @max_requeues = Integer(max_requeues)
-          @requeue_tolerance = Float(requeue_tolerance)
           @shutdown_required = false
-          super(redis: redis, build_id: build_id)
-          @worker_id = worker_id.to_s
-          @timeout = timeout
+          super(redis, config)
         end
 
         def populate(tests, &indexer)
@@ -57,15 +53,9 @@ module CI
         rescue ::Redis::BaseConnectionError
         end
 
-        def retry_queue(**args)
+        def retry_queue
           log = redis.lrange(key('worker', worker_id, 'queue'), 0, -1).reverse.uniq
-          Retry.new(
-            log,
-            redis: redis,
-            build_id: build_id,
-            worker_id: worker_id,
-            **args
-          )
+          Retry.new(log, config, redis: redis)
         end
 
         def minitest_reporters
@@ -96,7 +86,7 @@ module CI
           requeued = eval_script(
             :requeue,
             keys: [key('processed'), key('requeues-count'), key('queue'), key('running')],
-            argv: [max_requeues, global_max_requeues, test_key, offset],
+            argv: [config.max_requeues, config.global_max_requeues(total), test_key, offset],
           ) == 1
 
           @reserved_test = test_key unless requeued
@@ -106,6 +96,14 @@ module CI
         private
 
         attr_reader :index
+
+        def worker_id
+          config.worker_id
+        end
+
+        def timeout
+          config.timeout
+        end
 
         def raise_on_mismatching_test(test)
           if @reserved_test == test
@@ -142,7 +140,6 @@ module CI
 
         def push(tests)
           @total = tests.size
-          @global_max_requeues = (tests.size * requeue_tolerance).ceil
 
           if @master = redis.setnx(key('master-status'), 'setup')
             redis.multi do

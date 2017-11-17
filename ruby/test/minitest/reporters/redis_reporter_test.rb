@@ -5,8 +5,8 @@ module Minitest::Reporters
     include ReporterTestHelper
 
     def setup
-      @redis = ::Redis.new(db: 7, host: ENV.fetch('REDIS_HOST', nil))
-      @redis.flushdb
+      @redis_url = "redis://#{ENV.fetch('REDIS_HOST', 'localhost')}/7"
+      @redis = ::Redis.new(url: @redis_url)
       @queue = worker(1)
       @reporter = @queue.minitest_reporters.first
       @reporter.start
@@ -48,10 +48,12 @@ module Minitest::Reporters
 
     def worker(id)
       CI::Queue::Redis.new(
-        redis: @redis,
-        build_id: '42',
-        worker_id: id.to_s,
-        timeout: 0.2,
+        @redis_url,
+        CI::Queue::Configuration.new(
+          build_id: '42',
+          worker_id: id.to_s,
+          timeout: 0.2,
+        ),
       ).populate(%w(a b c d e f g).map { |n| runnable(n) }, &:name)
     end
 

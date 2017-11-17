@@ -12,12 +12,10 @@ class CI::Queue::RedisTest < Minitest::Test
 
   def test_from_uri
     second_queue = populate(
-      CI::Queue.from_uri("#{@redis_url}?max_requeues=42&requeue_tolerance=0.7&timeout=30&build_id=42&worker_id=2")
+      CI::Queue.from_uri(@redis_url, config)
     )
     assert_instance_of CI::Queue::Redis::Worker, second_queue
     assert_equal @queue.to_a, second_queue.to_a
-    assert_equal 42, second_queue.max_requeues
-    assert_equal 3, second_queue.global_max_requeues
   end
 
   def test_requeue # redefine the shared one
@@ -213,11 +211,13 @@ class CI::Queue::RedisTest < Minitest::Test
     tests = args.delete(:tests) || TEST_LIST.dup
     skip_populate = args.delete(:populate) == false
     queue = CI::Queue::Redis.new(
-      redis: @redis,
-      build_id: '42',
-      worker_id: id.to_s,
-      timeout: 0.2,
-      **args,
+      @redis_url,
+      CI::Queue::Configuration.new(
+        build_id: '42',
+        worker_id: id.to_s,
+        timeout: 0.2,
+        **args,
+      )
     )
     if skip_populate
       return queue

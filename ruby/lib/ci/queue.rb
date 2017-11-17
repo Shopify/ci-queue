@@ -3,6 +3,7 @@ require 'cgi'
 
 require 'ci/queue/version'
 require 'ci/queue/index'
+require 'ci/queue/configuration'
 require 'ci/queue/static'
 require 'ci/queue/file'
 
@@ -10,7 +11,7 @@ module CI
   module Queue
     extend self
 
-    def from_uri(url)
+    def from_uri(url, config)
       uri = URI(url)
       implementation = case uri.scheme
       when 'list'
@@ -23,7 +24,7 @@ module CI
       else
         raise ArgumentError, "Don't know how to handle #{uri.scheme} URLs"
       end
-      implementation.from_uri(uri)
+      implementation.from_uri(uri, config)
     end
   end
 end

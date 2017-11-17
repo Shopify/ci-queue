@@ -4,13 +4,13 @@ module CI
   module Queue
     class File < Static
       class << self
-        def from_uri(uri)
-          new(uri.path, parse_query(uri.query))
+        def from_uri(uri, config)
+          new(uri.path, config)
         end
       end
 
-      def initialize(path, **args)
-        super(::File.readlines(path).map(&:strip).reject(&:empty?), **args)
+      def initialize(path, *args)
+        super(::File.readlines(path).map(&:strip).reject(&:empty?), *args)
       end
     end
   end

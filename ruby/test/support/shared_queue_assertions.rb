@@ -87,6 +87,16 @@ module SharedQueueAssertions
 
   private
 
+  def config
+    @config ||= CI::Queue::Configuration.new(
+      timeout: 0.2,
+      build_id: '42',
+      worker_id: '1',
+      max_requeues: 1,
+      requeue_tolerance: 0.1,
+    )
+  end
+
   def populate(queue, tests: TEST_LIST.dup)
     queue.populate(tests, &:name)
   end

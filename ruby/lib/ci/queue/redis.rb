@@ -16,18 +16,8 @@ module CI
           Worker.new(*args)
         end
 
-        def from_uri(uri)
-          options = parse_query(uri.query)
-          redis_uri = uri.dup
-          redis_uri.query = nil
-          options[:redis] = ::Redis.new(url: redis_uri.to_s)
-          new(**options)
-        end
-
-        private
-
-        def parse_query(query)
-          CGI.parse(query.to_s).map { |k, v| [k.to_sym, v.size > 1 ? v : v.first] }.to_h
+        def from_uri(uri, config)
+          new(uri.to_s, config)
         end
       end
     end
