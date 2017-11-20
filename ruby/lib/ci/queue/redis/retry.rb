@@ -2,27 +2,27 @@ module CI
   module Queue
     module Redis
       class Retry < Static
-        def initialize(tests, redis:, build_id:, worker_id:, **args)
+        def initialize(tests, config, redis:)
           @redis = redis
-          @build_id = build_id
-          @worker_id = worker_id
-          super(tests, **args)
+          super(tests, config)
         end
 
         def minitest_reporters
+          require 'minitest/reporters/queue_reporter'
           require 'minitest/reporters/redis_reporter'
           @minitest_reporters ||= [
+            Minitest::Reporters::QueueReporter.new,
             Minitest::Reporters::RedisReporter::Worker.new(
               redis: redis,
-              build_id: build_id,
-              worker_id: worker_id,
+              build_id: config.build_id,
+              worker_id: config.worker_id,
             )
           ]
         end
 
         private
 
-        attr_reader :redis, :build_id, :worker_id
+        attr_reader :redis
       end
     end
   end

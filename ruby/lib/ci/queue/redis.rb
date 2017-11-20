@@ -10,8 +10,15 @@ module CI
       Error = Class.new(StandardError)
       LostMaster = Class.new(Error)
 
-      def self.new(*args)
-        Worker.new(*args)
+      class << self
+
+        def new(*args)
+          Worker.new(*args)
+        end
+
+        def from_uri(uri, config)
+          new(uri.to_s, config)
+        end
       end
     end
   end

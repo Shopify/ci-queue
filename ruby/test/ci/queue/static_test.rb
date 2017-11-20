@@ -6,6 +6,12 @@ class CI::Queue::StaticTest < Minitest::Test
   private
 
   def build_queue
-    CI::Queue::Static.new(TEST_LIST.map(&:name), max_requeues: 1, requeue_tolerance: 0.1)
+    CI::Queue::Static.new(TEST_LIST.map(&:name), config)
+  end
+
+  def test_from_uri
+    queue = CI::Queue.from_uri('list:foo:bar:plop%3Ffizz', config)
+    assert_instance_of CI::Queue::Static, queue
+    assert_equal %w(foo bar plop?fizz), queue.to_a
   end
 end

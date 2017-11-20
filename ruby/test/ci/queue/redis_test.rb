@@ -4,9 +4,18 @@ class CI::Queue::RedisTest < Minitest::Test
   include SharedQueueAssertions
 
   def setup
-    @redis = ::Redis.new(db: 7, host: ENV.fetch('REDIS_HOST', nil))
+    @redis_url = "redis://#{ENV.fetch('REDIS_HOST', 'localhost')}/7"
+    @redis = ::Redis.new(url: @redis_url)
     @redis.flushdb
     super
+  end
+
+  def test_from_uri
+    second_queue = populate(
+      CI::Queue.from_uri(@redis_url, config)
+    )
+    assert_instance_of CI::Queue::Redis::Worker, second_queue
+    assert_equal @queue.to_a, second_queue.to_a
   end
 
   def test_requeue # redefine the shared one
@@ -202,11 +211,13 @@ class CI::Queue::RedisTest < Minitest::Test
     tests = args.delete(:tests) || TEST_LIST.dup
     skip_populate = args.delete(:populate) == false
     queue = CI::Queue::Redis.new(
-      redis: @redis,
-      build_id: '42',
-      worker_id: id.to_s,
-      timeout: 0.2,
-      **args,
+      @redis_url,
+      CI::Queue::Configuration.new(
+        build_id: '42',
+        worker_id: id.to_s,
+        timeout: 0.2,
+        **args,
+      )
     )
     if skip_populate
       return queue

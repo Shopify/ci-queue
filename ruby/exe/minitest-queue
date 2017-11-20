@@ -1,0 +1,4 @@
+#!/usr/bin/env ruby
+
+require 'minitest/queue/runner'
+Minitest::Queue::Runner.invoke(ARGV)

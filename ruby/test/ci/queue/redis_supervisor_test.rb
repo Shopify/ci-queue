@@ -4,7 +4,8 @@ class CI::Queue::Redis::SupervisorTest < Minitest::Test
   include QueueHelper
 
   def setup
-    @redis = ::Redis.new(db: 7, host: ENV.fetch('REDIS_HOST', nil))
+    @redis_url = "redis://#{ENV.fetch('REDIS_HOST', 'localhost')}/7"
+    @redis = ::Redis.new(url: @redis_url)
     @redis.flushdb
     @supervisor = supervisor
   end
@@ -47,17 +48,19 @@ class CI::Queue::Redis::SupervisorTest < Minitest::Test
 
   def worker(id)
     CI::Queue::Redis.new(
-      redis: @redis,
-      build_id: '42',
-      worker_id: id.to_s,
-      timeout: 0.2,
+      @redis_url,
+      CI::Queue::Configuration.new(
+        build_id: '42',
+        worker_id: id.to_s,
+        timeout: 0.2,
+      ),
     ).populate(SharedQueueAssertions::TEST_LIST, &:name)
   end
 
   def supervisor
     CI::Queue::Redis::Supervisor.new(
-      redis: @redis,
-      build_id: '42',
+      @redis_url,
+      CI::Queue::Configuration.new(build_id: '42'),
     )
   end
 end

@@ -2,7 +2,7 @@ module OutputHelpers
   private
 
   def decolorize_output(output)
-    output.gsub(/\e\[\d+m/, '')
+    output.to_s.gsub(/\e\[\d+m/, '')
   end
 
   def strip_heredoc(heredoc)
@@ -11,6 +11,6 @@ module OutputHelpers
   end
 
   def freeze_timing(output)
-    output.gsub(/\s\d+\.\d+s/, ' X.XXs')
+    output.to_s.gsub(/\s\d+\.\d+s/, ' X.XXs')
   end
 end

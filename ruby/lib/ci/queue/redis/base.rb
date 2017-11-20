@@ -2,9 +2,9 @@ module CI
   module Queue
     module Redis
       class Base
-        def initialize(redis:, build_id:)
-          @redis = redis
-          @build_id = build_id
+        def initialize(redis_url, config)
+          @redis = ::Redis.new(url: redis_url)
+          @config = config
         end
 
         def exhausted?
@@ -47,10 +47,14 @@ module CI
 
         private
 
-        attr_reader :redis, :build_id
+        attr_reader :redis, :config
 
         def key(*args)
           ['build', build_id, *args].join(':')
+        end
+
+        def build_id
+          config.build_id
         end
 
         def master_status
