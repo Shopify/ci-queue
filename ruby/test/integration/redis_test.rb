@@ -14,6 +14,7 @@ module Integration
       output = normalize(`
         exe/minitest-queue \
         --url '#{@redis_url}' \
+        --seed foobar \
         --build 1 \
         --worker 1 \
         --timeout 1 \
@@ -28,6 +29,7 @@ module Integration
         exe/minitest-queue \
         --retry \\
         --url '#{@redis_url}' \
+        --seed foobar \
         --build 1 \
         --worker 1 \
         --timeout 1 \
@@ -43,6 +45,7 @@ module Integration
       output = normalize(`
         exe/minitest-queue \
         --url 'redis://localhost:1337/1' \
+        --seed foobar \
         --build 1 \
         --worker 1 \
         --timeout 1 \
@@ -63,6 +66,7 @@ module Integration
       output = normalize(`
         exe/minitest-queue \
         --url '#{@redis_url}' \
+        --seed foobar \
         --build 1 \
         --worker 1 \
         --timeout 1 \

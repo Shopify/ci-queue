@@ -1,6 +1,7 @@
 require 'optparse'
 require 'minitest/queue'
 require 'ci/queue'
+require 'digest/md5'
 
 module Minitest
   module Queue
@@ -24,7 +25,7 @@ module Minitest
 
         if paths = options[:load_paths]
           paths.split(':').reverse.each do |path|
-            $LOAD_PATH.unshift(path)
+            $LOAD_PATH.unshift(File.expand_path(path))
           end
         end
 
@@ -32,7 +33,7 @@ module Minitest
           require File.expand_path(f)
         end
 
-        Minitest.queue.populate(Minitest.loaded_tests, &:to_s) # TODO: stop serializing
+        Minitest.queue.populate(shuffle(Minitest.loaded_tests), &:to_s) # TODO: stop serializing
         trap('TERM') { Minitest.queue.shutdown! }
         trap('INT') { Minitest.queue.shutdown! }
         # Let minitest's at_exit hook trigger
@@ -62,6 +63,10 @@ module Minitest
             options[:retry] = true
           end
 
+          opts.on('--seed SEED') do |seed|
+            options[:seed] = seed
+          end
+
           opts.on('--timeout TIMEOUT') do |timeout|
             queue_config.timeout = Float(timeout)
           end
@@ -83,6 +88,12 @@ module Minitest
           end
         end.parse!(argv)
         return argv, options
+      end
+
+      def shuffle(tests)
+        seed = options.fetch(:seed, queue_config.build_id)
+        random = Random.new(Digest::MD5.hexdigest(seed).to_i(16))
+        tests.shuffle(random: random)
       end
 
       def queue_url
