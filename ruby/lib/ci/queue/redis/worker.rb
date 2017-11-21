@@ -58,6 +58,10 @@ module CI
           Retry.new(log, config, redis: redis)
         end
 
+        def supervisor
+          Supervisor.new(redis_url, config)
+        end
+
         def minitest_reporters
           require 'minitest/reporters/queue_reporter'
           require 'minitest/reporters/redis_reporter'

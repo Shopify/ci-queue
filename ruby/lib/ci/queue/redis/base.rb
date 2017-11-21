@@ -3,6 +3,7 @@ module CI
     module Redis
       class Base
         def initialize(redis_url, config)
+          @redis_url = redis_url
           @redis = ::Redis.new(url: redis_url)
           @config = config
         end
@@ -45,9 +46,16 @@ module CI
           redis.scard(key('workers'))
         end
 
+        def queue_initialized?
+          @queue_initialized ||= begin
+            status = master_status
+            status == 'ready' || status == 'finished'
+          end
+        end
+
         private
 
-        attr_reader :redis, :config
+        attr_reader :redis, :config, :redis_url
 
         def key(*args)
           ['build', build_id, *args].join(':')
@@ -59,13 +67,6 @@ module CI
 
         def master_status
           redis.get(key('master-status'))
-        end
-
-        def queue_initialized?
-          @queue_initialized ||= begin
-            status = master_status
-            status == 'ready' || status == 'finished'
-          end
         end
 
         def eval_script(script, *args)

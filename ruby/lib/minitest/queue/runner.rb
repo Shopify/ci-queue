@@ -6,6 +6,8 @@ require 'digest/md5'
 module Minitest
   module Queue
     class Runner
+      include ::CI::Queue::OutputHelpers
+
       Error = Class.new(StandardError)
       MissingParameter = Class.new(Error)
 
@@ -13,43 +15,98 @@ module Minitest
         new(argv).run!
       end
 
-      attr_reader :queue_config, :options
-
       def initialize(argv)
         @queue_config = CI::Queue::Configuration.from_env(ENV)
-        @argv, @options = parse(argv)
+        @command, @argv, @options = parse(argv)
+        @queue = CI::Queue.from_uri(queue_url, queue_config)
       end
 
       def run!
+        method = "#{command}_command"
+        if respond_to?(method)
+          public_send(method)
+        else
+          abort!("Unknown command: #{command}")
+        end
+      end
+
+      def retry_command
+        self.queue = queue.retry_queue
+        run_command
+      end
+
+      def run_command
+        set_load_path
         Minitest.queue = queue
-
-        if paths = options[:load_paths]
-          paths.split(':').reverse.each do |path|
-            $LOAD_PATH.unshift(File.expand_path(path))
-          end
-        end
-
-        @argv.each do |f|
-          require File.expand_path(f)
-        end
-
-        Minitest.queue.populate(shuffle(Minitest.loaded_tests), &:to_s) # TODO: stop serializing
         trap('TERM') { Minitest.queue.shutdown! }
         trap('INT') { Minitest.queue.shutdown! }
+        load_tests
+        populate_queue
         # Let minitest's at_exit hook trigger
       end
 
+      def report_command
+        supervisor = begin
+          queue.supervisor
+        rescue NotImplementedError => error
+          abort! error.message
+        end
+
+        step("Waiting for workers to complete")
+
+        unless supervisor.wait_for_workers
+          unless supervisor.queue_initialized?
+            abort! "No master was elected. Did all workers crash?"
+          end
+
+          unless supervisor.exhausted?
+            abort! "#{supervisor.size} tests weren't run."
+          end
+        end
+
+        success = supervisor.minitest_reporters.all?(&:success?)
+        supervisor.minitest_reporters.each do |reporter|
+          reporter.report
+        end
+
+        STDOUT.flush
+        exit! success ? 0 : 1
+      end
+
+      private
+
+      attr_reader :queue_config, :options, :command, :argv
+      attr_accessor :queue
+
       def queue
         @queue ||= begin
-          queue = CI::Queue.from_uri(queue_url, queue_config)
+          queue =
           queue = queue.retry_queue if options[:retry]
           queue
         end
       end
 
+      def populate_queue
+        Minitest.queue.populate(shuffle(Minitest.loaded_tests), &:to_s) # TODO: stop serializing
+      end
+
+      def set_load_path
+        if paths = options[:load_paths]
+          paths.split(':').reverse.each do |path|
+            $LOAD_PATH.unshift(File.expand_path(path))
+          end
+        end
+      end
+
+      def load_tests
+        argv.each do |f|
+          require File.expand_path(f)
+        end
+      end
+
       def parse(argv, options = {})
         OptionParser.new do |opts|
-          opts.banner = "Usage: minitest-queue [options] TEST_FILE..."
+          opts.banner = "Usage: minitest-queue [options] ACTION TEST_FILE..."
 
           opts.on('-I PATHS') do |paths|
             options[:load_paths] = paths
@@ -57,10 +114,6 @@ module Minitest
 
           opts.on('--url URL') do |url|
             options[:url] = url
-          end
-
-          opts.on('--retry') do
-            options[:retry] = true
           end
 
           opts.on('--seed SEED') do |seed|
@@ -91,7 +144,8 @@ module Minitest
             queue_config.requeue_tolerance = Float(ratio)
           end
         end.parse!(argv)
-        return argv, options
+        command = argv.shift
+        return command, argv, options
       end
 
       def shuffle(tests)
@@ -104,7 +158,8 @@ module Minitest
       end
 
       def abort!(message)
-        puts message
+        puts red(message)
+        reopen_previous_step
         exit! 1 # exit! is required to avoid minitest at_exit callback
       end
     end

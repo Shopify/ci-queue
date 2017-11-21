@@ -6,11 +6,27 @@ module CI
           false
         end
 
-        def wait_for_workers
-          return false unless wait_for_master
+        def minitest_reporters
+          require 'minitest/reporters/redis_reporter'
+          @reporters ||= [
+            Minitest::Reporters::RedisReporter::Summary.new(
+              build_id: build_id,
+              redis: redis,
+            )
+          ]
+        end
 
-          sleep 0.1 until exhausted?
-          true
+        def wait_for_workers
+          return false unless wait_for_master(timeout: config.timeout)
+
+          time_left = config.timeout
+          until exhausted? || time_left <= 0
+            sleep 0.1
+            time_left -= 0.1
+          end
+          exhausted?
+        rescue CI::Queue::Redis::LostMaster
+          false
         end
       end
     end

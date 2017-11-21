@@ -1,6 +1,10 @@
-module Minitest
-  module Reporters
+require 'ansi'
+
+module CI
+  module Queue
     module OutputHelpers
+      include ANSI::Code
+
       private
 
       def step(*args)
@@ -22,7 +26,6 @@ module Minitest
           DefaultOutput
         end
       end
-
 
       module DefaultOutput
         extend self
