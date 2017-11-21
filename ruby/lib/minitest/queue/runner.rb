@@ -16,7 +16,7 @@ module Minitest
       attr_reader :queue_config, :options
 
       def initialize(argv)
-        @queue_config = CI::Queue::Configuration.new
+        @queue_config = CI::Queue::Configuration.from_env(ENV)
         @argv, @options = parse(argv)
       end
 
