@@ -1,9 +1,11 @@
 require 'minitest/reporters'
+require 'minitest/reporters/output_helpers'
 
 module Minitest
   module Reporters
     class QueueReporter < BaseReporter
       include ANSI::Code
+      include OutputHelpers
       attr_accessor :requeues
 
       def initialize(*)
@@ -20,9 +22,10 @@ module Minitest
       private
 
       def print_report
+        reopen_previous_step if failures > 0 || errors > 0
         success = failures.zero? && errors.zero?
         failures_count = "#{failures} failures, #{errors} errors,"
-        puts [
+        step [
           'Ran %d tests, %d assertions,' % [count, assertions],
           success ? green(failures_count) : red(failures_count),
           yellow("#{skips} skips, #{requeues} requeues"),
