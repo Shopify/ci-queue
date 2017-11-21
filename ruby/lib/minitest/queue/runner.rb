@@ -71,6 +71,10 @@ module Minitest
             queue_config.timeout = Float(timeout)
           end
 
+          opts.on('--namespace NAMESPACE') do |namespace|
+            queue_config.namespace = namespace
+          end
+
           opts.on('--build BUILD_ID') do |build_id|
             queue_config.build_id = build_id
           end

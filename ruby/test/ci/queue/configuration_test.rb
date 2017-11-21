@@ -27,10 +27,10 @@ module CI::Queue
       assert_equal '324325435435', config.build_id
     end
 
-    def test_prefix
+    def test_namespace
       config = Configuration.new(build_id: '9e08ef3c-d6e6-4a86-91dd-577ce5205b8e')
       assert_equal '9e08ef3c-d6e6-4a86-91dd-577ce5205b8e', config.build_id
-      config.prefix = 'browser'
+      config.namespace = 'browser'
       assert_equal 'browser:9e08ef3c-d6e6-4a86-91dd-577ce5205b8e', config.build_id
     end
   end

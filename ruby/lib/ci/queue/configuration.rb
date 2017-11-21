@@ -1,7 +1,7 @@
 module CI
   module Queue
     class Configuration
-      attr_accessor :timeout, :build_id, :worker_id, :max_requeues, :requeue_tolerance, :prefix
+      attr_accessor :timeout, :build_id, :worker_id, :max_requeues, :requeue_tolerance, :namespace
 
       class << self
         def from_env(env)
@@ -12,8 +12,8 @@ module CI
         end
       end
 
-      def initialize(timeout: 10, build_id: nil, worker_id: nil, max_requeues: 0, requeue_tolerance: 0, prefix: nil)
-        @prefix = prefix
+      def initialize(timeout: 10, build_id: nil, worker_id: nil, max_requeues: 0, requeue_tolerance: 0, namespace: nil)
+        @namespace = namespace
         @timeout = timeout
         @build_id = build_id
         @worker_id = worker_id
@@ -22,8 +22,8 @@ module CI
       end
 
       def build_id
-        if prefix
-          "#{prefix}:#{@build_id}"
+        if namespace
+          "#{namespace}:#{@build_id}"
         else
           @build_id
         end
