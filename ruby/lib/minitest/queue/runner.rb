@@ -64,7 +64,7 @@ module Minitest
           end
 
           opts.on('--seed SEED') do |seed|
-            options[:seed] = seed
+            queue_config.seed = seed
           end
 
           opts.on('--timeout TIMEOUT') do |timeout|
@@ -95,8 +95,7 @@ module Minitest
       end
 
       def shuffle(tests)
-        seed = options.fetch(:seed, queue_config.build_id)
-        random = Random.new(Digest::MD5.hexdigest(seed).to_i(16))
+        random = Random.new(Digest::MD5.hexdigest(queue_config.seed).to_i(16))
         tests.shuffle(random: random)
       end
 
