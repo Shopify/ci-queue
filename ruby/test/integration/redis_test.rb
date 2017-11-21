@@ -2,7 +2,7 @@ require 'test_helper'
 
 module Integration
   class RedisTest < Minitest::Test
-    include OutputHelpers
+    include OutputTestHelpers
 
     def setup
       @redis_url = "redis://#{ENV.fetch('REDIS_HOST', 'localhost')}/7"
@@ -14,7 +14,7 @@ module Integration
       out, err = capture_subprocess_io do
         system(
           { 'BUILDKITE' => '1' },
-          'exe/minitest-queue',
+          'exe/minitest-queue', 'run',
           '--url', @redis_url,
           '--seed', 'foobar',
           '--build', '1',
@@ -35,7 +35,7 @@ module Integration
     def test_redis_runner
       out, err = capture_subprocess_io do
         system(
-          'exe/minitest-queue',
+          'exe/minitest-queue', 'run',
           '--url', @redis_url,
           '--seed', 'foobar',
           '--build', '1',
@@ -53,8 +53,7 @@ module Integration
 
       out, err = capture_subprocess_io do
         system(
-          'exe/minitest-queue',
-          '--retry',
+          'exe/minitest-queue', 'retry',
           '--url', @redis_url,
           '--seed', 'foobar',
           '--build', '1',
@@ -74,7 +73,7 @@ module Integration
     def test_down_redis
       out, err = capture_subprocess_io do
         system(
-          'exe/minitest-queue',
+          'exe/minitest-queue', 'run',
           '--url', 'redis://localhost:1337',
           '--seed', 'foobar',
           '--build', '1',
@@ -99,7 +98,7 @@ module Integration
 
       out, err = capture_subprocess_io do
         system(
-          'exe/minitest-queue',
+          'exe/minitest-queue', 'run',
           '--url', @redis_url,
           '--seed', 'foobar',
           '--build', '1',
@@ -115,12 +114,20 @@ module Integration
       output = normalize(out.lines.last.strip)
       assert_equal 'Ran 8 tests, 5 assertions, 1 failures, 1 errors, 1 skips, 3 requeues in X.XXs', output
 
-      io = StringIO.new
-      summary.report(io: io)
-      output = normalize(io.tap(&:rewind).read)
-
+      out, err = capture_subprocess_io do
+        system(
+          'exe/minitest-queue', 'report',
+          '--url', @redis_url,
+          '--build', '1',
+          '--timeout', '1',
+        )
+      end
+      assert_empty err
+      output = normalize(out)
       assert_equal strip_heredoc(<<-END), output
+        Waiting for workers to complete
         Ran 5 tests, 5 assertions, 1 failures, 1 errors, 1 skips, 3 requeues in X.XXs (aggregated)
+
         FAIL ATest#test_bar
         Expected false to be truthy.
             test/fixtures/dummy_test.rb:9:in `test_bar'

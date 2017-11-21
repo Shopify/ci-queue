@@ -1,11 +1,10 @@
+require 'ci/queue/output_helpers'
 require 'minitest/reporters'
-require 'minitest/reporters/output_helpers'
 
 module Minitest
   module Reporters
     class QueueReporter < BaseReporter
-      include ANSI::Code
-      include OutputHelpers
+      include ::CI::Queue::OutputHelpers
       attr_accessor :requeues
 
       def initialize(*)

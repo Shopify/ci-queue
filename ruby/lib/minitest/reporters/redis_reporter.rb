@@ -89,14 +89,18 @@ module Minitest
       end
 
       class Summary < Base
-        include ANSI::Code
+        include ::CI::Queue::OutputHelpers
 
-        def report(io: STDOUT)
-          io.puts aggregates
+        def report
+          puts aggregates
           errors = error_reports
-          io.puts errors
+          puts errors
 
           errors.empty?
+        end
+
+        def success?
+          errors == 0 && failures == 0
         end
 
         def record(*)
@@ -133,12 +137,12 @@ module Minitest
           success = failures.zero? && errors.zero?
           failures_count = "#{failures} failures, #{errors} errors,"
 
-          [
+          step([
             'Ran %d tests, %d assertions,' % [processed, assertions],
             success ? green(failures_count) : red(failures_count),
             yellow("#{skips} skips, #{requeues} requeues"),
             'in %.2fs (aggregated)' % total_time,
-          ].join(' ')
+          ].join(' '), collapsed: success)
         end
 
         def fetch_summary

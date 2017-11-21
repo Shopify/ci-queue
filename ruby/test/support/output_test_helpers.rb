@@ -1,4 +1,4 @@
-module OutputHelpers
+module OutputTestHelpers
   private
 
   def decolorize_output(output)

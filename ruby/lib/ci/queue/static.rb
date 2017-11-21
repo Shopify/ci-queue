@@ -24,6 +24,10 @@ module CI
         ]
       end
 
+      def supervisor
+        raise NotImplementedError, "This type of queue can't be supervised"
+      end
+
       def retry_queue
         self
       end
