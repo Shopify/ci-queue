@@ -15,7 +15,7 @@ module Integration
         system(
           { 'BUILDKITE' => '1' },
           'exe/minitest-queue', 'run',
-          '--url', @redis_url,
+          '--queue', @redis_url,
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -36,7 +36,7 @@ module Integration
       out, err = capture_subprocess_io do
         system(
           'exe/minitest-queue', 'run',
-          '--url', @redis_url,
+          '--queue', @redis_url,
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -54,7 +54,7 @@ module Integration
       out, err = capture_subprocess_io do
         system(
           'exe/minitest-queue', 'retry',
-          '--url', @redis_url,
+          '--queue', @redis_url,
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -74,7 +74,7 @@ module Integration
       out, err = capture_subprocess_io do
         system(
           'exe/minitest-queue', 'run',
-          '--url', 'redis://localhost:1337',
+          '--queue', 'redis://localhost:1337',
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -99,7 +99,7 @@ module Integration
       out, err = capture_subprocess_io do
         system(
           'exe/minitest-queue', 'run',
-          '--url', @redis_url,
+          '--queue', @redis_url,
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -117,7 +117,7 @@ module Integration
       out, err = capture_subprocess_io do
         system(
           'exe/minitest-queue', 'report',
-          '--url', @redis_url,
+          '--queue', @redis_url,
           '--build', '1',
           '--timeout', '1',
         )

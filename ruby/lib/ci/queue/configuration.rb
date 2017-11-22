@@ -14,7 +14,7 @@ module CI
       end
 
       def initialize(
-        timeout: 10, build_id: nil, worker_id: nil, max_requeues: 0, requeue_tolerance: 0,
+        timeout: 30, build_id: nil, worker_id: nil, max_requeues: 0, requeue_tolerance: 0,
         namespace: nil, seed: nil
       )
         @namespace = namespace

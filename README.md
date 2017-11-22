@@ -12,31 +12,30 @@ There are algorithms available to balance perfectly your workers, but in practic
 
 Another advantage is that if you lose workers along the way, using a queue the other workers can pick up the job, making you resilient to failures.
 
-## Installation
+## How does it work?
 
-Add this line to your application's Gemfile:
+Each workers first participate in a leader election, the elected leader will then populate the queue with the list of tests to run.
+Once the queue is initialized, all workers including the leader will reserve tests and work them on until the queue is empty.
 
-```ruby
-gem 'ci-queue'
-```
+If a worker were to die, its reserved work load will be put back into the queue to be picked up by it's surviving siblings.
 
-And then execute:
+Additionally, a separate process can be started to centralize the error reporting, that process will wait for the queue to be empty before exiting.
 
-    $ bundle
+## What are requeues?
 
-Or install it yourself as:
+When working on big test suites, it's not uncommon for a few tests to fail intermittently, either because they are inherently flaky,
+or because they are sensible to other tests modifying some global state (leaky tests).
 
-    $ gem install ci-queue
+In this context, it is useful to have mitigation measures so that these intermittent failures don't cause unrelated builds to fail until the root cause is addressed.
 
-## Usage
+This is why `ci-queue` optionally allows to put failed tests back into the queue to retry them on another worker, to ensure the failure is consistent.
 
-TODO: Write usage instructions here
+## Installation and usage
 
-## Development
+Two implementations are provided, please refer to the respective documentations:
 
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake test` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
-
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and tags, and push the `.gem` file to [rubygems.org](https://rubygems.org).
+  - [Python](python/)
+  - [Ruby](ruby/)
 
 ## Contributing
 
@@ -44,5 +43,5 @@ Bug reports and pull requests are welcome on GitHub at https://github.com/Shopif
 
 ## License
 
-The gem is available as open source under the terms of the [MIT License](http://opensource.org/licenses/MIT).
+The code is available as open source under the terms of the [MIT License](http://opensource.org/licenses/MIT).
 
