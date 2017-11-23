@@ -49,6 +49,52 @@ module Minitest
         # Let minitest's at_exit hook trigger
       end
 
+      def bisect_command
+        invalid_usage! "Missing the FAILING_TEST argument." unless queue_config.failing_test
+
+        @queue = CI::Queue::Bisect.new(queue_url, queue_config)
+        Minitest.queue = queue
+        set_load_path
+        load_tests
+        populate_queue
+
+        step("Testing the failing test in isolation")
+        unless run_tests_in_fork(queue.failing_test)
+          puts reopen_previous_step
+          puts red("The test fail when run alone, no need to bisect.")
+          exit! 0
+        end
+
+        run_index = 0
+        while queue.suspects_left > 1
+          run_index += 1
+          step("Run ##{run_index}, #{queue.suspects_left} suspects left")
+          if run_tests_in_fork(queue.candidates)
+            queue.succeeded!
+          else
+            queue.failed!
+          end
+          puts
+        end
+
+        failing_order = queue.candidates
+        step("Final validation")
+        status = if run_tests_in_fork(failing_order)
+          step(yellow("The bisection was inconclusive, there might not be any leaky test here."))
+          exit! 1
+        else
+          step(green('The following command should reproduce the leak on your machine:'), collapsed: false)
+          command = %w(bundle exec minitest-queue --queue - run)
+          command << "-I#{load_paths}" if load_paths
+          command += argv
+
+          puts
+          puts "cat <<EOF |\n#{failing_order.to_a.join("\n")}\nEOF\n#{command.join(' ')}"
+          puts
+          exit! 0
+        end
+      end
+
       def report_command
         supervisor = begin
           queue.supervisor
@@ -73,7 +119,6 @@ module Minitest
           reporter.report
         end
 
-        STDOUT.flush
         exit! success ? 0 : 1
       end
 
@@ -81,6 +126,17 @@ module Minitest
 
       attr_reader :queue_config, :options, :command, :argv
       attr_accessor :queue, :queue_url, :load_paths
+
+      def run_tests_in_fork(queue)
+        child_pid = fork do
+          Minitest.queue = queue
+          Minitest::Reporters.use!([Minitest::Reporters::SpecReporter.new])
+          exit # let minitest excute its at_exit
+        end
+
+        _, status = Process.wait2(child_pid)
+        return status.success?
+      end
 
       def populate_queue
         Minitest.queue.populate(shuffle(Minitest.loaded_tests), &:to_s) # TODO: stop serializing
@@ -210,6 +266,16 @@ module Minitest
 
           opts.separator ""
           opts.separator "    report: Wait for all workers to complete and summarize the test failures."
+
+          opts.separator ""
+          opts.separator "    bisect: bisect a test suite to find global state leaks."
+          help = split_heredoc(<<-EOS)
+            The identifier of the failing test.
+          EOS
+          opts.separator ""
+          opts.on('--failing-test TEST_IDENTIFIER') do |identifier|
+            queue_config.failing_test = identifier
+          end
         end
       end
 
@@ -218,6 +284,7 @@ module Minitest
       end
 
       def shuffle(tests)
+        return tests unless queue_config.seed
         random = Random.new(Digest::MD5.hexdigest(queue_config.seed).to_i(16))
         tests.shuffle(random: random)
       end
@@ -231,6 +298,12 @@ module Minitest
         puts red(message)
         puts parser
         exit! 1 # exit! is required to avoid minitest at_exit callback
+      end
+
+      def exit!(*)
+        STDOUT.flush
+        STDERR.flush
+        super
       end
 
       def abort!(message)

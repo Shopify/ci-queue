@@ -39,8 +39,14 @@ Additionally you can configure the requeue settings (see main README) with `--ma
 
 If you'd like to centralize the error reporting you can do so with:
 
-```
+```bash
 minitest-queue --queue redis://example.com --timeout 600 report
+```
+
+The runner also comes with a tool to investigate leaky tests:
+
+```bash
+minitest-queue --queue path/to/test_order.log --failing-test 'SomeTest#test_something' bisect -Itest test/**/*_test.rb
 ```
 
 ### RSpec

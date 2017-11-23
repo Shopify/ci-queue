@@ -7,6 +7,7 @@ require 'ci/queue/index'
 require 'ci/queue/configuration'
 require 'ci/queue/static'
 require 'ci/queue/file'
+require 'ci/queue/bisect'
 
 module CI
   module Queue

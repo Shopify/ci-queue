@@ -1,4 +1,5 @@
 module OutputTestHelpers
+  PROJECT_ROOT_PATH = File.expand_path('../../../', __FILE__)
   private
 
   def decolorize_output(output)
@@ -11,6 +12,14 @@ module OutputTestHelpers
   end
 
   def freeze_timing(output)
-    output.to_s.gsub(/\s\d+\.\d+s/, ' X.XXs')
+    output.to_s.gsub(/\d+\.\d+s/, 'X.XXs')
+  end
+
+  def freeze_seed(output)
+    output.to_s.gsub(/\-\-seed \d+/, '--seed XXXXX')
+  end
+
+  def rewrite_paths(output)
+    output.to_s.gsub(PROJECT_ROOT_PATH, '.')
   end
 end
