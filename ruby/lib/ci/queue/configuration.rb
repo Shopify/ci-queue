@@ -1,7 +1,7 @@
 module CI
   module Queue
     class Configuration
-      attr_accessor :timeout, :build_id, :worker_id, :max_requeues, :requeue_tolerance, :namespace, :seed
+      attr_accessor :timeout, :build_id, :worker_id, :max_requeues, :requeue_tolerance, :namespace, :seed, :failing_test
 
       class << self
         def from_env(env)

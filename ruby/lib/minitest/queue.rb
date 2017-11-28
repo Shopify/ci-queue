@@ -58,7 +58,8 @@ module Minitest
 
     def queue_reporters=(reporters)
       @queue_reporters ||= []
-      Reporters.reporters = ((Reporters.reporters || []) - @queue_reporters) + reporters
+      Reporters.use!(((Reporters.reporters || []) - @queue_reporters) + reporters)
+      Minitest.backtrace_filter.add_filter(%r{exe/minitest-queue|lib/ci/queue/})
       @queue_reporters = reporters
     end
 

@@ -10,7 +10,8 @@ module CI
       end
 
       def initialize(path, *args)
-        super(::File.readlines(path).map(&:strip).reject(&:empty?), *args)
+        io = path == '-' ? STDIN : ::File.open(path)
+        super(io.each_line.map(&:strip).reject(&:empty?), *args)
       end
     end
   end
