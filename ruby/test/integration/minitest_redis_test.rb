@@ -1,7 +1,7 @@
 require 'test_helper'
 
 module Integration
-  class RedisTest < Minitest::Test
+  class MinitestRedisTest < Minitest::Test
     include OutputTestHelpers
 
     def setup
