@@ -149,7 +149,7 @@ module CI
 
           if @master = redis.setnx(key('master-status'), 'setup')
             redis.multi do
-              redis.lpush(key('queue'), tests)
+              redis.lpush(key('queue'), tests) unless tests.empty?
               redis.set(key('total'), @total)
               redis.set(key('master-status'), 'ready')
             end
