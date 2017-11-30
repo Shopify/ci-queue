@@ -51,4 +51,19 @@ minitest-queue --queue path/to/test_order.log --failing-test 'SomeTest#test_some
 
 ### RSpec
 
-The RSpec integration is not implemented yet.
+The RSpec integration is still missing some features, but is already usable:
+
+```bash
+rspec-queue --queue redis://example.com --build XXX --worker XXX
+```
+
+#### Missing features
+
+To be implemented:
+
+  - Requeueing
+  - Centralized reporting
+
+#### Limitations
+
+Because of how `ci-queue` execute the examples, `before(:all)` and `after(:all)` hooks are not supported. `rspec-queue` will explicitly reject them.

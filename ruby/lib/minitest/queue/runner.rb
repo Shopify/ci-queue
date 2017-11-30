@@ -248,7 +248,7 @@ module Minitest
             Defaults to 0.
           EOS
           opts.separator ""
-          opts.on('--max-requeues MAX') do |max|
+          opts.on('--max-requeues MAX', *help) do |max|
             queue_config.max_requeues = Integer(max)
           end
 

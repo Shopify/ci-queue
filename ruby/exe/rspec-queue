@@ -1,0 +1,4 @@
+#!/usr/bin/env ruby
+
+require 'rspec/queue'
+RSpec::Queue::Runner.invoke
