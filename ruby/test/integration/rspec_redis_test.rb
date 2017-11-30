@@ -14,7 +14,7 @@ module Integration
     def test_redis_runner
       out, err = capture_subprocess_io do
         system(
-          { 'BUILDKITE' => '1' },
+          { 'BUILDKITE' => '1', 'BUILDKITE_COMMIT' => 'aaaaaaaaaaaaa' },
           @exe,
           '--queue', @redis_url,
           '--seed', '123',
@@ -31,7 +31,7 @@ module Integration
       expected_output = strip_heredoc <<-EOS
 
         Randomized with seed 123
-        .F
+        ..F
 
         Failures:
 
@@ -43,7 +43,7 @@ module Integration
              # ./spec/dummy_spec.rb:7:in `block (2 levels) in <top (required)>'
 
         Finished in X.XXXXX seconds (files took X.XXXXX seconds to load)
-        2 examples, 1 failure
+        3 examples, 1 failure
 
         Failed examples:
 

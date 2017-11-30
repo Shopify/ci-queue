@@ -149,14 +149,14 @@ module RSpec
       end
 
       def run_specs(example_groups)
-        examples = example_groups.flat_map do |example_group|
+        examples = example_groups.flat_map(&:descendants).flat_map do |example_group|
           example_group.filtered_examples.map do |example|
             SingleExample.new(example_group, example)
           end
         end
 
         queue = CI::Queue.from_uri(queue_url, RSpec::Queue.config)
-        queue.populate(examples, &:id)
+        queue.populate(shuffle(examples), &:id)
         examples_count = examples.size # TODO: figure out which stub value would be best
         success = true
         @configuration.reporter.report(examples_count) do |reporter|
@@ -173,6 +173,12 @@ module RSpec
       end
 
       private
+
+      def shuffle(examples)
+        return examples unless RSpec::Queue.config.seed
+        random = Random.new(Digest::MD5.hexdigest(RSpec::Queue.config.seed).to_i(16))
+        examples.shuffle(random: random)
+      end
 
       def queue_url
         configuration.queue_url || ENV['CI_QUEUE_URL']
