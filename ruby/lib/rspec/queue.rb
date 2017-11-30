@@ -149,7 +149,7 @@ module RSpec
       end
 
       def run_specs(example_groups)
-        examples = example_groups.flat_map do |example_group|
+        examples = example_groups.flat_map(&:descendants).flat_map do |example_group|
           example_group.filtered_examples.map do |example|
             SingleExample.new(example_group, example)
           end
