@@ -6,7 +6,7 @@ module Integration
 
     def test_bisect
       out, err = capture_subprocess_io do
-        run_bisect('test/fixtures/leaky_test_order.log', 'LeakyTest#test_sensible_to_leak')
+        run_bisect('log/leaky_test_order.log', 'LeakyTest#test_sensible_to_leak')
       end
 
       assert_empty err
@@ -49,7 +49,7 @@ module Integration
           test_sensible_to_leak                                           FAIL (X.XXs)
         Minitest::Assertion:         Expected: false
                   Actual: true
-                ./test/fixtures/leaky_test.rb:24:in `test_sensible_to_leak'
+                ./test/fixtures/test/leaky_test.rb:24:in `test_sensible_to_leak'
 
 
         Finished in X.XXs
@@ -74,7 +74,7 @@ module Integration
           test_sensible_to_leak                                           FAIL (X.XXs)
         Minitest::Assertion:         Expected: false
                   Actual: true
-                ./test/fixtures/leaky_test.rb:24:in `test_sensible_to_leak'
+                ./test/fixtures/test/leaky_test.rb:24:in `test_sensible_to_leak'
 
 
         Finished in X.XXs
@@ -116,7 +116,7 @@ module Integration
           test_sensible_to_leak                                           FAIL (X.XXs)
         Minitest::Assertion:         Expected: false
                   Actual: true
-                ./test/fixtures/leaky_test.rb:24:in `test_sensible_to_leak'
+                ./test/fixtures/test/leaky_test.rb:24:in `test_sensible_to_leak'
 
 
         Finished in X.XXs
@@ -140,7 +140,7 @@ module Integration
           test_sensible_to_leak                                           FAIL (X.XXs)
         Minitest::Assertion:         Expected: false
                   Actual: true
-                ./test/fixtures/leaky_test.rb:24:in `test_sensible_to_leak'
+                ./test/fixtures/test/leaky_test.rb:24:in `test_sensible_to_leak'
 
 
         Finished in X.XXs
@@ -151,7 +151,7 @@ module Integration
         LeakyTest#test_introduce_leak
         LeakyTest#test_sensible_to_leak
         EOF
-        bundle exec minitest-queue --queue - run -Itest/fixtures test/fixtures/leaky_test.rb
+        bundle exec minitest-queue --queue - run -Itest test/leaky_test.rb
 
       EOS
 
@@ -160,7 +160,7 @@ module Integration
 
     def test_unconclusive
       out, err = capture_subprocess_io do
-        run_bisect('test/fixtures/unconclusive_test_order.log', 'LeakyTest#test_sensible_to_leak')
+        run_bisect('log/unconclusive_test_order.log', 'LeakyTest#test_sensible_to_leak')
       end
 
       assert_empty err
@@ -279,7 +279,7 @@ module Integration
 
     def test_broken
       out, err = capture_subprocess_io do
-        run_bisect('test/fixtures/broken_test_order.log', 'LeakyTest#test_broken_test')
+        run_bisect('log/broken_test_order.log', 'LeakyTest#test_broken_test')
       end
 
       assert_empty err
@@ -290,7 +290,7 @@ module Integration
         LeakyTest
           test_broken_test                                                FAIL (X.XXs)
         Minitest::Assertion:         Expected false to be truthy.
-                ./test/fixtures/leaky_test.rb:32:in `test_broken_test'
+                ./test/fixtures/test/leaky_test.rb:32:in `test_broken_test'
 
 
         Finished in X.XXs
@@ -310,13 +310,15 @@ module Integration
     end
 
     def run_bisect(test_order_file, failing_test)
+      exe = File.expand_path('../../../exe/minitest-queue', __FILE__)
       system(
         { 'BUILDKITE' => '1' },
-        'exe/minitest-queue', 'bisect',
+        exe, 'bisect',
         '--queue', test_order_file,
         '--failing-test', failing_test,
-        '-Itest/fixtures',
-        'test/fixtures/leaky_test.rb',
+        '-Itest',
+        'test/leaky_test.rb',
+        chdir: 'test/fixtures/',
       )
     end
   end

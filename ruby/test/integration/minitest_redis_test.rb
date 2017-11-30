@@ -8,13 +8,14 @@ module Integration
       @redis_url = "redis://#{ENV.fetch('REDIS_HOST', 'localhost')}/7"
       @redis = Redis.new(url: @redis_url)
       @redis.flushdb
+      @exe = File.expand_path('../../../exe/minitest-queue', __FILE__)
     end
 
     def test_buildkite_output
       out, err = capture_subprocess_io do
         system(
           { 'BUILDKITE' => '1' },
-          'exe/minitest-queue', 'run',
+          @exe, 'run',
           '--queue', @redis_url,
           '--seed', 'foobar',
           '--build', '1',
@@ -22,8 +23,9 @@ module Integration
           '--timeout', '1',
           '--max-requeues', '1',
           '--requeue-tolerance', '1',
-          '-Itest/fixtures',
-          'test/fixtures/dummy_test.rb',
+          '-Itest',
+          'test/dummy_test.rb',
+          chdir: 'test/fixtures/',
         )
       end
 
@@ -35,7 +37,7 @@ module Integration
     def test_redis_runner
       out, err = capture_subprocess_io do
         system(
-          'exe/minitest-queue', 'run',
+          @exe, 'run',
           '--queue', @redis_url,
           '--seed', 'foobar',
           '--build', '1',
@@ -43,8 +45,9 @@ module Integration
           '--timeout', '1',
           '--max-requeues', '1',
           '--requeue-tolerance', '1',
-          '-Itest/fixtures',
-          'test/fixtures/dummy_test.rb',
+          '-Itest',
+          'test/dummy_test.rb',
+          chdir: 'test/fixtures/',
         )
       end
       assert_empty err
@@ -53,7 +56,7 @@ module Integration
 
       out, err = capture_subprocess_io do
         system(
-          'exe/minitest-queue', 'retry',
+          @exe, 'retry',
           '--queue', @redis_url,
           '--seed', 'foobar',
           '--build', '1',
@@ -61,8 +64,9 @@ module Integration
           '--timeout', '1',
           '--max-requeues', '1',
           '--requeue-tolerance', '1',
-          '-Itest/fixtures',
-          'test/fixtures/dummy_test.rb',
+          '-Itest',
+          'test/dummy_test.rb',
+          chdir: 'test/fixtures/',
         )
       end
       assert_empty err
@@ -73,7 +77,7 @@ module Integration
     def test_down_redis
       out, err = capture_subprocess_io do
         system(
-          'exe/minitest-queue', 'run',
+          @exe, 'run',
           '--queue', 'redis://localhost:1337',
           '--seed', 'foobar',
           '--build', '1',
@@ -81,8 +85,9 @@ module Integration
           '--timeout', '1',
           '--max-requeues', '1',
           '--requeue-tolerance', '1',
-          '-Itest/fixtures',
-          'test/fixtures/dummy_test.rb',
+          '-Itest',
+          'test/dummy_test.rb',
+          chdir: 'test/fixtures/',
         )
       end
       assert_empty err
@@ -98,7 +103,7 @@ module Integration
 
       out, err = capture_subprocess_io do
         system(
-          'exe/minitest-queue', 'run',
+          @exe, 'run',
           '--queue', @redis_url,
           '--seed', 'foobar',
           '--build', '1',
@@ -106,8 +111,9 @@ module Integration
           '--timeout', '1',
           '--max-requeues', '1',
           '--requeue-tolerance', '1',
-          '-Itest/fixtures',
-          'test/fixtures/dummy_test.rb',
+          '-Itest',
+          'test/dummy_test.rb',
+          chdir: 'test/fixtures/',
         )
       end
       assert_empty err
@@ -116,10 +122,11 @@ module Integration
 
       out, err = capture_subprocess_io do
         system(
-          'exe/minitest-queue', 'report',
+          @exe, 'report',
           '--queue', @redis_url,
           '--build', '1',
           '--timeout', '1',
+          chdir: 'test/fixtures/',
         )
       end
       assert_empty err
@@ -130,12 +137,12 @@ module Integration
 
         FAIL ATest#test_bar
         Expected false to be truthy.
-            test/fixtures/dummy_test.rb:9:in `test_bar'
+            test/dummy_test.rb:9:in `test_bar'
 
         ERROR BTest#test_bar
         TypeError: String can't be coerced into Fixnum
-            test/fixtures/dummy_test.rb:28:in `+'
-            test/fixtures/dummy_test.rb:28:in `test_bar'
+            test/dummy_test.rb:28:in `+'
+            test/dummy_test.rb:28:in `test_bar'
 
       END
     end
