@@ -45,6 +45,17 @@ module Minitest::Reporters
       assert_equal 0, summary.error_reports.size
     end
 
+    def test_default_coder
+      assert defined? RedisReporter::Error::SnappyPack
+      assert_equal RedisReporter::Error::SnappyPack, RedisReporter::Error.coder
+    end
+
+    def test_snappypack_coder
+      original_hash = {foo: 'bar'}
+      round_trip = RedisReporter::Error.coder.load(RedisReporter::Error.coder.dump(original_hash))
+      assert_equal original_hash, round_trip
+    end
+
     private
 
     def worker(id)

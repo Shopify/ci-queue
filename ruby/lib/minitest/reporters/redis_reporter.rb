@@ -31,6 +31,36 @@ module Minitest
 
         self.coder = Marshal
 
+        begin
+          require 'snappy'
+          require 'msgpack'
+          require 'stringio'
+
+          module SnappyPack
+            extend self
+
+            MSGPACK = MessagePack::Factory.new
+            MSGPACK.register_type(0x00, Symbol)
+
+            def load(payload)
+              io = StringIO.new(Snappy.inflate(payload))
+              MSGPACK.unpacker(io).unpack
+            end
+
+            def dump(object)
+              io = StringIO.new
+              packer = MSGPACK.packer(io)
+              packer.pack(object)
+              packer.flush
+              io.rewind
+              Snappy.deflate(io.string).force_encoding(Encoding::UTF_8)
+            end
+          end
+
+          self.coder = SnappyPack
+        rescue LoadError
+        end
+
         def initialize(data)
           @data = data
         end
