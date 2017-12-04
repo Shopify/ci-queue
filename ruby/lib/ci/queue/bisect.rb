@@ -10,9 +10,8 @@ module CI
         @tests.size
       end
 
-      def populate(all_tests, random: nil, &test_indexer)
+      def populate(all_tests, random: nil)
         @all_tests = all_tests
-        @test_indexer = test_indexer
       end
 
       def to_a
@@ -24,11 +23,11 @@ module CI
       end
 
       def failing_test
-        Static.new([config.failing_test], config).populate(@all_tests, &@test_indexer)
+        Static.new([config.failing_test], config).populate(@all_tests)
       end
 
       def candidates
-        Static.new(first_half + [config.failing_test], config).populate(@all_tests, &@test_indexer)
+        Static.new(first_half + [config.failing_test], config).populate(@all_tests)
       end
 
       def failed!

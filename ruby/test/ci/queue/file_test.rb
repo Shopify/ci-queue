@@ -8,7 +8,7 @@ class CI::Queue::FileTest < Minitest::Test
   private
 
   def build_queue
-    File.write(TEST_LIST_PATH, TEST_LIST.map(&:name).join("\n"))
+    File.write(TEST_LIST_PATH, TEST_LIST.map(&:id).join("\n"))
     CI::Queue::File.new(TEST_LIST_PATH, config)
   end
 

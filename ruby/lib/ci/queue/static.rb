@@ -32,8 +32,8 @@ module CI
         self
       end
 
-      def populate(tests, random: nil, &indexer)
-        @index = Index.new(tests, &indexer)
+      def populate(tests, random: nil)
+        @index = tests.map { |t| [t.id, t] }.to_h
         self
       end
 
@@ -65,10 +65,10 @@ module CI
       end
 
       def requeue(test)
-        key = index.key(test)
-        return false unless should_requeue?(key)
-        requeues[key] += 1
-        @queue.unshift(index.key(test))
+        test_key = test.id
+        return false unless should_requeue?(test_key)
+        requeues[test_key] += 1
+        @queue.unshift(test_key)
         true
       end
 

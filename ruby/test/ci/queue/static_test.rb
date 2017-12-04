@@ -6,7 +6,7 @@ class CI::Queue::StaticTest < Minitest::Test
   private
 
   def build_queue
-    CI::Queue::Static.new(TEST_LIST.map(&:name), config)
+    CI::Queue::Static.new(TEST_LIST.map(&:id), config)
   end
 
   def test_from_uri

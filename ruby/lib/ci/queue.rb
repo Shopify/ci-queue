@@ -3,7 +3,6 @@ require 'cgi'
 
 require 'ci/queue/version'
 require 'ci/queue/output_helpers'
-require 'ci/queue/index'
 require 'ci/queue/configuration'
 require 'ci/queue/static'
 require 'ci/queue/file'
@@ -19,7 +18,7 @@ module CI
       if shuffler
         shuffler.call(tests, random)
       else
-        tests.shuffle(random: random)
+        tests.sort.shuffle(random: random)
       end
     end
 

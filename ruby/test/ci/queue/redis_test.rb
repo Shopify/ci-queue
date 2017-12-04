@@ -208,7 +208,7 @@ class CI::Queue::RedisTest < Minitest::Test
   end
 
   def populate(worker, tests: TEST_LIST.dup)
-    worker.populate(tests, random: Random.new(0), &:name)
+    worker.populate(tests, random: Random.new(0))
   end
 
   def worker(id, **args)

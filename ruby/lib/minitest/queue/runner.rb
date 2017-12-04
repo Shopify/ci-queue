@@ -89,7 +89,7 @@ module Minitest
           command += argv
 
           puts
-          puts "cat <<EOF |\n#{failing_order.to_a.join("\n")}\nEOF\n#{command.join(' ')}"
+          puts "cat <<EOF |\n#{failing_order.to_a.map(&:id).join("\n")}\nEOF\n#{command.join(' ')}"
           puts
           exit! 0
         end
@@ -139,7 +139,7 @@ module Minitest
       end
 
       def populate_queue
-        Minitest.queue.populate(Minitest.loaded_tests, random: ordering_seed, &:to_s) # TODO: stop serializing
+        Minitest.queue.populate(Minitest.loaded_tests, random: ordering_seed, &:id)
       end
 
       def set_load_path

@@ -66,7 +66,7 @@ module Minitest::Reporters
           worker_id: id.to_s,
           timeout: 0.2,
         ),
-      ).populate(%w(a b c d e f g).map { |n| runnable(n) }, &:name)
+      ).populate([])
     end
 
     def summary

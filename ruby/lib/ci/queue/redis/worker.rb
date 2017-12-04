@@ -19,10 +19,10 @@ module CI
           super(redis, config)
         end
 
-        def populate(tests, random: Random.new, &indexer)
-          @index = Index.new(tests, &indexer)
+        def populate(tests, random: Random.new)
+          @index = tests.map { |t| [t.id, t] }.to_h
           tests = Queue.shuffle(tests, random)
-          push(tests.map { |t| index.key(t) })
+          push(tests.map(&:id))
           self
         end
 
@@ -77,7 +77,7 @@ module CI
         end
 
         def acknowledge(test)
-          test_key = index.key(test)
+          test_key = test.id
           raise_on_mismatching_test(test_key)
           eval_script(
             :acknowledge,
@@ -87,7 +87,7 @@ module CI
         end
 
         def requeue(test, offset: Redis.requeue_offset)
-          test_key = index.key(test)
+          test_key = test.id
           raise_on_mismatching_test(test_key)
 
           requeued = eval_script(

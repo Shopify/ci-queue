@@ -54,7 +54,7 @@ class CI::Queue::Redis::SupervisorTest < Minitest::Test
         worker_id: id.to_s,
         timeout: 0.2,
       ),
-    ).populate(SharedQueueAssertions::TEST_LIST, &:name)
+    ).populate(SharedQueueAssertions::TEST_LIST)
   end
 
   def supervisor

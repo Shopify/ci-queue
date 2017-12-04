@@ -126,6 +126,10 @@ module RSpec
         example.id
       end
 
+      def <=>(other)
+        id <=> other.id
+      end
+
       def run(reporter)
         return if RSpec.world.wants_to_quit
         instance = example_group.new(example.inspect_output)

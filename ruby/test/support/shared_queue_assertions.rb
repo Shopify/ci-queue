@@ -10,6 +10,10 @@ module SharedQueueAssertions
       "#<TestCase #{name}>"
     end
 
+    def id
+      name
+    end
+
     def to_s
       inspect
     end
@@ -102,6 +106,6 @@ module SharedQueueAssertions
   end
 
   def populate(queue, tests: TEST_LIST.dup)
-    queue.populate(tests, random: Random.new(0), &:name)
+    queue.populate(tests, random: Random.new(0))
   end
 end

@@ -45,6 +45,25 @@ module Minitest
   end
 
   module Queue
+    class SingleExample
+      def initialize(runnable, method_name)
+        @runnable = runnable
+        @method_name = method_name
+      end
+
+      def id
+        @id ||= "#{@runnable}##{@method_name}"
+      end
+
+      def <=>(other)
+        id <=> other.id
+      end
+
+      def run
+        Minitest.run_one_method(@runnable, @method_name)
+      end
+    end
+
     attr_reader :queue
 
     def queue=(queue)
@@ -63,12 +82,10 @@ module Minitest
       @queue_reporters = reporters
     end
 
-    SuiteNotFound = Class.new(StandardError)
-
     def loaded_tests
-      Minitest::Test.runnables.flat_map do |suite|
-        suite.runnable_methods.map do |method|
-          "#{suite}##{method}"
+      Minitest::Test.runnables.flat_map do |runnable|
+        runnable.runnable_methods.map do |method_name|
+          SingleExample.new(runnable, method_name)
         end
       end
     end
@@ -82,24 +99,16 @@ module Minitest
     end
 
     def run_from_queue(reporter, *)
-      runnable_classes = Minitest::Runnable.runnables.map { |s| [s.name, s] }.to_h
-
-      queue.poll do |test_name|
-        class_name, method_name = test_name.split("#".freeze, 2)
-
-        if klass = runnable_classes[class_name]
-          result = Minitest.run_one_method(klass, method_name)
-          failed = !(result.passed? || result.skipped?)
-          if failed && queue.requeue(test_name)
-            result.requeue!
-            reporter.record(result)
-          elsif queue.acknowledge(test_name) || !failed
-            # If the test was already acknowledged by another worker (we timed out)
-            # Then we only record it if it is successful.
-            reporter.record(result)
-          end
-        else
-          raise SuiteNotFound, "Couldn't find suite matching: #{test_name}"
+      queue.poll do |example|
+        result = example.run
+        failed = !(result.passed? || result.skipped?)
+        if failed && queue.requeue(example)
+          result.requeue!
+          reporter.record(result)
+        elsif queue.acknowledge(example) || !failed
+          # If the test was already acknowledged by another worker (we timed out)
+          # Then we only record it if it is successful.
+          reporter.record(result)
         end
       end
     end
