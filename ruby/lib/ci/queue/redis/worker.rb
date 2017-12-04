@@ -19,8 +19,9 @@ module CI
           super(redis, config)
         end
 
-        def populate(tests, &indexer)
+        def populate(tests, random: Random.new, &indexer)
           @index = Index.new(tests, &indexer)
+          tests = Queue.shuffle(tests, random)
           push(tests.map { |t| index.key(t) })
           self
         end

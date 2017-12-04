@@ -13,6 +13,16 @@ module CI
   module Queue
     extend self
 
+    attr_accessor :shuffler
+
+    def shuffle(tests, random)
+      if shuffler
+        shuffler.call(tests, random)
+      else
+        tests.shuffle(random: random)
+      end
+    end
+
     def from_uri(url, config)
       uri = URI(url)
       implementation = case uri.scheme

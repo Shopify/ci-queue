@@ -23,7 +23,7 @@ class CI::Queue::RedisTest < Minitest::Test
     CI::Queue::Redis.requeue_offset = 2
     failed_once = false
     test_order = poll(@queue, ->(test) {
-      if test == TEST_LIST.last && !failed_once
+      if test == shuffled_test_list.last && !failed_once
         failed_once = true
         false
       else
@@ -31,8 +31,8 @@ class CI::Queue::RedisTest < Minitest::Test
       end
     })
 
-    expected_order = TEST_LIST.dup
-    expected_order.insert(-CI::Queue::Redis.requeue_offset, TEST_LIST.last)
+    expected_order = shuffled_test_list.dup
+    expected_order.insert(-CI::Queue::Redis.requeue_offset, shuffled_test_list.last)
 
     assert_equal expected_order, test_order
   ensure
@@ -102,8 +102,8 @@ class CI::Queue::RedisTest < Minitest::Test
     end
 
     assert_predicate @queue, :exhausted?
-    assert_equal [TEST_LIST.first], populate(@queue.retry_queue).to_a
-    assert_equal TEST_LIST.sort, populate(second_queue.retry_queue).to_a.sort
+    assert_equal [shuffled_test_list.first], populate(@queue.retry_queue).to_a
+    assert_equal shuffled_test_list.sort, populate(second_queue.retry_queue).to_a.sort
   end
 
   def test_test_isnt_requeued_if_it_was_picked_up_by_another_worker
@@ -199,12 +199,16 @@ class CI::Queue::RedisTest < Minitest::Test
 
   private
 
+  def shuffled_test_list
+    CI::Queue.shuffle(TEST_LIST, Random.new(0)).freeze
+  end
+
   def build_queue
     worker(1, max_requeues: 1, requeue_tolerance: 0.1, populate: false)
   end
 
   def populate(worker, tests: TEST_LIST.dup)
-    worker.populate(tests, &:name)
+    worker.populate(tests, random: Random.new(0), &:name)
   end
 
   def worker(id, **args)

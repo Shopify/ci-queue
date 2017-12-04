@@ -32,7 +32,7 @@ module CI
         self
       end
 
-      def populate(tests, &indexer)
+      def populate(tests, random: nil, &indexer)
         @index = Index.new(tests, &indexer)
         self
       end

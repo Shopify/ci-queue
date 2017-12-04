@@ -139,7 +139,7 @@ module Minitest
       end
 
       def populate_queue
-        Minitest.queue.populate(shuffle(Minitest.loaded_tests), &:to_s) # TODO: stop serializing
+        Minitest.queue.populate(Minitest.loaded_tests, random: ordering_seed, &:to_s) # TODO: stop serializing
       end
 
       def set_load_path
@@ -283,10 +283,12 @@ module Minitest
         string.lines.map(&:strip)
       end
 
-      def shuffle(tests)
-        return tests unless queue_config.seed
-        random = Random.new(Digest::MD5.hexdigest(queue_config.seed).to_i(16))
-        tests.shuffle(random: random)
+      def ordering_seed
+        if queue_config.seed
+          Random.new(Digest::MD5.hexdigest(queue_config.seed).to_i(16))
+        else
+          Random.new
+        end
       end
 
       def queue_url

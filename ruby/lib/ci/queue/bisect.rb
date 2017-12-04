@@ -10,7 +10,7 @@ module CI
         @tests.size
       end
 
-      def populate(all_tests, &test_indexer)
+      def populate(all_tests, random: nil, &test_indexer)
         @all_tests = all_tests
         @test_indexer = test_indexer
       end

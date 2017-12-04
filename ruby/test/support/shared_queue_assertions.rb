@@ -60,7 +60,7 @@ module SharedQueueAssertions
   end
 
   def test_to_a
-    assert_equal TEST_LIST, @queue.to_a
+    assert_equal shuffled_test_list, @queue.to_a
     poll(@queue)
     assert_equal [], @queue.to_a
   end
@@ -72,11 +72,11 @@ module SharedQueueAssertions
   end
 
   def test_poll_order
-    assert_equal TEST_LIST, poll(@queue)
+    assert_equal shuffled_test_list, poll(@queue)
   end
 
   def test_requeue
-    assert_equal [TEST_LIST.first, *TEST_LIST], poll(@queue, false)
+    assert_equal [shuffled_test_list.first, *shuffled_test_list], poll(@queue, false)
   end
 
   def test_acknowledge
@@ -86,6 +86,10 @@ module SharedQueueAssertions
   end
 
   private
+
+  def shuffled_test_list
+    TEST_LIST.dup
+  end
 
   def config
     @config ||= CI::Queue::Configuration.new(
@@ -98,6 +102,6 @@ module SharedQueueAssertions
   end
 
   def populate(queue, tests: TEST_LIST.dup)
-    queue.populate(tests, &:name)
+    queue.populate(tests, random: Random.new(0), &:name)
   end
 end
