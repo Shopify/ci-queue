@@ -15,6 +15,9 @@ def get_lua_scripts():
 
     paths = []
 
+    if not os.path.exists(SCRIPTS_PATH):
+        os.makedirs(SCRIPTS_PATH)
+
     for path in glob.glob(os.path.join(
             os.path.dirname(__file__), '../redis/*.lua')):
         filename = os.path.basename(path)
