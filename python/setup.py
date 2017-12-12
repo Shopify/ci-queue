@@ -37,7 +37,8 @@ setuplib.setup(
         'pytest>=2.7,<=3.1.3',
         'redis>=2.10.5',
         'tblib>=1.3.2',
-        'uritools>=2.0.0'
+        'uritools>=2.0.0',
+        'future>=0.16.0'
     ],
     extras_require={
         'test': [

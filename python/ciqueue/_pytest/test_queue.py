@@ -1,4 +1,4 @@
-import urlparse
+from future.moves.urllib import parse as urlparse
 from distutils import util  # pylint: disable=no-name-in-module, import-modules-only
 import ciqueue
 import ciqueue.distributed

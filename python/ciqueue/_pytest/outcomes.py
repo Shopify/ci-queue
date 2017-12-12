@@ -43,7 +43,7 @@ def swap_in_serializable(excinfo):
     def pickles(excinfo):
         try:
             return dill.pickles(excinfo)
-        except:  # pylint: disable=bare-except
+        except BaseException:  # pylint: disable=bare-except
             return False
 
     if excinfo.type in SERIALIZE_TYPES:
@@ -88,7 +88,7 @@ def mark_as_skipped(call, item, stats, msg):
                 del stats[key]
 
     # the call is converted to a skip
-    traceback = item.error_reports.values()[0]['excinfo'].tb
+    traceback = list(item.error_reports.values())[0]['excinfo'].tb
     tup = (runner.Skipped, runner.Skipped(msg), traceback)
     call.excinfo = code.ExceptionInfo(tup)
 
@@ -97,7 +97,7 @@ def mark_as_skipped(call, item, stats, msg):
         clear_out_stats(key)
 
     # rollback the testsfailed number like it never happened
-    item.session.testsfailed -= len([v for k, v in item.error_reports.iteritems()
+    item.session.testsfailed -= len([v for k, v in item.error_reports.items()
                                      if not issubclass(v['excinfo'].type, Skipped) and k != 'teardown'])
 
     # and clear out any state on the item like it never happened
