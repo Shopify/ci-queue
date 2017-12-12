@@ -8,7 +8,7 @@ before_install:
   - gem install bundler -v 1.5.1
   - cd python
   - sudo pip install -U pip
-  - sudo pip install setuptools==33.1.1
+  - sudo pip install setuptools==33.1.1 tox-travis
   - pip --version
   - sudo make install
   - cd ../ruby

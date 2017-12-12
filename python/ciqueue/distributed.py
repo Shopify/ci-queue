@@ -1,8 +1,9 @@
-from past.builtins import xrange
 import os
 import time
 import math
 import redis
+
+from past.builtins import xrange  # pylint: disable=redefined-builtin,import-modules-only
 
 from ciqueue import static
 
