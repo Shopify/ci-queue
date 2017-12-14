@@ -131,6 +131,7 @@ module RSpec
       end
 
       def run(reporter)
+        p [:run, id]
         instance = example_group.new(example.inspect_output)
         example_group.set_ivars(instance, example_group.before_context_ivars)
         example.run(instance, reporter)
@@ -162,12 +163,14 @@ module RSpec
           @configuration.with_suite_hooks do
             queue.poll do |example|
               success &= example.run(reporter)
+              p [:ack, example.id]
               queue.acknowledge(example)
             end
           end
         end
 
         success &= !@world.non_example_failure
+        p [:success, success]
         success ? 0 : @configuration.failure_exit_code
       end
 
