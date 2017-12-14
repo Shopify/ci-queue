@@ -156,7 +156,10 @@ module RSpec
         end
 
         queue = CI::Queue.from_uri(queue_url, RSpec::Queue.config)
+        p [:examples_size, examples.size]
         queue.populate(examples, random: ordering_seed, &:id)
+        p [:queue_size, queue.size]
+        
         examples_count = examples.size # TODO: figure out which stub value would be best
         success = true
         @configuration.reporter.report(examples_count) do |reporter|
