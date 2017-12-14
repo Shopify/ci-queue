@@ -44,6 +44,7 @@ module CI
 
         def poll
           wait_for_master
+          p {shutdown_required: shutdown_required?, exhausted: exhausted?}
           until shutdown_required? || exhausted?
             if test = reserve
               yield index.fetch(test)
@@ -51,7 +52,8 @@ module CI
               sleep 0.05
             end
           end
-        rescue ::Redis::BaseConnectionError
+        rescue ::Redis::BaseConnectionError => error
+          p [:error, error]
         end
 
         def retry_queue
