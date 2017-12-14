@@ -44,7 +44,7 @@ module CI
 
         def poll
           wait_for_master
-          p {shutdown_required: shutdown_required?, exhausted: exhausted?}
+          p({shutdown_required: shutdown_required?, exhausted: exhausted?})
           until shutdown_required? || exhausted?
             if test = reserve
               yield index.fetch(test)
