@@ -131,14 +131,9 @@ module RSpec
       end
 
       def run(reporter)
-        return if RSpec.world.wants_to_quit
         instance = example_group.new(example.inspect_output)
         example_group.set_ivars(instance, example_group.before_context_ivars)
-        succeeded = example.run(instance, reporter)
-        if !succeeded && reporter.fail_fast_limit_met?
-          RSpec.world.wants_to_quit = true
-        end
-        succeeded
+        example.run(instance, reporter)
       end
     end
 
