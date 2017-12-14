@@ -44,7 +44,6 @@ module CI
 
         def poll
           wait_for_master
-          p({shutdown_required: shutdown_required?, exhausted: exhausted?})
           until shutdown_required? || exhausted?
             if test = reserve
               yield index.fetch(test)
@@ -52,6 +51,7 @@ module CI
               sleep 0.05
             end
           end
+          p({shutdown_required: shutdown_required?, exhausted: exhausted?})
         rescue ::Redis::BaseConnectionError => error
           p [:error, error]
         end
@@ -132,7 +132,8 @@ module CI
         end
 
         def try_to_reserve_test
-          eval_script(
+          p [:try_to_reserve_test, key('queue'), key('running'), key('processed'), key('worker', worker_id, 'queue')]
+          p eval_script(
             :reserve,
             keys: [key('queue'), key('running'), key('processed'), key('worker', worker_id, 'queue')],
             argv: [Time.now.to_f],
