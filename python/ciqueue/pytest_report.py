@@ -32,9 +32,10 @@ def pytest_collection_modifyitems(session, config, items):  # pylint: disable=un
     attached to each test's `error_reports` field."""
     session.queue = test_queue.build_queue(session.config.getoption('queue'))
     session.queue.wait_for_workers(master_timeout=300)
-    error_reports = session.queue.redis.hgetall(
-        session.queue.key('error-reports')
-    )
+    error_reports = {k.decode(): v
+                     for k, v
+                     in session.queue.redis.hgetall(session.queue.key('error-reports')).items()}
+
     for item in items:
         # mock out all test calls
         item.setup = noop
