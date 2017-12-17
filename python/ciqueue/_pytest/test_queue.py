@@ -1,5 +1,5 @@
-from future.moves.urllib import parse as urlparse
 from distutils import util  # pylint: disable=no-name-in-module, import-modules-only
+from future.moves.urllib import parse as urlparse
 import ciqueue
 import ciqueue.distributed
 import redis

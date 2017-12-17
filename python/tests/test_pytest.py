@@ -9,7 +9,6 @@ def expected_messages(output):
 
 
 def check_output(cmd):
-    print(cmd)
     return subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode()
 
 
