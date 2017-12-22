@@ -43,7 +43,7 @@ def swap_in_serializable(excinfo):
     def pickles(excinfo):
         try:
             return dill.pickles(excinfo)
-        except BaseException:  # pylint: disable=bare-except
+        except BaseException:
             return False
 
     if excinfo.type in SERIALIZE_TYPES:
