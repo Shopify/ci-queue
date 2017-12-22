@@ -78,28 +78,7 @@ def failed(item):
         not all(issubclass(i['excinfo'].type, Skipped) for i in item.error_reports.values())
 
 
-def mark_as_skipped(call, item, stats, msg):
-    assert call.when == 'teardown'
-
-    def clear_out_stats(key):
-        if key in stats:
-            stats[key] = [i for i in stats[key] if i.nodeid != item.nodeid]
-            if not stats[key]:
-                del stats[key]
-
-    # the call is converted to a skip
+def skipped_excinfo(item, msg):
     traceback = list(item.error_reports.values())[0]['excinfo'].tb
     tup = (runner.Skipped, runner.Skipped(msg), traceback)
-    call.excinfo = code.ExceptionInfo(tup)
-
-    # clear out the stats like the test never happened
-    for key in ('passed', 'error', 'failed'):
-        clear_out_stats(key)
-
-    # rollback the testsfailed number like it never happened
-    item.session.testsfailed -= len([v for k, v in item.error_reports.items()
-                                     if not issubclass(v['excinfo'].type, Skipped) and k != 'teardown'])
-
-    # and clear out any state on the item like it never happened
-    if hasattr(item, 'error_reports'):
-        del item.error_reports
+    return code.ExceptionInfo(tup)
