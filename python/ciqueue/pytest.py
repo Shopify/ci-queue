@@ -10,6 +10,7 @@ from ciqueue._pytest import test_queue
 from ciqueue._pytest import outcomes
 import dill
 import pytest
+from _pytest import terminal
 
 # pylint: disable=too-few-public-methods
 
@@ -61,8 +62,22 @@ class RedisReporter(object):
         self.redis = queue.redis
         self.errors_key = queue.key('error-reports')
         self.terminalreporter = config.pluginmanager.get_plugin('terminalreporter')
+        if hasattr(self.terminalreporter, '_get_progress_information_message'):
+            self.__replace_progress_message()
         self.terminalwriter = config.get_terminal_writer()
         self.logxml = config._xml if hasattr(config, '_xml') else None  # pylint: disable=protected-access
+
+    def __replace_progress_message(self):
+        reporter = self
+
+        def _get_progress(self):
+            collected = self._session.testscollected
+            if collected:
+                processed = reporter.queue.redis.scard(reporter.queue.key('processed'))
+                progress = processed * 100 // collected
+                return ' [{:3d}%]'.format(progress)
+            return ' [100%]'
+        terminal.TerminalReporter._get_progress_information_message = _get_progress  # pylint: disable=protected-access
 
     def record(self, item):
         # if the test passed, we remove it from the errors queue

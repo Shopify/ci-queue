@@ -14,7 +14,10 @@ when reading off the queue. These operations are performed by
 
 from __future__ import absolute_import
 import dill
-from _pytest import runner
+try:
+    from _pytest import outcomes
+except ImportError:
+    from _pytest import runner as outcomes
 from _pytest._code import code
 from tblib import pickling_support
 
@@ -22,21 +25,21 @@ pickling_support.install()
 
 
 class Skipped(Exception):
-    """placeholder for runner.Skipped which is not serializable"""
+    """placeholder for outcomes.Skipped which is not serializable"""
 
 
 class Failed(Exception):
-    """placeholder for runner.Failed which is not serializable"""
+    """placeholder for outcomes.Failed which is not serializable"""
 
 
 class UnserializableException(Exception):
     """placeholder for any Exceptions that cannnot be serialized"""
 
 
-SERIALIZE_TYPES = {runner.Skipped: Skipped,
-                   runner.Failed: Failed}
-DESERIALIZE_TYPES = {Skipped: runner.Skipped,
-                     Failed: runner.Failed}
+SERIALIZE_TYPES = {outcomes.Skipped: Skipped,
+                   outcomes.Failed: Failed}
+DESERIALIZE_TYPES = {Skipped: outcomes.Skipped,
+                     Failed: outcomes.Failed}
 
 
 def swap_in_serializable(excinfo):
@@ -80,5 +83,5 @@ def failed(item):
 
 def skipped_excinfo(item, msg):
     traceback = list(item.error_reports.values())[0]['excinfo'].tb
-    tup = (runner.Skipped, runner.Skipped(msg), traceback)
+    tup = (outcomes.Skipped, outcomes.Skipped(msg), traceback)
     return code.ExceptionInfo(tup)

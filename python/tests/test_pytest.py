@@ -7,7 +7,8 @@ import redis
 
 def expected_messages(output):
     assert '= 4 failed, 2 passed, 1 skipped, 1 xpassed, 6 error in' in output, output
-    assert 'integrations/pytest/test_all.py:27: skipping test message' in output, output
+    assert ('integrations/pytest/test_all.py:27: skipping test message' in output
+            or 'integrations/pytest/test_all.py:28: skipping test message' in output), output
 
 
 def check_output(cmd):
@@ -39,7 +40,8 @@ class TestIntegration(object):
         queue = "redis://localhost:6379/0?build=foo&retry=0"
         output = check_output(report_cmd)
         assert '= 11 passed, 1 xpassed in' in output, output
-        assert 'integrations/pytest/test_all.py:27: message' not in output, output
+        assert ('integrations/pytest/test_all.py:27: message' not in output
+                and 'integrations/pytest/test_all.py:28: message' not in output), output
 
     def test_retries_and_junit_xml(self, tmpdir):
         queue = ('redis://localhost:6379/0?worker=0&build=bar&retry=0&timeout=5'
@@ -56,7 +58,8 @@ class TestIntegration(object):
 
         output = check_output(cmd.format(queue, filename))
         assert '= 4 failed, 2 passed, 4 skipped, 1 xpassed, 6 error in' in output, output
-        assert 'integrations/pytest/test_all.py:27: skipping test message' in output, output
+        assert ('integrations/pytest/test_all.py:27: skipping test message' in output
+                or 'integrations/pytest/test_all.py:28: skipping test message' in output), output
         assert ' WILL_RETRY ' in output, output
 
         xml = open(xml_file).read()
