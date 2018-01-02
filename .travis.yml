@@ -1,4 +1,10 @@
 sudo: true
+addons:
+  apt:
+    sources:
+      - deadsnakes
+    packages:
+      - python3.6
 services:
   - redis-server
 language: ruby
@@ -14,4 +20,4 @@ before_install:
   - cd ../ruby
 script:
   - cd ../ruby && bundle exec rake
-  - cd ../python && PYTHONPATH='.' make test
+  - cd ../python && PYTHONPATH='.' sudo make test

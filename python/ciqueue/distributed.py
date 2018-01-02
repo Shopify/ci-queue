@@ -3,6 +3,8 @@ import time
 import math
 import redis
 
+from past.builtins import xrange  # pylint: disable=redefined-builtin,import-modules-only
+
 from ciqueue import static
 
 
@@ -38,7 +40,7 @@ class Base(object):
             "` after {} seconds waiting.".format(timeout))
 
     def _master_status(self):
-        return self.redis.get(self.key('master-status'))
+        return self.redis.get(self.key('master-status')).decode()
 
     def __len__(self):
         transaction = self.redis.pipeline(transaction=True)
@@ -70,7 +72,7 @@ class Worker(Base):
             while not self.shutdown_required and len(self):  # pylint: disable=len-as-condition
                 test = self._reserve()
                 if test:
-                    yield test
+                    yield test.decode()
                 else:
                     time.sleep(0.05)
 
@@ -106,8 +108,8 @@ class Worker(Base):
         ) == 1
 
     def retry_queue(self):
-        tests = self.redis.lrange(
-            self.key('worker', self.worker_id, 'queue'), 0, -1)
+        tests = [v.decode() for v in self.redis.lrange(
+            self.key('worker', self.worker_id, 'queue'), 0, -1)]
         tests.reverse()
         return Retry(
             tests,
