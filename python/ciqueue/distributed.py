@@ -79,7 +79,7 @@ class Worker(Base):
         try:
             self.wait_for_master()
             for i in poll():
-                yield i if isinstance(i, str) else i.decode()
+                yield i
         except redis.ConnectionError:
             pass
 
