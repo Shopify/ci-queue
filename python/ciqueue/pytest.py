@@ -67,16 +67,10 @@ class RedisReporter(object):
         self.terminalwriter = config.get_terminal_writer()
         self.logxml = config._xml if hasattr(config, '_xml') else None  # pylint: disable=protected-access
 
-    def __replace_progress_message(self):
-        reporter = self
+    def __replace_progress_message(self):  # pylint: disable=no-self-use
+        def _get_progress(self):  # pylint: disable=unused-argument
+            return ''
 
-        def _get_progress(self):
-            collected = self._session.testscollected
-            if collected:
-                processed = reporter.queue.redis.scard(reporter.queue.key('processed'))
-                progress = processed * 100 // collected
-                return ' [{:3d}%]'.format(progress)
-            return ' [100%]'
         terminal.TerminalReporter._get_progress_information_message = _get_progress  # pylint: disable=protected-access
 
     def record(self, item):
