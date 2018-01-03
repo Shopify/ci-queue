@@ -62,6 +62,7 @@ class RedisReporter(object):
         self.errors_key = queue.key('error-reports')
         self.terminalreporter = config.pluginmanager.get_plugin('terminalreporter')
         self.terminalwriter = config.get_terminal_writer()
+        self.logxml = config._xml if hasattr(config, '_xml') else None  # pylint: disable=protected-access
 
     def record(self, item):
         # if the test passed, we remove it from the errors queue
@@ -73,6 +74,43 @@ class RedisReporter(object):
                 zlib.compress(dill.dumps(item.error_reports)))
         else:
             self.redis.hdel(self.errors_key, test_queue.key_item(item))
+
+    def mark_as_skipped(self, call, item, msg):
+        assert call.when == 'teardown'
+
+        stats = self.terminalreporter.stats
+
+        def clear_out_stats(key):
+            if key in stats:
+                new_stats = []
+                for i in stats[key]:
+                    if i.nodeid != item.nodeid:
+                        new_stats.append(i)
+                    elif self.logxml:
+                        xmlkey = 'failure' if key == 'failed' else key
+                        self.logxml.stats[xmlkey] -= 1
+                stats[key] = new_stats
+                if not stats[key]:
+                    del stats[key]
+
+        # remove the failure/error from logxml
+        if self.logxml:
+            self.logxml.node_reporters_ordered[-1].nodes = []
+
+        # the call is converted to a skip
+        call.excinfo = outcomes.skipped_excinfo(item, msg)
+
+        # clear out the stats like the test never happened
+        for key in ('passed', 'error', 'failed'):
+            clear_out_stats(key)
+
+        # rollback the testsfailed number like it never happened
+        item.session.testsfailed -= len([v for k, v in item.error_reports.items()
+                                         if not issubclass(v['excinfo'].type, outcomes.Skipped) and k != 'teardown'])
+
+        # and clear out any state on the item like it never happened
+        if hasattr(item, 'error_reports'):
+            del item.error_reports
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_runtest_makereport(self, item, call):
@@ -95,7 +133,7 @@ class RedisReporter(object):
             # Only attempt to requeue if the test failed.
             # The method will return `False` if the test couldn't be requeued
             if test_failed and self.queue.requeue(test_name):
-                outcomes.mark_as_skipped(call, item, self.terminalreporter.stats, "WILL_RETRY")
+                self.mark_as_skipped(call, item, "WILL_RETRY")
                 self.terminalwriter.write(' WILL_RETRY ', green=True)
 
             # If the test was already acknowledged by another worker (we timed out)
@@ -106,7 +144,7 @@ class RedisReporter(object):
             # The test timed out and failed, mark it as skipped so that it doesn't
             # fail the build
             else:
-                outcomes.mark_as_skipped(call, item, self.terminalreporter.stats, "TIMED OUT")
+                self.mark_as_skipped(call, item, "TIMED OUT")
                 self.terminalwriter.write(' TIMED OUT ', green=True)
 
 
