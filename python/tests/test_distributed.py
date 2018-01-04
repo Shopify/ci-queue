@@ -63,6 +63,6 @@ class TestDistributed(shared.QueueImplementation):
         with pytest.raises(distributed.LostMaster):
             supervisor.wait_for_master(timeout=0)
 
-        first_queue = self.build_queue(1)
+        self.build_queue(1)
 
         assert supervisor.wait_for_master(timeout=0)
