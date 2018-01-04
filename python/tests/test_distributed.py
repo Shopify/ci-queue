@@ -1,4 +1,5 @@
 import os
+import pytest
 import redis
 from ciqueue import distributed
 from tests import shared
@@ -23,6 +24,9 @@ class TestDistributed(shared.QueueImplementation):
             max_requeues=1,
             requeue_tolerance=0.1,
         )
+
+    def build_supervisor(self):
+        return distributed.Supervisor(redis=self._redis, build_id=42)
 
     def test_requeue(self):
         assert self.requeue() == self.TEST_LIST + [self.TEST_LIST[0]]
@@ -52,3 +56,13 @@ class TestDistributed(shared.QueueImplementation):
 
         second_queue = self.build_queue(1)
         assert not second_queue.is_master
+
+    def test_supervisor_before_worker(self):
+        supervisor = self.build_supervisor()
+
+        with pytest.raises(distributed.LostMaster):
+            supervisor.wait_for_master(timeout=0)
+
+        self.build_queue(1)
+
+        assert supervisor.wait_for_master(timeout=0)

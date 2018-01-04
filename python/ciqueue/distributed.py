@@ -40,7 +40,8 @@ class Base(object):
             "` after {} seconds waiting.".format(timeout))
 
     def _master_status(self):
-        return self.redis.get(self.key('master-status')).decode()
+        raw = self.redis.get(self.key('master-status'))
+        return raw.decode() if raw else None
 
     def __len__(self):
         transaction = self.redis.pipeline(transaction=True)
