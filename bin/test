@@ -1,0 +1,22 @@
+#!/usr/bin/env ruby
+
+def run(*args)
+  puts "$ #{args.join(' ')}"
+  unless system(*args)
+    exit $?.exitstatus
+  end
+end
+
+case ENV['SUITE']
+when 'python'
+  Dir.chdir('python/') do
+    run({ 'PYTHONPATH' => '.' }, 'sudo', 'make', 'test')
+  end
+when 'ruby'
+  Dir.chdir('ruby/') do
+    run('bundle', 'install')
+    run('bundle', 'exec', 'rake')
+  end
+else
+  abort("Missing or invalid SUITE environment variable")
+end
