@@ -217,9 +217,9 @@ module Minitest
 
           redis.multi do
             if (test.failure || test.error?) && !test.skipped?
-              redis.hset(key('error-reports'), "#{test.class}##{test.name}", dump(test))
+              redis.hset(key('error-reports'), "#{test.klass}##{test.name}", dump(test))
             else
-              redis.hdel(key('error-reports'), "#{test.class}##{test.name}")
+              redis.hdel(key('error-reports'), "#{test.klass}##{test.name}")
             end
             COUNTERS.each do |counter|
               redis.hset(key(counter), worker_id, send(counter))

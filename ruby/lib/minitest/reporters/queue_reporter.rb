@@ -36,7 +36,7 @@ module Minitest
         e = test.failure
 
         if test.requeued?
-          "Requeued:\n#{test.class}##{test.name} [#{location(e)}]:\n#{e.message}"
+          "Requeued:\n#{test.klass}##{test.name} [#{location(e)}]:\n#{e.message}"
         else
           super
         end

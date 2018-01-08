@@ -116,4 +116,9 @@ module Minitest
 end
 
 MiniTest.singleton_class.prepend(MiniTest::Queue)
-MiniTest::Test.prepend(MiniTest::Requeueing)
+if defined? MiniTest::Result
+  MiniTest::Result.prepend(MiniTest::Requeueing)
+else
+  MiniTest::Test.prepend(MiniTest::Requeueing)
+  MiniTest::Test.send(:alias_method, :klass, :class)
+end
