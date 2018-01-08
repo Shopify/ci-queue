@@ -13,6 +13,7 @@ rvm:
 env:
   - SUITE=python
   - SUITE=ruby
+  - SUITE=ruby MINITEST_VERSION=5.9.1
 before_install:
   - bin/before-install
 script:
