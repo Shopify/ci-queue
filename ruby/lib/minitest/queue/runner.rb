@@ -2,6 +2,7 @@ require 'optparse'
 require 'minitest/queue'
 require 'ci/queue'
 require 'digest/md5'
+require 'minitest/reporters/bisect_reporter'
 
 module Minitest
   module Queue
@@ -61,7 +62,7 @@ module Minitest
         step("Testing the failing test in isolation")
         unless run_tests_in_fork(queue.failing_test)
           puts reopen_previous_step
-          puts red("The test fail when run alone, no need to bisect.")
+          puts red("The test fail when ran alone, no need to bisect.")
           exit! 0
         end
 
@@ -130,7 +131,7 @@ module Minitest
       def run_tests_in_fork(queue)
         child_pid = fork do
           Minitest.queue = queue
-          Minitest::Reporters.use!([Minitest::Reporters::SpecReporter.new])
+          Minitest::Reporters.use!([Minitest::Reporters::BisectReporter.new])
           exit # let minitest excute its at_exit
         end
 
