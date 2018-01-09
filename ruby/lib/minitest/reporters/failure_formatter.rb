@@ -20,7 +20,7 @@ module Minitest
 
       def to_h
         {
-          test_and_module_name: "#{test.class}##{test.name}",
+          test_and_module_name: "#{test.klass}##{test.name}",
           test_name: test.name,
           output: to_s,
         }
@@ -31,7 +31,7 @@ module Minitest
       attr_reader :test
 
       def header
-        "#{red(status)} #{test.class}##{test.name}"
+        "#{red(status)} #{test.klass}##{test.name}"
       end
 
       def status
