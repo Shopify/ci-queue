@@ -14,17 +14,17 @@ module Minitest::Reporters
     end
 
     def test_aggregation
-      @reporter.record(runnable('a', Minitest::Assertion.new))
-      @reporter.record(runnable('b', Minitest::UnexpectedError.new(StandardError.new)))
+      @reporter.record(result('a', Minitest::Assertion.new))
+      @reporter.record(result('b', Minitest::UnexpectedError.new(StandardError.new)))
 
       second_queue = worker(2)
       second_reporter = second_queue.minitest_reporters.last
       second_reporter.start
 
-      second_reporter.record(runnable('c', Minitest::Assertion.new))
-      second_reporter.record(runnable('d', Minitest::UnexpectedError.new(StandardError.new)))
-      second_reporter.record(runnable('e', Minitest::Skip.new))
-      second_reporter.record(runnable('f', Minitest::UnexpectedError.new(StandardError.new)))
+      second_reporter.record(result('c', Minitest::Assertion.new))
+      second_reporter.record(result('d', Minitest::UnexpectedError.new(StandardError.new)))
+      second_reporter.record(result('e', Minitest::Skip.new))
+      second_reporter.record(result('f', Minitest::UnexpectedError.new(StandardError.new)))
 
       assert_equal 6, summary.assertions
       assert_equal 2, summary.failures
@@ -34,14 +34,14 @@ module Minitest::Reporters
     end
 
     def test_retrying_test
-      @reporter.record(runnable('a', Minitest::Assertion.new))
+      @reporter.record(result('a', Minitest::Assertion.new))
       assert_equal 1, summary.error_reports.size
 
       second_queue = worker(2)
       second_reporter = second_queue.minitest_reporters.last
       second_reporter.start
 
-      second_reporter.record(runnable('a'))
+      second_reporter.record(result('a'))
       assert_equal 0, summary.error_reports.size
     end
 
