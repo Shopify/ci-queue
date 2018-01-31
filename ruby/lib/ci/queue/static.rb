@@ -17,6 +17,10 @@ module CI
         @total = tests.size
       end
 
+      def build
+        @build ||= BuildRecord.new(self)
+      end
+
       def minitest_reporters
         require 'minitest/reporters/queue_reporter'
         @minitest_reporters ||= [

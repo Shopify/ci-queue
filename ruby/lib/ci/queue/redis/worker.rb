@@ -63,16 +63,16 @@ module CI
           Supervisor.new(redis_url, config)
         end
 
+        def build
+          @build ||= CI::Queue::Redis::BuildRecord.new(self, redis, config)
+        end
+
         def minitest_reporters
           require 'minitest/reporters/queue_reporter'
           require 'minitest/reporters/redis_reporter'
           @minitest_reporters ||= [
             Minitest::Reporters::QueueReporter.new,
-            Minitest::Reporters::RedisReporter::Worker.new(
-              redis: redis,
-              build_id: build_id,
-              worker_id: worker_id,
-            )
+            Minitest::Reporters::RedisReporter::Worker.new(build: build)
           ]
         end
 

@@ -87,35 +87,22 @@ module Minitest
       end
 
       class Base < BaseReporter
-        def initialize(redis:, build_id:, **options)
-          @redis = redis
-          @key = "build:#{build_id}"
+        def initialize(build:, **options)
+          @build = build
           super(options)
         end
 
-        def total
-          redis.get(key('total')).to_i
-        end
-
-        def processed
-          redis.scard(key('processed')).to_i
-        end
-
         def completed?
-          total > 0 && total == processed
+          build.queue_exhausted?
         end
 
         def error_reports
-          redis.hgetall(key('error-reports')).sort_by(&:first).map { |k, v| Error.load(v) }
+          build.error_reports.sort_by(&:first).map { |k, v| Error.load(v) }
         end
 
         private
 
-        attr_reader :redis
-
-        def key(*args)
-          [@key, *args].join(':')
-        end
+        attr_reader :build
       end
 
       class Summary < Base
@@ -161,6 +148,10 @@ module Minitest
           fetch_summary['total_time'].to_f
         end
 
+        def progress
+          build.progress
+        end
+
         private
 
         def aggregates
@@ -168,7 +159,7 @@ module Minitest
           failures_count = "#{failures} failures, #{errors} errors,"
 
           step([
-            'Ran %d tests, %d assertions,' % [processed, assertions],
+            'Ran %d tests, %d assertions,' % [progress, assertions],
             success ? green(failures_count) : red(failures_count),
             yellow("#{skips} skips, #{requeues} requeues"),
             'in %.2fs (aggregated)' % total_time,
@@ -176,21 +167,15 @@ module Minitest
         end
 
         def fetch_summary
-          @summary ||= begin
-            counts = redis.pipelined do
-              COUNTERS.each { |c| redis.hgetall(key(c)) }
-            end
-            COUNTERS.zip(counts.map { |h| h.values.map(&:to_f).inject(:+).to_f }).to_h
-          end
+          @summary ||= build.fetch_stats(COUNTERS)
         end
       end
 
       class Worker < Base
         attr_accessor :requeues
 
-        def initialize(worker_id:, **options)
+        def initialize(*)
           super
-          @worker_id = worker_id
           self.failures = 0
           self.errors = 0
           self.skips = 0
@@ -215,15 +200,12 @@ module Minitest
             self.failures += 1
           end
 
-          redis.multi do
-            if (test.failure || test.error?) && !test.skipped?
-              redis.hset(key('error-reports'), "#{test.klass}##{test.name}", dump(test))
-            else
-              redis.hdel(key('error-reports'), "#{test.klass}##{test.name}")
-            end
-            COUNTERS.each do |counter|
-              redis.hset(key(counter), worker_id, send(counter))
-            end
+
+          stats = COUNTERS.zip(COUNTERS.map { |c| send(c) })
+          if (test.failure || test.error?) && !test.skipped?
+            build.record_error("#{test.klass}##{test.name}", dump(test), stats: stats)
+          else
+            build.record_success("#{test.klass}##{test.name}", stats: stats)
           end
         end
 
@@ -233,7 +215,7 @@ module Minitest
           Error.new(RedisReporter.failure_formatter.new(test).to_h).dump
         end
 
-        attr_reader :worker_id, :aggregates
+        attr_reader :aggregates
       end
     end
   end

@@ -70,10 +70,7 @@ module Minitest::Reporters
     end
 
     def summary
-      @summary ||= Minitest::Reporters::RedisReporter::Summary.new(
-        redis: @redis,
-        build_id: '42',
-      )
+      @summary ||= Minitest::Reporters::RedisReporter::Summary.new(build: @queue.supervisor.build)
     end
   end
 end

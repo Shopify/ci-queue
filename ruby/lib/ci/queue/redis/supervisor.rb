@@ -6,13 +6,19 @@ module CI
           false
         end
 
+        def total
+          wait_for_master(timeout: config.timeout)
+          redis.get(key('total')).to_i
+        end
+
+        def build
+          @build ||= CI::Queue::Redis::BuildRecord.new(self, redis, config)
+        end
+
         def minitest_reporters
           require 'minitest/reporters/redis_reporter'
           @reporters ||= [
-            Minitest::Reporters::RedisReporter::Summary.new(
-              build_id: build_id,
-              redis: redis,
-            )
+            Minitest::Reporters::RedisReporter::Summary.new(build: build)
           ]
         end
 

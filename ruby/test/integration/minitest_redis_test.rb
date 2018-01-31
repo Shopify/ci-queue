@@ -96,11 +96,6 @@ module Integration
     end
 
     def test_redis_reporter
-      summary = Minitest::Reporters::RedisReporter::Summary.new(
-        redis: @redis,
-        build_id: '1',
-      )
-
       out, err = capture_subprocess_io do
         system(
           @exe, 'run',
