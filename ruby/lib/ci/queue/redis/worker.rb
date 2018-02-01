@@ -67,15 +67,6 @@ module CI
           @build ||= CI::Queue::Redis::BuildRecord.new(self, redis, config)
         end
 
-        def minitest_reporters
-          require 'minitest/reporters/queue_reporter'
-          require 'minitest/reporters/redis_reporter'
-          @minitest_reporters ||= [
-            Minitest::Reporters::QueueReporter.new,
-            Minitest::Reporters::RedisReporter::Worker.new(build: build)
-          ]
-        end
-
         def acknowledge(test)
           test_key = test.id
           raise_on_mismatching_test(test_key)

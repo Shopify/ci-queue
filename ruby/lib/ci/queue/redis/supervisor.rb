@@ -15,13 +15,6 @@ module CI
           @build ||= CI::Queue::Redis::BuildRecord.new(self, redis, config)
         end
 
-        def minitest_reporters
-          require 'minitest/reporters/redis_reporter'
-          @reporters ||= [
-            Minitest::Reporters::RedisReporter::Summary.new(build: build)
-          ]
-        end
-
         def wait_for_workers
           return false unless wait_for_master(timeout: config.timeout)
 

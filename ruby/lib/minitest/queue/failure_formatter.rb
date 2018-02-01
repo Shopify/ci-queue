@@ -1,7 +1,8 @@
 require 'delegate'
+require 'ansi'
 
 module Minitest
-  module Reporters
+  module Queue
     class FailureFormatter < SimpleDelegator
       include ANSI::Code
 

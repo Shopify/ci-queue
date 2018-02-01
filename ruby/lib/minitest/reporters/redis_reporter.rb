@@ -1,5 +1,4 @@
 require 'minitest/reporters'
-require 'minitest/reporters/failure_formatter'
 
 module Minitest
   module Reporters
@@ -20,72 +19,6 @@ module Minitest
       end
       self.failure_formatter = FailureFormatter
 
-      class Error
-        class << self
-          attr_accessor :coder
-
-          def load(payload)
-            new(coder.load(payload))
-          end
-        end
-
-        self.coder = Marshal
-
-        begin
-          require 'snappy'
-          require 'msgpack'
-          require 'stringio'
-
-          module SnappyPack
-            extend self
-
-            MSGPACK = MessagePack::Factory.new
-            MSGPACK.register_type(0x00, Symbol)
-
-            def load(payload)
-              io = StringIO.new(Snappy.inflate(payload))
-              MSGPACK.unpacker(io).unpack
-            end
-
-            def dump(object)
-              io = StringIO.new
-              packer = MSGPACK.packer(io)
-              packer.pack(object)
-              packer.flush
-              io.rewind
-              Snappy.deflate(io.string).force_encoding(Encoding::UTF_8)
-            end
-          end
-
-          self.coder = SnappyPack
-        rescue LoadError
-        end
-
-        def initialize(data)
-          @data = data
-        end
-
-        def dump
-          self.class.coder.dump(@data)
-        end
-
-        def test_name
-          @data[:test_name]
-        end
-
-        def test_and_module_name
-          @data[:test_and_module_name]
-        end
-
-        def to_s
-          output
-        end
-
-        def output
-          @data[:output]
-        end
-      end
-
       class Base < BaseReporter
         def initialize(build:, **options)
           @build = build
@@ -97,78 +30,14 @@ module Minitest
         end
 
         def error_reports
-          build.error_reports.sort_by(&:first).map { |k, v| Error.load(v) }
+          build.error_reports.sort_by(&:first).map { |k, v| ErrorReport.load(v) }
         end
 
         private
 
-        attr_reader :build
       end
 
       class Summary < Base
-        include ::CI::Queue::OutputHelpers
-
-        def report
-          puts aggregates
-          errors = error_reports
-          puts errors
-
-          errors.empty?
-        end
-
-        def success?
-          errors == 0 && failures == 0
-        end
-
-        def record(*)
-          raise NotImplementedError
-        end
-
-        def failures
-          fetch_summary['failures'].to_i
-        end
-
-        def errors
-          fetch_summary['errors'].to_i
-        end
-
-        def assertions
-          fetch_summary['assertions'].to_i
-        end
-
-        def skips
-          fetch_summary['skips'].to_i
-        end
-
-        def requeues
-          fetch_summary['requeues'].to_i
-        end
-
-        def total_time
-          fetch_summary['total_time'].to_f
-        end
-
-        def progress
-          build.progress
-        end
-
-        private
-
-        def aggregates
-          success = failures.zero? && errors.zero?
-          failures_count = "#{failures} failures, #{errors} errors,"
-
-          step([
-            'Ran %d tests, %d assertions,' % [progress, assertions],
-            success ? green(failures_count) : red(failures_count),
-            yellow("#{skips} skips, #{requeues} requeues"),
-            'in %.2fs (aggregated)' % total_time,
-          ].join(' '), collapsed: success)
-        end
-
-        def fetch_summary
-          @summary ||= build.fetch_stats(COUNTERS)
-        end
       end
 
       class Worker < Base
@@ -212,7 +81,7 @@ module Minitest
         private
 
         def dump(test)
-          Error.new(RedisReporter.failure_formatter.new(test).to_h).dump
+          ErrorReport.new(RedisReporter.failure_formatter.new(test).to_h).dump
         end
 
         attr_reader :aggregates

@@ -7,7 +7,6 @@ ENV['PATH'] = "#{File.expand_path('../../exe/', __FILE__)}:#{ENV['PATH']}"
 require 'ci/queue'
 require 'ci/queue/redis'
 require 'minitest/queue'
-require 'minitest/reporters/redis_reporter'
 require 'minitest/reporters/order_reporter'
 require 'minitest/autorun'
 
