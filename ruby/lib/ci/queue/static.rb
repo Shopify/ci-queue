@@ -21,13 +21,6 @@ module CI
         @build ||= BuildRecord.new(self)
       end
 
-      def minitest_reporters
-        require 'minitest/reporters/queue_reporter'
-        @minitest_reporters ||= [
-          Minitest::Reporters::QueueReporter.new,
-        ]
-      end
-
       def supervisor
         raise NotImplementedError, "This type of queue can't be supervised"
       end

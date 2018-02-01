@@ -1,7 +1,13 @@
 require 'minitest'
-
 gem 'minitest-reporters', '~> 1.1'
 require 'minitest/reporters'
+
+require 'minitest/queue/failure_formatter'
+require 'minitest/queue/error_report'
+require 'minitest/queue/local_requeue_reporter'
+require 'minitest/queue/build_status_recorder'
+require 'minitest/queue/build_status_reporter'
+
 
 module Minitest
   class Requeue < Skip
@@ -68,11 +74,6 @@ module Minitest
 
     def queue=(queue)
       @queue = queue
-      if queue.respond_to?(:minitest_reporters)
-        self.queue_reporters = queue.minitest_reporters
-      else
-        self.queue_reporters = []
-      end
     end
 
     def queue_reporters=(reporters)

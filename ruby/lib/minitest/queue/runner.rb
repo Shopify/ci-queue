@@ -43,6 +43,11 @@ module Minitest
       def run_command
         set_load_path
         Minitest.queue = queue
+        Minitest.queue_reporters = [
+          Minitest::Queue::LocalRequeueReporter.new,
+          Minitest::Queue::BuildStatusRecorder.new(build: queue.build)
+        ]
+
         trap('TERM') { Minitest.queue.shutdown! }
         trap('INT') { Minitest.queue.shutdown! }
         load_tests
@@ -115,12 +120,9 @@ module Minitest
           end
         end
 
-        success = supervisor.minitest_reporters.all?(&:success?)
-        supervisor.minitest_reporters.each do |reporter|
-          reporter.report
-        end
-
-        exit! success ? 0 : 1
+        reporter = BuildStatusReporter.new(build: supervisor.build)
+        reporter.report
+        exit! reporter.success? ? 0 : 1
       end
 
       private

@@ -1,7 +1,7 @@
 require 'test_helper'
 
-module Minitest::Reporters
-  class RedisReporterTest < Minitest::Test
+module Minitest::Queue
+  class BuildStatusRecorderTest < Minitest::Test
     include ReporterTestHelper
 
     def setup
@@ -9,7 +9,7 @@ module Minitest::Reporters
       @redis = ::Redis.new(url: @redis_url)
       @redis.flushdb
       @queue = worker(1)
-      @reporter = @queue.minitest_reporters.last
+      @reporter = BuildStatusRecorder.new(build: @queue.build)
       @reporter.start
     end
 
@@ -43,17 +43,6 @@ module Minitest::Reporters
 
       second_reporter.record(result('a'))
       assert_equal 0, summary.error_reports.size
-    end
-
-    def test_default_coder
-      assert defined? RedisReporter::Error::SnappyPack
-      assert_equal RedisReporter::Error::SnappyPack, RedisReporter::Error.coder
-    end
-
-    def test_snappypack_coder
-      original_hash = {foo: 'bar'}
-      round_trip = RedisReporter::Error.coder.load(RedisReporter::Error.coder.dump(original_hash))
-      assert_equal original_hash, round_trip
     end
 
     private
