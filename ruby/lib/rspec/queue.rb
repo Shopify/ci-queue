@@ -1,11 +1,40 @@
 require 'rspec/core'
 require 'ci/queue'
+require 'rspec/queue/build_status_recorder'
 
 module RSpec
   module Queue
     class << self
       def config
         @config ||= CI::Queue::Configuration.from_env(ENV)
+      end
+    end
+
+    module RunnerHelpers
+      private
+
+      def queue_url
+        configuration.queue_url || ENV['CI_QUEUE_URL']
+      end
+
+      def invalid_usage!(message)
+        reopen_previous_step
+        puts red(message)
+        puts
+        puts 'Please use --help for a listing of valid options'
+        exit! 1 # exit! is required to avoid at_exit callback
+      end
+
+      def exit!(*)
+        STDOUT.flush
+        STDERR.flush
+        super
+      end
+
+      def abort!(message)
+        reopen_previous_step
+        puts red(message)
+        exit! 1 # exit! is required to avoid at_exit callback
       end
     end
 
@@ -41,6 +70,11 @@ module RSpec
         parser.separator ""
         parser.on('--queue URL', *help) do |url|
           options[:queue_url] = url
+        end
+
+        parser.on('--report', *help) do |url|
+          options[:report] = true
+          options[:runner] = RSpec::Queue::ReportRunner.new
         end
 
         help = split_heredoc(<<-EOS)
@@ -142,8 +176,67 @@ module RSpec
       end
     end
 
+    class ReportRunner
+      include RunnerHelpers
+      include CI::Queue::OutputHelpers
+
+      def call(options, stdout, stderr)
+        setup(options, stdout, stderr)
+
+        queue = CI::Queue.from_uri(queue_url, RSpec::Queue.config)
+
+        supervisor = begin
+          queue.supervisor
+        rescue NotImplementedError => error
+          abort! error.message
+        end
+
+        step("Waiting for workers to complete")
+
+        unless supervisor.wait_for_workers
+          unless supervisor.queue_initialized?
+            abort! "No master was elected. Did all workers crash?"
+          end
+
+          unless supervisor.exhausted?
+            abort! "#{supervisor.size} tests weren't run."
+          end
+        end
+
+        # TODO: better reporting
+        errors = supervisor.build.error_reports.sort_by(&:first).map(&:last)
+        if errors.empty?
+          step(green('No errors found'))
+          0
+        else
+          message = errors.size == 1 ? "1 error found" : "#{errors.size} errors found"
+          step(red(message), collapsed: false)
+          stdout.puts errors
+          1
+        end
+      end
+
+      private
+
+      attr_reader :configuration
+
+      def setup(options, out, err)
+        @options       = options
+        @configuration = RSpec.configuration
+        @world         = RSpec.world
+        @configuration.error_stream = err
+        @configuration.output_stream = out if @configuration.output_stream == $stdout
+        @options.options.delete(:requires) # Prevent loading of spec_helper so the app doesn't need to boot
+        @options.configure(@configuration)
+
+        invalid_usage!('Missing --queue parameter') unless queue_url
+        invalid_usage!('Missing --build parameter') unless RSpec::Queue.config.build_id
+      end
+    end
+
     class Runner < ::RSpec::Core::Runner
       include CI::Queue::OutputHelpers
+      include RunnerHelpers
 
       def setup(err, out)
         super
@@ -160,10 +253,13 @@ module RSpec
         end
 
         queue = CI::Queue.from_uri(queue_url, RSpec::Queue.config)
+        BuildStatusRecorder.build = queue.build
         queue.populate(examples, random: ordering_seed, &:id)
         examples_count = examples.size # TODO: figure out which stub value would be best
         success = true
         @configuration.reporter.report(examples_count) do |reporter|
+          @configuration.add_formatter(BuildStatusRecorder)
+
           @configuration.with_suite_hooks do
             queue.poll do |example|
               success &= example.run(reporter)
@@ -184,30 +280,6 @@ module RSpec
         else
           Random.new
         end
-      end
-
-      def queue_url
-        configuration.queue_url || ENV['CI_QUEUE_URL']
-      end
-
-      def invalid_usage!(message)
-        reopen_previous_step
-        puts red(message)
-        puts
-        puts 'Please use --help for a listing of valid options'
-        exit! 1 # exit! is required to avoid minitest at_exit callback
-      end
-
-      def exit!(*)
-        STDOUT.flush
-        STDERR.flush
-        super
-      end
-
-      def abort!(message)
-        reopen_previous_step
-        puts red(message)
-        exit! 1 # exit! is required to avoid minitest at_exit callback
       end
     end
   end
