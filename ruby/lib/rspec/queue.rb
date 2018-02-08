@@ -1,3 +1,4 @@
+require 'delegate'
 require 'rspec/core'
 require 'ci/queue'
 require 'rspec/queue/build_status_recorder'
@@ -148,6 +149,56 @@ module RSpec
 
     RSpec::Core::Parser.prepend(ParserExtension)
 
+    module ExampleExtension
+      protected
+
+      def mark_as_requeued!(reporter)
+        @exception = nil
+
+        @metadata = @metadata.dup # Avoid mutating the @metadata hash of the original Example instance
+        @metadata[:execution_result] = execution_result.dup
+        # TODO: Improve requeue message
+        execution_result.pending_message = "The example failed, but another attempt will be done to rule out flakiness"
+
+        # Ensure the example is recorded as ran, so it's visible to formatters
+        reporter.example_started(self)
+        finish(reporter, acknowledge: false)
+      end
+
+      private
+
+      def start(*)
+        reset! # In case that example was already ran but got requeued
+        super
+      end
+
+      def finish(reporter, acknowledge: true)
+        if acknowledge && reporter.respond_to?(:requeue)
+          if @exception && reporter.requeue
+            reporter.cancel_run!
+            dup.mark_as_requeued!(reporter)
+            return
+          elsif reporter.acknowledge || !@exception
+            # If the test was already acknowledged by another worker (we timed out)
+            # Then we only record it if it is successful.
+            super(reporter)
+          else
+            reporter.cancel_run!
+            return
+          end
+        else
+          super(reporter)
+        end
+      end
+
+      def reset!
+        @exception = nil
+        @metadata[:execution_result] = RSpec::Core::Example::ExecutionResult.new
+      end
+    end
+
+    RSpec::Core::Example.prepend(ExampleExtension)
+
     class SingleExample
       attr_reader :example_group, :example
 
@@ -168,11 +219,7 @@ module RSpec
         return if RSpec.world.wants_to_quit
         instance = example_group.new(example.inspect_output)
         example_group.set_ivars(instance, example_group.before_context_ivars)
-        succeeded = example.run(instance, reporter)
-        if !succeeded && reporter.fail_fast_limit_met?
-          RSpec.world.wants_to_quit = true
-        end
-        succeeded
+        example.run(instance, reporter)
       end
     end
 
@@ -211,7 +258,7 @@ module RSpec
         else
           message = errors.size == 1 ? "1 error found" : "#{errors.size} errors found"
           step(red(message), collapsed: false)
-          stdout.puts errors
+          puts errors
           1
         end
       end
@@ -231,6 +278,29 @@ module RSpec
 
         invalid_usage!('Missing --queue parameter') unless queue_url
         invalid_usage!('Missing --build parameter') unless RSpec::Queue.config.build_id
+      end
+    end
+
+    class QueueReporter < SimpleDelegator
+      def initialize(reporter, queue, example)
+        @queue = queue
+        @example = example
+        super(reporter)
+      end
+
+      def requeue
+        @queue.requeue(@example)
+      end
+
+      def cancel_run!
+        # Remove the requeued example from the list of examples ran
+        # Otherwise some formatters might break because the example state is reset
+        examples.pop
+        nil
+      end
+
+      def acknowledge
+        @queue.acknowledge(@example)
       end
     end
 
@@ -262,8 +332,7 @@ module RSpec
 
           @configuration.with_suite_hooks do
             queue.poll do |example|
-              success &= example.run(reporter)
-              queue.acknowledge(example)
+              success &= example.run(QueueReporter.new(reporter, queue, example))
             end
           end
         end
