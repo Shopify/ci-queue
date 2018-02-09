@@ -80,11 +80,12 @@ module CI
         def requeue(test, offset: Redis.requeue_offset)
           test_key = test.id
           raise_on_mismatching_test(test_key)
+          global_max_requeues = config.global_max_requeues(total)
 
-          requeued = eval_script(
+          requeued = config.max_requeues > 0 && global_max_requeues > 0 && eval_script(
             :requeue,
             keys: [key('processed'), key('requeues-count'), key('queue'), key('running')],
-            argv: [config.max_requeues, config.global_max_requeues(total), test_key, offset],
+            argv: [config.max_requeues, global_max_requeues, test_key, offset],
           ) == 1
 
           @reserved_test = test_key unless requeued
