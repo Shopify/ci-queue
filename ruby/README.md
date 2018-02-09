@@ -51,18 +51,17 @@ minitest-queue --queue path/to/test_order.log --failing-test 'SomeTest#test_some
 
 ### RSpec
 
-The RSpec integration is still missing some features, but is already usable:
+Assuming you use one of the supported CI providers, the command can be as simple as:
 
 ```bash
-rspec-queue --queue redis://example.com --build XXX --worker XXX
+rspec-queue --queue redis://example.com
 ```
 
-#### Missing features
+If you'd like to centralize the error reporting you can do so with:
 
-To be implemented:
-
-  - Requeueing
-  - Centralized reporting
+```bash
+rspec-queue --queue redis://example.com --timeout 600 --report
+```
 
 #### Limitations
 
