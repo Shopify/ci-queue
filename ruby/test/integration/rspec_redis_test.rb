@@ -37,6 +37,12 @@ module Integration
 
           1) Object doesn't work on first try
              # The example failed, but another attempt will be done to rule out flakiness
+
+             Failure/Error: expect(1 + 1).to be == 42
+
+               expected: == 42
+                    got:    2
+             # ./spec/dummy_spec.rb:11:in `block (2 levels) in <top (required)>'
              # ./spec/dummy_spec.rb:6
 
         Finished in X.XXXXX seconds (files took X.XXXXX seconds to load)
@@ -67,7 +73,7 @@ module Integration
 
       assert_empty err
       expected_output = strip_heredoc <<-EOS
-        
+
         Randomized with seed 123
         ..F
 
@@ -126,7 +132,7 @@ module Integration
     private
 
     def normalize(output)
-      rewrite_paths(freeze_timing(decolorize_output(output)))
+      strip_blank_lines(rewrite_paths(freeze_timing(decolorize_output(output))))
     end
   end
 end

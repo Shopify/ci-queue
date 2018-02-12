@@ -2,6 +2,10 @@ module OutputTestHelpers
   PROJECT_ROOT_PATH = File.expand_path('../../../', __FILE__)
   private
 
+  def strip_blank_lines(output)
+    output.lines.map { |l| l.strip.empty? ? "\n" : l }.join
+  end
+
   def decolorize_output(output)
     output.to_s.gsub(/\e\[\d+m/, '')
   end

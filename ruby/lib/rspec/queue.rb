@@ -153,12 +153,25 @@ module RSpec
       protected
 
       def mark_as_requeued!(reporter)
-        @exception = nil
-
         @metadata = @metadata.dup # Avoid mutating the @metadata hash of the original Example instance
         @metadata[:execution_result] = execution_result.dup
-        # TODO: Improve requeue message
-        execution_result.pending_message = "The example failed, but another attempt will be done to rule out flakiness"
+
+
+        failure_notification = RSpec::Core::Notifications::FailedExampleNotification.new(self)
+        execution_result.exception = @exception
+        execution_result.status = :failed
+
+        presenter = RSpec::Core::Formatters::ExceptionPresenter::Factory.new(self).build
+        error_message = presenter.fully_formatted_lines(nil, ::RSpec::Core::Formatters::ConsoleCodes)
+        error_message.delete_at(1) # remove the example description
+
+        @exception = nil
+        execution_result.exception = nil
+        execution_result.status = :pending
+        execution_result.pending_message = [
+          "The example failed, but another attempt will be done to rule out flakiness",
+          *error_message.map { |l| l.empty? ? l : "   " + l },
+        ].join("\n")
 
         # Ensure the example is recorded as ran, so it's visible to formatters
         reporter.example_started(self)
