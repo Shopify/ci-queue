@@ -25,6 +25,7 @@ module Integration
           '--requeue-tolerance', '1',
           chdir: 'test/fixtures/',
         )
+        assert_equal 0, $?.exitstatus
       end
 
       assert_empty err
@@ -69,6 +70,7 @@ module Integration
           '--requeue-tolerance', '0',
           chdir: 'test/fixtures/',
         )
+        assert_equal 1, $?.exitstatus
       end
 
       assert_empty err

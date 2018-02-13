@@ -190,7 +190,7 @@ module RSpec
           if @exception && reporter.requeue
             reporter.cancel_run!
             dup.mark_as_requeued!(reporter)
-            return
+            return true
           elsif reporter.acknowledge || !@exception
             # If the test was already acknowledged by another worker (we timed out)
             # Then we only record it if it is successful.
