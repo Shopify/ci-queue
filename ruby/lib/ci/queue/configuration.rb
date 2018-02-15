@@ -1,7 +1,7 @@
 module CI
   module Queue
     class Configuration
-      attr_accessor :timeout, :build_id, :worker_id, :max_requeues, :requeue_tolerance, :namespace, :seed, :failing_test
+      attr_accessor :timeout, :build_id, :worker_id, :max_requeues, :requeue_tolerance, :namespace, :seed, :failing_test, :test_runnables_provider
 
       class << self
         def from_env(env)
@@ -15,7 +15,7 @@ module CI
 
       def initialize(
         timeout: 30, build_id: nil, worker_id: nil, max_requeues: 0, requeue_tolerance: 0,
-        namespace: nil, seed: nil
+        namespace: nil, seed: nil, :test_runnables_provider: Minitest::Test
       )
         @namespace = namespace
         @timeout = timeout
@@ -24,6 +24,7 @@ module CI
         @max_requeues = max_requeues
         @requeue_tolerance = requeue_tolerance
         @seed = seed
+        @test_runnables_provider = test_runnables_provider
       end
 
       def seed

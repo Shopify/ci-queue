@@ -82,8 +82,8 @@ module Minitest
       @queue_reporters = reporters
     end
 
-    def loaded_tests
-      Minitest::Test.runnables.flat_map do |runnable|
+    def loaded_tests(test_runnables_provider)
+      test_runnables_provider.runnables.flat_map do |runnable|
         runnable.runnable_methods.map do |method_name|
           SingleExample.new(runnable, method_name)
         end

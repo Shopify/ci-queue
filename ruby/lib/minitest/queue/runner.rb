@@ -140,7 +140,7 @@ module Minitest
       end
 
       def populate_queue
-        Minitest.queue.populate(Minitest.loaded_tests, random: ordering_seed, &:id)
+        Minitest.queue.populate(Minitest.loaded_tests(queue_config.test_runnables_provider), random: ordering_seed, &:id)
       end
 
       def set_load_path
@@ -260,6 +260,14 @@ module Minitest
           opts.separator ""
           opts.on('--requeue-tolerance RATIO', *help) do |ratio|
             queue_config.requeue_tolerance = Float(ratio)
+          end
+
+          help = split_heredoc(<<-EOS)
+            Takes a ruby class name on which the class method #runnables will be called. The #runnables method must return an array
+          EOS
+          opts.separator ""
+          opts.on('--test-runnables-provider', *help) do |runnable|
+            queue_config.test_runnables_provider = Kernel.const_get(runnable)
           end
 
           opts.separator ""
