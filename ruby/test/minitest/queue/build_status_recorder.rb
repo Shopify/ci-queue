@@ -59,7 +59,7 @@ module Minitest::Queue
     end
 
     def summary
-      @summary ||= Minitest::Reporters::RedisReporter::Summary.new(build: @queue.supervisor.build)
+      @summary ||= Minitest::Queue::BuildStatusReporter.new(build: @queue.supervisor.build)
     end
   end
 end
