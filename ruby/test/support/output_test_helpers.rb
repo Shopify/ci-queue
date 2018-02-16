@@ -26,4 +26,8 @@ module OutputTestHelpers
   def rewrite_paths(output)
     output.to_s.gsub(PROJECT_ROOT_PATH, '.')
   end
+
+  def freeze_xml_timing(output)
+    output.gsub(/time="[\d\-\.e]+"/, 'time="X.XX"')
+  end
 end

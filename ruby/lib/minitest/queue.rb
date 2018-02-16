@@ -7,7 +7,7 @@ require 'minitest/queue/error_report'
 require 'minitest/queue/local_requeue_reporter'
 require 'minitest/queue/build_status_recorder'
 require 'minitest/queue/build_status_reporter'
-
+require 'minitest/queue/junit_reporter'
 
 module Minitest
   class Requeue < Skip
@@ -121,5 +121,15 @@ if defined? MiniTest::Result
   MiniTest::Result.prepend(MiniTest::Requeueing)
 else
   MiniTest::Test.prepend(MiniTest::Requeueing)
-  MiniTest::Test.send(:alias_method, :klass, :class)
+
+  module MinitestBackwardCompatibility
+    def source_location
+      method(name).source_location
+    end
+
+    def klass
+      self.class.name
+    end
+  end
+  MiniTest::Test.prepend(MinitestBackwardCompatibility)
 end

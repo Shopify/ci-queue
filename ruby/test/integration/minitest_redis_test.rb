@@ -5,6 +5,8 @@ module Integration
     include OutputTestHelpers
 
     def setup
+      @junit_path = File.expand_path('../../fixtures/log/junit.xml', __FILE__)
+      File.delete(@junit_path) if File.exist?(@junit_path)
       @redis_url = "redis://#{ENV.fetch('REDIS_HOST', 'localhost')}/7"
       @redis = Redis.new(url: @redis_url)
       @redis.flushdb
@@ -95,6 +97,69 @@ module Integration
       assert_equal 'Ran 0 tests, 0 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
     end
 
+    def test_junit_reporter
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '--max-requeues', '1',
+          '--requeue-tolerance', '1',
+          '-Itest',
+          'test/dummy_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty err
+      output = normalize(out.lines.last.strip)
+      assert_equal 'Ran 8 tests, 5 assertions, 1 failures, 1 errors, 1 skips, 3 requeues in X.XXs', output
+
+      assert_equal strip_heredoc(<<-END), normalize_xml(File.read(@junit_path))
+       <?xml version="1.0" encoding="UTF-8"?>
+       <test_suites>
+         <testsuite name="BTest" filepath="test/dummy_test.rb" skipped="1" failures="0" errors="1" tests="3" assertions="1" time="X.XX">
+           <testcase name="test_foo" lineno="23" classname="BTest" assertions="1" time="X.XX">
+           </testcase>
+           <testcase name="test_bar" lineno="27" classname="BTest" assertions="0" time="X.XX">
+           <skipped type="test_bar"/>
+           </testcase>
+           <testcase name="test_bar" lineno="27" classname="BTest" assertions="0" time="X.XX">
+           <error type="test_bar" message="TypeError: String can't be coerced into Fixnum...">
+       Failure:
+       test_bar(BTest) [./test/fixtures/test/dummy_test.rb:28]:
+       TypeError: String can't be coerced into Fixnum
+           ./test/fixtures/test/dummy_test.rb:28:in `+'
+           ./test/fixtures/test/dummy_test.rb:28:in `test_bar'
+           </error>
+           </testcase>
+         </testsuite>
+         <testsuite name="ATest" filepath="test/dummy_test.rb" skipped="3" failures="1" errors="0" tests="5" assertions="4" time="X.XX">
+           <testcase name="test_bar" lineno="8" classname="ATest" assertions="1" time="X.XX">
+           <skipped type="test_bar"/>
+           </testcase>
+           <testcase name="test_flaky" lineno="12" classname="ATest" assertions="1" time="X.XX">
+           <skipped type="test_flaky"/>
+           </testcase>
+           <testcase name="test_foo" lineno="4" classname="ATest" assertions="0" time="X.XX">
+           <skipped type="test_foo"/>
+           </testcase>
+           <testcase name="test_bar" lineno="8" classname="ATest" assertions="1" time="X.XX">
+           <failure type="test_bar" message="Expected false to be truthy.">
+       Failure:
+       test_bar(ATest) [./test/fixtures/test/dummy_test.rb:9]:
+       Expected false to be truthy.
+           </failure>
+           </testcase>
+           <testcase name="test_flaky" lineno="12" classname="ATest" assertions="1" time="X.XX">
+           </testcase>
+         </testsuite>
+       </test_suites>
+      END
+    end
+
     def test_redis_reporter
       out, err = capture_subprocess_io do
         system(
@@ -143,6 +208,10 @@ module Integration
     end
 
     private
+
+    def normalize_xml(output)
+      freeze_xml_timing(rewrite_paths(output))
+    end
 
     def normalize(output)
       freeze_timing(decolorize_output(output))
