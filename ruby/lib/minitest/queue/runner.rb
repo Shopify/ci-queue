@@ -45,7 +45,8 @@ module Minitest
         Minitest.queue = queue
         Minitest.queue_reporters = [
           Minitest::Queue::LocalRequeueReporter.new,
-          Minitest::Queue::BuildStatusRecorder.new(build: queue.build)
+          Minitest::Queue::BuildStatusRecorder.new(build: queue.build),
+          Minitest::Queue::JUnitReporter.new,
         ]
 
         trap('TERM') { Minitest.queue.shutdown! }
