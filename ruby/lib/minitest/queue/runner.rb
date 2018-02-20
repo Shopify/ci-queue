@@ -48,6 +48,7 @@ module Minitest
           Minitest::Queue::BuildStatusRecorder.new(build: queue.build),
           Minitest::Queue::JUnitReporter.new,
         ]
+        Minitest.flaky_test_supplier = queue_config.flaky_test_supplier
 
         trap('TERM') { Minitest.queue.shutdown! }
         trap('INT') { Minitest.queue.shutdown! }
@@ -134,6 +135,7 @@ module Minitest
       def run_tests_in_fork(queue)
         child_pid = fork do
           Minitest.queue = queue
+          # Minitest.flaky_test_supplier = queue_config.flaky_test_supplier
           Minitest::Reporters.use!([Minitest::Reporters::BisectReporter.new])
           exit # let minitest excute its at_exit
         end

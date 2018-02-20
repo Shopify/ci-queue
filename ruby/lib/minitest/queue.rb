@@ -50,6 +50,17 @@ module Minitest
     end
   end
 
+  module Flakiness
+    # Make requeues acts as skips for reporters not aware of the difference.
+    def skipped?
+      super || requeued?
+    end
+
+    def flaky?
+      Minitest.flaky_test_supplier.include?(to_s)
+    end
+  end
+
   module Queue
     class SingleExample
       def initialize(runnable, method_name)
@@ -81,6 +92,11 @@ module Minitest
       Reporters.use!(((Reporters.reporters || []) - @queue_reporters) + reporters)
       Minitest.backtrace_filter.add_filter(%r{exe/minitest-queue|lib/ci/queue/})
       @queue_reporters = reporters
+    end
+
+    attr_reader :flaky_test_supplier
+    def flaky_test_supplier=(flaky_test_supplier)
+      @flaky_test_supplier = flaky_test_supplier
     end
 
     def loaded_tests
@@ -119,8 +135,10 @@ end
 MiniTest.singleton_class.prepend(MiniTest::Queue)
 if defined? MiniTest::Result
   MiniTest::Result.prepend(MiniTest::Requeueing)
+  MiniTest::Result.prepend(MiniTest::Flakiness)
 else
   MiniTest::Test.prepend(MiniTest::Requeueing)
+  MiniTest::Test.prepend(MiniTest::Flakiness)
 
   module MinitestBackwardCompatibility
     def source_location

@@ -100,6 +100,7 @@ module Integration
     def test_junit_reporter
       out, err = capture_subprocess_io do
         system(
+          {'CI_QUEUE_FLAKY_TESTS_FILE' => 'test/ci_queue_flaky_tests_list.json'},
           @exe, 'run',
           '--queue', @redis_url,
           '--seed', 'foobar',
@@ -121,12 +122,12 @@ module Integration
        <?xml version="1.0" encoding="UTF-8"?>
        <test_suites>
          <testsuite name="BTest" filepath="test/dummy_test.rb" skipped="1" failures="0" errors="1" tests="3" assertions="1" time="X.XX">
-           <testcase name="test_foo" lineno="23" classname="BTest" assertions="1" time="X.XX">
+           <testcase name="test_foo" lineno="23" classname="BTest" assertions="1" time="X.XX" flaky_test="false">
            </testcase>
-           <testcase name="test_bar" lineno="27" classname="BTest" assertions="0" time="X.XX">
+           <testcase name="test_bar" lineno="27" classname="BTest" assertions="0" time="X.XX" flaky_test="false">
            <skipped type="test_bar"/>
            </testcase>
-           <testcase name="test_bar" lineno="27" classname="BTest" assertions="0" time="X.XX">
+           <testcase name="test_bar" lineno="27" classname="BTest" assertions="0" time="X.XX" flaky_test="false">
            <error type="test_bar" message="TypeError: String can't be coerced into Fixnum...">
        Failure:
        test_bar(BTest) [./test/fixtures/test/dummy_test.rb:28]:
@@ -137,23 +138,23 @@ module Integration
            </testcase>
          </testsuite>
          <testsuite name="ATest" filepath="test/dummy_test.rb" skipped="3" failures="1" errors="0" tests="5" assertions="4" time="X.XX">
-           <testcase name="test_bar" lineno="8" classname="ATest" assertions="1" time="X.XX">
+           <testcase name="test_bar" lineno="8" classname="ATest" assertions="1" time="X.XX" flaky_test="false">
            <skipped type="test_bar"/>
            </testcase>
-           <testcase name="test_flaky" lineno="12" classname="ATest" assertions="1" time="X.XX">
+           <testcase name="test_flaky" lineno="12" classname="ATest" assertions="1" time="X.XX" flaky_test="false">
            <skipped type="test_flaky"/>
            </testcase>
-           <testcase name="test_foo" lineno="4" classname="ATest" assertions="0" time="X.XX">
+           <testcase name="test_foo" lineno="4" classname="ATest" assertions="0" time="X.XX" flaky_test="false">
            <skipped type="test_foo"/>
            </testcase>
-           <testcase name="test_bar" lineno="8" classname="ATest" assertions="1" time="X.XX">
+           <testcase name="test_bar" lineno="8" classname="ATest" assertions="1" time="X.XX" flaky_test="false">
            <failure type="test_bar" message="Expected false to be truthy.">
        Failure:
        test_bar(ATest) [./test/fixtures/test/dummy_test.rb:9]:
        Expected false to be truthy.
            </failure>
            </testcase>
-           <testcase name="test_flaky" lineno="12" classname="ATest" assertions="1" time="X.XX">
+           <testcase name="test_flaky" lineno="12" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
            </testcase>
          </testsuite>
        </test_suites>
