@@ -22,33 +22,33 @@ module Minitest
 
         suites = tests.group_by { |test| test.klass }
 
-        xml = Builder::XmlMarkup.new(:indent => 2)
+        xml = Builder::XmlMarkup.new(indent: 2)
         xml.instruct!
         xml.test_suites do
           suites.each do |suite, tests|
-            parse_xml_for(xml, suite, tests)
+            add_tests_to(xml, suite, tests)
           end
         end
         FileUtils.mkdir_p(File.dirname(@report_path))
-        File.open(@report_path, "w+") { |file| file << xml.target! }
+        File.open(@report_path, 'w+') { |file| file << xml.target! }
       end
 
       private
 
-      def parse_xml_for(xml, suite, tests)
+      def add_tests_to(xml, suite, tests)
         suite_result = analyze_suite(tests)
         file_path = Pathname.new(tests.first.source_location.first)
         base_path = Pathname.new(@base_path)
         relative_path = file_path.relative_path_from(base_path)
 
-        xml.testsuite(:name => suite, :filepath => relative_path,
-                      :skipped => suite_result[:skip_count], :failures => suite_result[:fail_count],
-                      :errors => suite_result[:error_count], :tests => suite_result[:test_count],
-                      :assertions => suite_result[:assertion_count], :time => suite_result[:time]) do
+        xml.testsuite(name: suite, filepath: relative_path,
+                      skipped: suite_result[:skip_count], failures: suite_result[:fail_count],
+                      errors: suite_result[:error_count], tests: suite_result[:test_count],
+                      assertions: suite_result[:assertion_count], time: suite_result[:time]) do
           tests.each do |test|
             lineno = test.source_location.last
-            xml.testcase(:name => test.name, :lineno => lineno, :classname => suite, :assertions => test.assertions,
-                         :time => test.time) do
+            xml.testcase(name: test.name, lineno: lineno, classname: suite, assertions: test.assertions,
+                         time: test.time) do
               xml << xml_message_for(test) unless test.passed?
             end
           end
@@ -56,17 +56,17 @@ module Minitest
       end
 
       def xml_message_for(test)
-        xml = XmlMarkup.new(:indent => 2, :margin => 2)
+        xml = XmlMarkup.new(indent: 2, margin: 2)
         error = test.failure
 
         if test.skipped?
-          xml.skipped(:type => test.name)
+          xml.skipped(type: test.name)
         elsif test.error?
-          xml.error(:type => test.name, :message => xml.trunc!(error.message)) do
+          xml.error(type: test.name, message: xml.trunc!(error.message)) do
             xml.text!(message_for(test))
           end
         elsif test.failure
-          xml.failure(:type => test.name, :message => xml.trunc!(error.message)) do
+          xml.failure(type: test.name, message: xml.trunc!(error.message)) do
             xml.text!(message_for(test))
           end
         end
