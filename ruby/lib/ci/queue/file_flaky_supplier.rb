@@ -6,13 +6,12 @@ module CI
       FileParseError = Class.new(StandardError)
 
       def initialize(filepath)
-        @test_list = JSON.parse(::File.read(filepath))
-        unless @test_list.is_a?(Array)
-          raise FileParseError, 'File must contain a JSON encoded array'
-        end
+        @test_list = ::File.readlines(filepath)
+        @test_list.map!(&:chomp)
       end
 
       def include?(runnable_id)
+        ::File.write('runnable_debuggoing.txt', "#{runnable_id} is looked for in #{@test_list}\n", mode: 'a')
         @test_list.include?(runnable_id)
       end
     end

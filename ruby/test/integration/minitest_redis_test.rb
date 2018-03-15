@@ -100,7 +100,7 @@ module Integration
     def test_junit_reporter
       out, err = capture_subprocess_io do
         system(
-          {'CI_QUEUE_FLAKY_TESTS_FILE' => 'test/ci_queue_flaky_tests_list.json'},
+          {'CI_QUEUE_FLAKY_TESTS' => 'test/ci_queue_flaky_tests_list.txt'},
           @exe, 'run',
           '--queue', @redis_url,
           '--seed', 'foobar',
