@@ -8,8 +8,6 @@ require 'ci/queue/build_record'
 require 'ci/queue/static'
 require 'ci/queue/file'
 require 'ci/queue/bisect'
-require 'ci/queue/null_flaky_supplier'
-require 'ci/queue/file_flaky_supplier'
 
 module CI
   module Queue

@@ -17,6 +17,10 @@ module CI
         @total = tests.size
       end
 
+      def flaky?(test)
+        @config.flaky?(test)
+      end
+
       def build
         @build ||= BuildRecord.new(self)
       end

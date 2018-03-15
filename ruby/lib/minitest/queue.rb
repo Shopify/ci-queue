@@ -35,6 +35,31 @@ module Minitest
     end
   end
 
+  class Flaked < Skip
+    attr_reader :failure
+
+    def initialize(failure)
+      super()
+      @failure = failure
+    end
+
+    def result_label
+      "Skipped"
+    end
+
+    def backtrace
+      failure.backtrace
+    end
+
+    def error
+      failure.error
+    end
+
+    def message
+      failure.message
+    end
+  end
+
   module Requeueing
     # Make requeues acts as skips for reporters not aware of the difference.
     def skipped?
@@ -51,13 +76,17 @@ module Minitest
   end
 
   module Flakiness
-    # Make requeues acts as skips for reporters not aware of the difference.
+    # Make failed flaky tests acts as skips for reporters not aware of the difference.
     def skipped?
-      super || requeued?
+      super || flaked?
     end
 
-    def flaky?
-      Minitest.flaky_test_supplier.include?(to_s)
+    def flaked?
+      Flaked === failure
+    end
+
+    def mark_as_flaked!
+      self.failures.unshift(Flaked.new(self.failures.shift))
     end
   end
 
@@ -79,6 +108,10 @@ module Minitest
       def run
         Minitest.run_one_method(@runnable, @method_name)
       end
+
+      def flaky?
+        Minitest.queue.flaky?(self)
+      end
     end
 
     attr_reader :queue
@@ -92,11 +125,6 @@ module Minitest
       Reporters.use!(((Reporters.reporters || []) - @queue_reporters) + reporters)
       Minitest.backtrace_filter.add_filter(%r{exe/minitest-queue|lib/ci/queue/})
       @queue_reporters = reporters
-    end
-
-    attr_reader :flaky_test_supplier
-    def flaky_test_supplier=(flaky_test_supplier)
-      @flaky_test_supplier = flaky_test_supplier
     end
 
     def loaded_tests
@@ -119,6 +147,12 @@ module Minitest
       queue.poll do |example|
         result = example.run
         failed = !(result.passed? || result.skipped?)
+
+        if failed && example.flaky?
+          result.mark_as_flaked!
+          failed = false
+        end
+
         if failed && queue.requeue(example)
           result.requeue!
           reporter.record(result)

@@ -31,5 +31,4 @@ module SharedTestCases
     BTest#test_bar
   ).freeze
   TEST_LIST = TEST_NAMES.map { |n| TestCase.new(n).freeze }.freeze
-
 end

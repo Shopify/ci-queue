@@ -116,7 +116,7 @@ module Integration
       end
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 8 tests, 5 assertions, 1 failures, 1 errors, 1 skips, 3 requeues in X.XXs', output
+      assert_equal 'Ran 7 tests, 4 assertions, 1 failures, 1 errors, 1 skips, 2 requeues in X.XXs', output
 
       assert_equal strip_heredoc(<<-END), normalize_xml(File.read(@junit_path))
        <?xml version="1.0" encoding="UTF-8"?>
@@ -137,12 +137,16 @@ module Integration
            </error>
            </testcase>
          </testsuite>
-         <testsuite name="ATest" filepath="test/dummy_test.rb" skipped="3" failures="1" errors="0" tests="5" assertions="4" time="X.XX">
+         <testsuite name="ATest" filepath="test/dummy_test.rb" skipped="3" failures="1" errors="0" tests="4" assertions="3" time="X.XX">
            <testcase name="test_bar" lineno="8" classname="ATest" assertions="1" time="X.XX" flaky_test="false">
            <skipped type="test_bar"/>
            </testcase>
-           <testcase name="test_flaky" lineno="12" classname="ATest" assertions="1" time="X.XX" flaky_test="false">
-           <skipped type="test_flaky"/>
+           <testcase name=\"test_flaky\" lineno=\"12\" classname=\"ATest\" assertions=\"1\" time=\"X.XX\" flaky_test=\"true\">
+           <failure type=\"test_flaky\" message=\"Expected false to be truthy.\">
+       Skipped:
+       test_flaky(ATest) [./test/fixtures/test/dummy_test.rb:17]:
+       Expected false to be truthy.
+           </failure>
            </testcase>
            <testcase name="test_foo" lineno="4" classname="ATest" assertions="0" time="X.XX" flaky_test="false">
            <skipped type="test_foo"/>
@@ -153,8 +157,6 @@ module Integration
        test_bar(ATest) [./test/fixtures/test/dummy_test.rb:9]:
        Expected false to be truthy.
            </failure>
-           </testcase>
-           <testcase name="test_flaky" lineno="12" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
            </testcase>
          </testsuite>
        </test_suites>
