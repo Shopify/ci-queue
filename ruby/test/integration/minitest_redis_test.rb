@@ -141,8 +141,8 @@ module Integration
            <testcase name="test_bar" lineno="8" classname="ATest" assertions="1" time="X.XX" flaky_test="false">
            <skipped type="test_bar"/>
            </testcase>
-           <testcase name=\"test_flaky\" lineno=\"12\" classname=\"ATest\" assertions=\"1\" time=\"X.XX\" flaky_test=\"true\">
-           <failure type=\"test_flaky\" message=\"Expected false to be truthy.\">
+           <testcase name="test_flaky" lineno="12" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
+           <failure type="test_flaky" message="Expected false to be truthy.">
        Skipped:
        test_flaky(ATest) [./test/fixtures/test/dummy_test.rb:17]:
        Expected false to be truthy.
@@ -151,8 +151,8 @@ module Integration
            <testcase name="test_foo" lineno="4" classname="ATest" assertions="0" time="X.XX" flaky_test="false">
            <skipped type="test_foo"/>
            </testcase>
-           <testcase name=\"test_flaky_fails_retry\" lineno=\"21\" classname=\"ATest\" assertions=\"1\" time=\"X.XX\" flaky_test=\"true\">
-           <failure type=\"test_flaky_fails_retry\" message=\"Expected false to be truthy.\">
+           <testcase name="test_flaky_fails_retry" lineno="21" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
+           <failure type="test_flaky_fails_retry" message="Expected false to be truthy.">
        Skipped:
        test_flaky_fails_retry(ATest) [./test/fixtures/test/dummy_test.rb:22]:
        Expected false to be truthy.
