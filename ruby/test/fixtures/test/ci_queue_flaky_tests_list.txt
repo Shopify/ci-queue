@@ -1,2 +1,3 @@
 ATest#test_flaky
+ATest#test_flaky_fails_retry
 CTest#probably_doesn't_exist
