@@ -33,7 +33,7 @@ module Integration
 
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal '--- Ran 10 tests, 7 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
+      assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
     end
 
     def test_redis_runner
@@ -54,7 +54,7 @@ module Integration
       end
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 10 tests, 7 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
+      assert_equal 'Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
 
       out, err = capture_subprocess_io do
         system(
@@ -73,7 +73,7 @@ module Integration
       end
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 10 tests, 7 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
+      assert_equal 'Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
     end
 
     def test_down_redis
@@ -116,18 +116,18 @@ module Integration
       end
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 8 tests, 5 assertions, 1 failures, 1 errors, 1 skips, 2 requeues in X.XXs', output
+      assert_equal 'Ran 9 tests, 6 assertions, 1 failures, 1 errors, 1 skips, 2 requeues in X.XXs', output
 
       assert_equal strip_heredoc(<<-END), normalize_xml(File.read(@junit_path))
        <?xml version="1.0" encoding="UTF-8"?>
        <test_suites>
          <testsuite name="BTest" filepath="test/dummy_test.rb" skipped="1" failures="0" errors="1" tests="3" assertions="1" time="X.XX">
-           <testcase name="test_bar" lineno="31" classname="BTest" assertions="0" time="X.XX" flaky_test="false">
+           <testcase name="test_bar" lineno="35" classname="BTest" assertions="0" time="X.XX" flaky_test="false">
            <skipped type="test_bar"/>
            </testcase>
-           <testcase name="test_foo" lineno="27" classname="BTest" assertions="1" time="X.XX" flaky_test="false">
+           <testcase name="test_foo" lineno="31" classname="BTest" assertions="1" time="X.XX" flaky_test="false">
            </testcase>
-           <testcase name="test_bar" lineno="31" classname="BTest" assertions="0" time="X.XX" flaky_test="false">
+           <testcase name="test_bar" lineno="35" classname="BTest" assertions="0" time="X.XX" flaky_test="false">
            <error type="test_bar" message="TypeError: String can't be coerced into Fixnum...">
        Failure:
        test_bar(BTest) [./test/fixtures/test/dummy_test.rb:32]:
@@ -137,7 +137,7 @@ module Integration
            </error>
            </testcase>
          </testsuite>
-         <testsuite name="ATest" filepath="test/dummy_test.rb" skipped="4" failures="1" errors="0" tests="5" assertions="4" time="X.XX">
+         <testsuite name="ATest" filepath="test/dummy_test.rb" skipped="4" failures="1" errors="0" tests="6" assertions="5" time="X.XX">
            <testcase name="test_bar" lineno="8" classname="ATest" assertions="1" time="X.XX" flaky_test="false">
            <skipped type="test_bar"/>
            </testcase>
@@ -188,7 +188,7 @@ module Integration
       end
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 10 tests, 7 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
+      assert_equal 'Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
 
       out, err = capture_subprocess_io do
         system(
@@ -203,7 +203,7 @@ module Integration
       output = normalize(out)
       assert_equal strip_heredoc(<<-END), output
         Waiting for workers to complete
-        Ran 6 tests, 7 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs (aggregated)
+        Ran 7 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs (aggregated)
 
         FAIL ATest#test_bar
         Expected false to be truthy.
@@ -215,8 +215,8 @@ module Integration
 
         ERROR BTest#test_bar
         TypeError: String can't be coerced into Fixnum
-            test/dummy_test.rb:32:in `+'
-            test/dummy_test.rb:32:in `test_bar'
+            test/dummy_test.rb:36:in `+'
+            test/dummy_test.rb:36:in `test_bar'
 
       END
     end
