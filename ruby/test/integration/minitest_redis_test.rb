@@ -136,11 +136,6 @@ module Integration
            </failure>
            </testcase>
            <testcase name="test_flaky_passes" lineno="25" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
-           <failure type="test_flaky_passes" message="">
-       Skipped:
-       test_flaky_passes(ATest) []:
-
-           </failure>
            </testcase>
            <testcase name="test_flaky_fails_retry" lineno="21" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
            <failure type="test_flaky_fails_retry" message="Expected false to be truthy.">

@@ -60,24 +60,6 @@ module Minitest
     end
   end
 
-  class PassingFlaked < Flaked
-    def initialize
-      super(nil)
-    end
-
-    def backtrace
-      []
-    end
-
-    def error
-      ''
-    end
-
-    def message
-      ''
-    end
-  end
-
   module Requeueing
     # Make requeues acts as skips for reporters not aware of the difference.
     def skipped?
@@ -100,12 +82,12 @@ module Minitest
     end
 
     def flaked?
-      Flaked === failure
+      !!((Flaked === failure) || @flaky)
     end
 
     def mark_as_flaked!
       if passed?
-        self.failures.unshift(PassingFlaked.new)
+        @flaky = true
       else
         self.failures.unshift(Flaked.new(self.failures.shift))
       end
