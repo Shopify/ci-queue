@@ -1,8 +1,5 @@
-# Small, limited StatsD implementation.
-# We can't use the standard statsd-instrument for instrumenting our buildkite setup, because:
-# - we don't want to require on the bundle, which will slow down this script unnecessarily
-# - statsd-instrument in the test environment is a mock object that will not send out anything, and
-#   we don't want to mess with it during the test run.
+# Implements a small and limited StatsD implementation to reduce importing unnecessary dependencies because
+# we don't want to require on the bundle which would slow down a CI Queue run
 
 require 'socket'
 

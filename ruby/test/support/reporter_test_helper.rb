@@ -10,14 +10,11 @@ module ReporterTestHelper
   end
 
   def runnable(name, failure: nil, requeued: false, skipped: false, unexpected_error: false)
-    runnable = defined?(MiniTest::Result) ? MiniTest::Result.new(name) : Minitest::Test.new(name)
+    runnable = Minitest::Test.new(name)
     runnable.failures << failure if failure
     runnable.failures << MiniTest::Skip.new if skipped
     runnable.failures << Minitest::UnexpectedError.new(StandardError.new) if unexpected_error
-    if requeued
-      runnable.failures << 'Failed'
-      runnable.requeue!
-    end
+    runnable.failures << MiniTest::Requeue.new('Failed') if requeued
     runnable.assertions += 1
     runnable
   end

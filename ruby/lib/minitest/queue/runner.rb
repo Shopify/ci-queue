@@ -137,7 +137,6 @@ module Minitest
         child_pid = fork do
           Minitest.queue = queue
           Minitest::Reporters.use!([Minitest::Reporters::BisectReporter.new])
-          Minitest::Reporters.use!([Minitest::Reporters::StatsdReporter.new])
           exit # let minitest excute its at_exit
         end
 
