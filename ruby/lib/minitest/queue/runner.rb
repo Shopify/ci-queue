@@ -3,6 +3,7 @@ require 'minitest/queue'
 require 'ci/queue'
 require 'digest/md5'
 require 'minitest/reporters/bisect_reporter'
+require 'minitest/reporters/statsd_reporter'
 
 module Minitest
   module Queue
@@ -136,6 +137,7 @@ module Minitest
         child_pid = fork do
           Minitest.queue = queue
           Minitest::Reporters.use!([Minitest::Reporters::BisectReporter.new])
+          Minitest::Reporters.use!([Minitest::Reporters::StatsdReporter.new])
           exit # let minitest excute its at_exit
         end
 
