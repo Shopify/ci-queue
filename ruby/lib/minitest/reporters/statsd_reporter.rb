@@ -11,7 +11,7 @@ module Minitest
 
       def initialize(statsd: Minitest::Queue::Statsd, **options)
         super(options)
-        @statsd = Minitest::Queue::Statsd.new(namespace: 'minitests.tests', default_tags: ["slug:#{ENV['BUILDKITE_PROJECT_SLUG']}"])
+        @statsd = statsd.new(namespace: 'minitests.tests', default_tags: ["slug:#{ENV['BUILDKITE_PROJECT_SLUG']}"])
         @failures = 0
       end
 

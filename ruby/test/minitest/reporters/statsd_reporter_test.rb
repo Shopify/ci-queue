@@ -19,7 +19,7 @@ module Minitest::Reporters
     end
 
     def setup
-      @reporter = Minitest::Reporters::StatsdReporter.new(FakeStatsD)
+      @reporter = Minitest::Reporters::StatsdReporter.new(statsd: FakeStatsD)
     end
 
     def test_statsd_incremented_as_expected
