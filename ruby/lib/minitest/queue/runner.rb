@@ -44,9 +44,10 @@ module Minitest
         set_load_path
         Minitest.queue = queue
         Minitest.queue_reporters = [
-          Minitest::Queue::LocalRequeueReporter.new,
-          Minitest::Queue::BuildStatusRecorder.new(build: queue.build),
-          Minitest::Queue::JUnitReporter.new,
+          LocalRequeueReporter.new,
+          BuildStatusRecorder.new(build: queue.build),
+          JUnitReporter.new,
+          OrderReporter.new(path: 'log/test_order.log'),
         ]
 
         trap('TERM') { Minitest.queue.shutdown! }

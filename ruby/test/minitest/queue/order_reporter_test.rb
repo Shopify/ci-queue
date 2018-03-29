@@ -1,6 +1,6 @@
 require 'test_helper'
 
-module Minitest::Reporters
+module Minitest::Queue
   class OrderReporterTest < Minitest::Test
     include ReporterTestHelper
 

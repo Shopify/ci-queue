@@ -7,6 +7,9 @@ module Integration
     def setup
       @junit_path = File.expand_path('../../fixtures/log/junit.xml', __FILE__)
       File.delete(@junit_path) if File.exist?(@junit_path)
+      @order_path = File.expand_path('../../fixtures/log/test_order.log', __FILE__)
+      File.delete(@order_path) if File.exist?(@order_path)
+
       @redis_url = "redis://#{ENV.fetch('REDIS_HOST', 'localhost')}/7"
       @redis = Redis.new(url: @redis_url)
       @redis.flushdb

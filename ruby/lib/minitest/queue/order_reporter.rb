@@ -1,6 +1,6 @@
 require 'minitest/reporters'
 
-class Minitest::Reporters::OrderReporter < Minitest::Reporters::BaseReporter
+class Minitest::Queue::OrderReporter < Minitest::Reporters::BaseReporter
   def initialize(options = {})
     @path = options.delete(:path)
     super
