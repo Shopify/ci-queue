@@ -1,4 +1,5 @@
 test/fixtures/log/junit.xml
+test/fixtures/log/test_order.log
 /.byebug_history
 /.bundle/
 /.yardoc

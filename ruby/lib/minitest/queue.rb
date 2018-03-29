@@ -7,6 +7,7 @@ require 'minitest/queue/error_report'
 require 'minitest/queue/local_requeue_reporter'
 require 'minitest/queue/build_status_recorder'
 require 'minitest/queue/build_status_reporter'
+require 'minitest/queue/order_reporter'
 require 'minitest/queue/junit_reporter'
 
 module Minitest
