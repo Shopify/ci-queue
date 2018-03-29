@@ -153,6 +153,7 @@ module Minitest
         failed = !(result.passed? || result.skipped?)
 
         if example.flaky?
+          puts "Flaky: #{example.id}"
           result.mark_as_flaked!
           failed = false
         end
