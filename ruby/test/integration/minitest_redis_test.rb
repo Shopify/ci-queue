@@ -33,7 +33,7 @@ module Integration
 
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal '--- Ran 8 tests, 5 assertions, 1 failures, 1 errors, 1 skips, 3 requeues in X.XXs', output
+      assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
     end
 
     def test_redis_runner
@@ -54,7 +54,7 @@ module Integration
       end
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 8 tests, 5 assertions, 1 failures, 1 errors, 1 skips, 3 requeues in X.XXs', output
+      assert_equal 'Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
 
       out, err = capture_subprocess_io do
         system(
@@ -73,7 +73,7 @@ module Integration
       end
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 8 tests, 5 assertions, 1 failures, 1 errors, 1 skips, 3 requeues in X.XXs', output
+      assert_equal 'Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
     end
 
     def test_down_redis
@@ -100,6 +100,7 @@ module Integration
     def test_junit_reporter
       out, err = capture_subprocess_io do
         system(
+          {'CI_QUEUE_FLAKY_TESTS' => 'test/ci_queue_flaky_tests_list.txt'},
           @exe, 'run',
           '--queue', @redis_url,
           '--seed', 'foobar',
@@ -115,45 +116,56 @@ module Integration
       end
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 8 tests, 5 assertions, 1 failures, 1 errors, 1 skips, 3 requeues in X.XXs', output
+      assert_equal 'Ran 9 tests, 6 assertions, 1 failures, 1 errors, 1 skips, 2 requeues in X.XXs', output
 
       assert_equal strip_heredoc(<<-END), normalize_xml(File.read(@junit_path))
        <?xml version="1.0" encoding="UTF-8"?>
        <test_suites>
-         <testsuite name="BTest" filepath="test/dummy_test.rb" skipped="1" failures="0" errors="1" tests="3" assertions="1" time="X.XX">
-           <testcase name="test_foo" lineno="23" classname="BTest" assertions="1" time="X.XX">
-           </testcase>
-           <testcase name="test_bar" lineno="27" classname="BTest" assertions="0" time="X.XX">
-           <skipped type="test_bar"/>
-           </testcase>
-           <testcase name="test_bar" lineno="27" classname="BTest" assertions="0" time="X.XX">
-           <error type="test_bar" message="TypeError: String can't be coerced into Fixnum...">
-       Failure:
-       test_bar(BTest) [./test/fixtures/test/dummy_test.rb:28]:
-       TypeError: String can't be coerced into Fixnum
-           ./test/fixtures/test/dummy_test.rb:28:in `+'
-           ./test/fixtures/test/dummy_test.rb:28:in `test_bar'
-           </error>
-           </testcase>
-         </testsuite>
-         <testsuite name="ATest" filepath="test/dummy_test.rb" skipped="3" failures="1" errors="0" tests="5" assertions="4" time="X.XX">
-           <testcase name="test_bar" lineno="8" classname="ATest" assertions="1" time="X.XX">
-           <skipped type="test_bar"/>
-           </testcase>
-           <testcase name="test_flaky" lineno="12" classname="ATest" assertions="1" time="X.XX">
-           <skipped type="test_flaky"/>
-           </testcase>
-           <testcase name="test_foo" lineno="4" classname="ATest" assertions="0" time="X.XX">
+         <testsuite name="ATest" filepath="test/dummy_test.rb" skipped="5" failures="1" errors="0" tests="6" assertions="5" time="X.XX">
+           <testcase name="test_foo" lineno="4" classname="ATest" assertions="0" time="X.XX" flaky_test="false">
            <skipped type="test_foo"/>
            </testcase>
-           <testcase name="test_bar" lineno="8" classname="ATest" assertions="1" time="X.XX">
+           <testcase name="test_bar" lineno="8" classname="ATest" assertions="1" time="X.XX" flaky_test="false">
+           <skipped type="test_bar"/>
+           </testcase>
+           <testcase name="test_flaky" lineno="12" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
+           <failure type="test_flaky" message="Expected false to be truthy.">
+       Skipped:
+       test_flaky(ATest) [./test/fixtures/test/dummy_test.rb:17]:
+       Expected false to be truthy.
+           </failure>
+           </testcase>
+           <testcase name="test_flaky_passes" lineno="25" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
+           </testcase>
+           <testcase name="test_flaky_fails_retry" lineno="21" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
+           <failure type="test_flaky_fails_retry" message="Expected false to be truthy.">
+       Skipped:
+       test_flaky_fails_retry(ATest) [./test/fixtures/test/dummy_test.rb:22]:
+       Expected false to be truthy.
+           </failure>
+           </testcase>
+           <testcase name="test_bar" lineno="8" classname="ATest" assertions="1" time="X.XX" flaky_test="false">
            <failure type="test_bar" message="Expected false to be truthy.">
        Failure:
        test_bar(ATest) [./test/fixtures/test/dummy_test.rb:9]:
        Expected false to be truthy.
            </failure>
            </testcase>
-           <testcase name="test_flaky" lineno="12" classname="ATest" assertions="1" time="X.XX">
+         </testsuite>
+         <testsuite name="BTest" filepath="test/dummy_test.rb" skipped="1" failures="0" errors="1" tests="3" assertions="1" time="X.XX">
+           <testcase name="test_bar" lineno="35" classname="BTest" assertions="0" time="X.XX" flaky_test="false">
+           <skipped type="test_bar"/>
+           </testcase>
+           <testcase name="test_foo" lineno="31" classname="BTest" assertions="1" time="X.XX" flaky_test="false">
+           </testcase>
+           <testcase name="test_bar" lineno="35" classname="BTest" assertions="0" time="X.XX" flaky_test="false">
+           <error type="test_bar" message="TypeError: String can't be coerced into Fixnum...">
+       Failure:
+       test_bar(BTest) [./test/fixtures/test/dummy_test.rb:36]:
+       TypeError: String can't be coerced into Fixnum
+           ./test/fixtures/test/dummy_test.rb:36:in `+'
+           ./test/fixtures/test/dummy_test.rb:36:in `test_bar'
+           </error>
            </testcase>
          </testsuite>
        </test_suites>
@@ -178,7 +190,7 @@ module Integration
       end
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 8 tests, 5 assertions, 1 failures, 1 errors, 1 skips, 3 requeues in X.XXs', output
+      assert_equal 'Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
 
       out, err = capture_subprocess_io do
         system(
@@ -193,16 +205,20 @@ module Integration
       output = normalize(out)
       assert_equal strip_heredoc(<<-END), output
         Waiting for workers to complete
-        Ran 5 tests, 5 assertions, 1 failures, 1 errors, 1 skips, 3 requeues in X.XXs (aggregated)
+        Ran 7 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs (aggregated)
 
         FAIL ATest#test_bar
         Expected false to be truthy.
             test/dummy_test.rb:9:in `test_bar'
 
+        FAIL ATest#test_flaky_fails_retry
+        Expected false to be truthy.
+            test/dummy_test.rb:22:in `test_flaky_fails_retry'
+
         ERROR BTest#test_bar
         TypeError: String can't be coerced into Fixnum
-            test/dummy_test.rb:28:in `+'
-            test/dummy_test.rb:28:in `test_bar'
+            test/dummy_test.rb:36:in `+'
+            test/dummy_test.rb:36:in `test_bar'
 
       END
     end

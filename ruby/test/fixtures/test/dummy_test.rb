@@ -17,6 +17,14 @@ class ATest < Minitest::Test
       assert false
     end
   end
+
+  def test_flaky_fails_retry
+    assert false
+  end
+
+  def test_flaky_passes
+    assert true
+  end
 end
 
 class BTest < Minitest::Test

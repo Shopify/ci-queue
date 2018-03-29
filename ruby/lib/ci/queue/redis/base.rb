@@ -8,6 +8,10 @@ module CI
           @config = config
         end
 
+        def flaky?(test)
+          @config.flaky?(test)
+        end
+
         def exhausted?
           queue_initialized? && size == 0
         end

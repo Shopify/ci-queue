@@ -39,5 +39,20 @@ module CI::Queue
       config.namespace = 'browser'
       assert_equal 'browser:9e08ef3c-d6e6-4a86-91dd-577ce5205b8e', config.build_id
     end
+
+    def test_parses_file_correctly
+      Tempfile.open('flaky_test_file') do |file|
+        file.write(SharedTestCases::TEST_NAMES.join("\n") + "\n")
+        file.close
+
+        flaky_tests = Configuration.load_flaky_tests(file.path)
+        SharedTestCases::TEST_NAMES.each do |test|
+          assert_includes flaky_tests, test
+        end
+      end
+
+      flaky_tests = Configuration.load_flaky_tests('/tmp/does-not-exist')
+      assert_empty flaky_tests
+    end
   end
 end

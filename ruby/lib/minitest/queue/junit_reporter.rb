@@ -48,7 +48,7 @@ module Minitest
           tests.each do |test|
             lineno = test.source_location.last
             xml.testcase(name: test.name, lineno: lineno, classname: suite, assertions: test.assertions,
-                         time: test.time) do
+                         time: test.time, flaky_test: test.flaked?) do
               xml << xml_message_for(test) unless test.passed?
             end
           end
@@ -59,7 +59,7 @@ module Minitest
         xml = XmlMarkup.new(indent: 2, margin: 2)
         error = test.failure
 
-        if test.skipped?
+        if test.skipped? && !test.flaked?
           xml.skipped(type: test.name)
         elsif test.error?
           xml.error(type: test.name, message: xml.trunc!(error.message)) do

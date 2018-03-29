@@ -35,6 +35,31 @@ module Minitest
     end
   end
 
+  class Flaked < Skip
+    attr_reader :failure
+
+    def initialize(failure)
+      super()
+      @failure = failure
+    end
+
+    def result_label
+      "Skipped"
+    end
+
+    def backtrace
+      failure.backtrace
+    end
+
+    def error
+      failure.error
+    end
+
+    def message
+      failure.message
+    end
+  end
+
   module Requeueing
     # Make requeues acts as skips for reporters not aware of the difference.
     def skipped?
@@ -47,6 +72,25 @@ module Minitest
 
     def requeue!
       self.failures.unshift(Requeue.new(self.failures.shift))
+    end
+  end
+
+  module Flakiness
+    # Make failed flaky tests acts as skips for reporters not aware of the difference.
+    def skipped?
+      super || flaked?
+    end
+
+    def flaked?
+      !!((Flaked === failure) || @flaky)
+    end
+
+    def mark_as_flaked!
+      if passed?
+        @flaky = true
+      else
+        self.failures.unshift(Flaked.new(self.failures.shift))
+      end
     end
   end
 
@@ -67,6 +111,10 @@ module Minitest
 
       def run
         Minitest.run_one_method(@runnable, @method_name)
+      end
+
+      def flaky?
+        Minitest.queue.flaky?(self)
       end
     end
 
@@ -103,6 +151,12 @@ module Minitest
       queue.poll do |example|
         result = example.run
         failed = !(result.passed? || result.skipped?)
+
+        if example.flaky?
+          result.mark_as_flaked!
+          failed = false
+        end
+
         if failed && queue.requeue(example)
           result.requeue!
           reporter.record(result)
@@ -119,8 +173,10 @@ end
 MiniTest.singleton_class.prepend(MiniTest::Queue)
 if defined? MiniTest::Result
   MiniTest::Result.prepend(MiniTest::Requeueing)
+  MiniTest::Result.prepend(MiniTest::Flakiness)
 else
   MiniTest::Test.prepend(MiniTest::Requeueing)
+  MiniTest::Test.prepend(MiniTest::Flakiness)
 
   module MinitestBackwardCompatibility
     def source_location
