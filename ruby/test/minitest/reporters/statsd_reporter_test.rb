@@ -23,10 +23,10 @@ module Minitest::Reporters
     end
 
     def test_statsd_incremented_as_expected
-      passed   = result('a')
-      failed   = result('b', failure: 'Failed')
-      skipped  = result('c', skipped: true)
-      error    = result('d', unexpected_error: true)
+      passed = result('a')
+      failed = result('b', failure: 'Failed')
+      skipped = result('c', skipped: true)
+      error = result('d', unexpected_error: true)
       requeued = result('e', requeued: true)
 
       @reporter.record(passed)
@@ -44,7 +44,7 @@ module Minitest::Reporters
 
     def test_failing_infrastructure_threshold_submits_on_report
       Minitest::Reporters::StatsdReporter::FAILING_INFRASTRUCTURE_THRESHOLD.times do
-        failed   = result('b', failure: 'Failed')
+        failed = result('b', failure: 'Failed')
         @reporter.record(failed)
       end
 

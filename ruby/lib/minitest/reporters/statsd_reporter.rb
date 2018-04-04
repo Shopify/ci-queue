@@ -9,9 +9,13 @@ module Minitest
 
       attr_reader :statsd
 
-      def initialize(statsd: Minitest::Queue::Statsd, **options)
+      def initialize(statsd: Minitest::Queue::Statsd, statsd_endpoint: nil, **options)
         super(options)
-        @statsd = statsd.new(namespace: 'minitests.tests', default_tags: ["slug:#{ENV['BUILDKITE_PROJECT_SLUG']}"])
+        @statsd = statsd.new(
+          addr: statsd_endpoint,
+          namespace: 'minitests.tests',
+          default_tags: ["slug:#{ENV['BUILDKITE_PROJECT_SLUG']}"]
+        )
         @failures = 0
       end
 

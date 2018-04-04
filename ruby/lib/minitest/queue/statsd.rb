@@ -8,7 +8,7 @@ module Minitest
     class Statsd
       attr_reader :addr, :namespace, :default_tags
 
-      def initialize(addr: ENV['CI_QUEUE_STATSD_ADDR'], default_tags: [], namespace: nil)
+      def initialize(addr: nil, default_tags: [], namespace: nil)
         @default_tags = default_tags
         @namespace = namespace
         @addr = addr
