@@ -123,7 +123,7 @@ module Integration
 
       assert_equal strip_heredoc(<<-END), normalize_xml(File.read(@junit_path))
        <?xml version="1.0" encoding="UTF-8"?>
-       <test_suites>
+       <testsuites>
          <testsuite name="ATest" filepath="test/dummy_test.rb" skipped="5" failures="1" errors="0" tests="6" assertions="5" time="X.XX">
            <testcase name="test_foo" lineno="4" classname="ATest" assertions="0" time="X.XX" flaky_test="false">
            <skipped type="test_foo"/>
@@ -171,7 +171,7 @@ module Integration
            </error>
            </testcase>
          </testsuite>
-       </test_suites>
+       </testsuites>
       END
     end
 
