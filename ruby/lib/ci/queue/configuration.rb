@@ -2,7 +2,8 @@
 module CI
   module Queue
     class Configuration
-      attr_accessor :timeout, :build_id, :worker_id, :max_requeues, :requeue_tolerance, :namespace, :seed, :failing_test
+      attr_accessor :timeout, :build_id, :worker_id, :max_requeues
+      attr_accessor :requeue_tolerance, :namespace, :seed, :failing_test, :statsd_endpoint
 
       class << self
         def from_env(env)
@@ -11,6 +12,7 @@ module CI
             worker_id: env['CIRCLE_NODE_INDEX'] || env['BUILDKITE_PARALLEL_JOB'],
             seed: env['CIRCLE_SHA1'] || env['BUILDKITE_COMMIT'] || env['TRAVIS_COMMIT'],
             flaky_tests: load_flaky_tests(env['CI_QUEUE_FLAKY_TESTS']),
+            statsd_endpoint: env['CI_QUEUE_STATSD_ADDR'],
           )
         end
 
@@ -24,7 +26,7 @@ module CI
 
       def initialize(
         timeout: 30, build_id: nil, worker_id: nil, max_requeues: 0, requeue_tolerance: 0,
-        namespace: nil, seed: nil, flaky_tests: []
+        namespace: nil, seed: nil, flaky_tests: [], statsd_endpoint: nil
       )
         @namespace = namespace
         @timeout = timeout
@@ -34,6 +36,7 @@ module CI
         @requeue_tolerance = requeue_tolerance
         @seed = seed
         @flaky_tests = flaky_tests
+        @statsd_endpoint = statsd_endpoint
       end
 
       def flaky?(test)

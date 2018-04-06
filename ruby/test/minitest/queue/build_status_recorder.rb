@@ -18,7 +18,7 @@ module Minitest::Queue
       @reporter.record(result('b', Minitest::UnexpectedError.new(StandardError.new)))
 
       second_queue = worker(2)
-      second_reporter = second_queue.minitest_reporters.last
+      second_reporter = second_queue
       second_reporter.start
 
       second_reporter.record(result('c', Minitest::Assertion.new))
@@ -38,7 +38,7 @@ module Minitest::Queue
       assert_equal 1, summary.error_reports.size
 
       second_queue = worker(2)
-      second_reporter = second_queue.minitest_reporters.last
+      second_reporter = second_queue
       second_reporter.start
 
       second_reporter.record(result('a'))

@@ -3,6 +3,7 @@ require 'minitest/queue'
 require 'ci/queue'
 require 'digest/md5'
 require 'minitest/reporters/bisect_reporter'
+require 'minitest/reporters/statsd_reporter'
 
 module Minitest
   module Queue
@@ -43,12 +44,16 @@ module Minitest
       def run_command
         set_load_path
         Minitest.queue = queue
-        Minitest.queue_reporters = [
+        reporters = [
           LocalRequeueReporter.new,
           BuildStatusRecorder.new(build: queue.build),
           JUnitReporter.new,
           OrderReporter.new(path: 'log/test_order.log'),
         ]
+        if queue_config.statsd_endpoint
+          reporters << Minitest::Reporters::StatsdReporter.new(statsd_endpoint: queue_config.statsd_endpoint)
+        end
+        Minitest.queue_reporters = reporters
 
         trap('TERM') { Minitest.queue.shutdown! }
         trap('INT') { Minitest.queue.shutdown! }
