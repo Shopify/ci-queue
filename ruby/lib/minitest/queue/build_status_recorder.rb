@@ -47,8 +47,7 @@ module Minitest
           self.failures += 1
         end
 
-
-        stats = COUNTERS.zip(COUNTERS.map { |c| send(c) })
+        stats = COUNTERS.zip(COUNTERS.map { |c| send(c) }).to_h
         if (test.failure || test.error?) && !test.skipped?
           build.record_error("#{test.klass}##{test.name}", dump(test), stats: stats)
         else
