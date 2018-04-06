@@ -143,6 +143,10 @@ module Minitest
     def __run(*args)
       if queue
         run_from_queue(*args)
+
+        if circuit_breaker.open?
+          STDERR.puts "This worker is exiting early because it encountered too many consecutive test failures, probably because of some corrupted state."
+        end
       else
         super
       end
@@ -156,6 +160,12 @@ module Minitest
         if example.flaky?
           result.mark_as_flaked!
           failed = false
+        end
+
+        if failed
+          queue.report_failure!
+        else
+          queue.report_success!
         end
 
         if failed && queue.requeue(example)

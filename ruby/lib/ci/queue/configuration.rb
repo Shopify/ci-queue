@@ -1,9 +1,9 @@
-
 module CI
   module Queue
     class Configuration
       attr_accessor :timeout, :build_id, :worker_id, :max_requeues
       attr_accessor :requeue_tolerance, :namespace, :seed, :failing_test, :statsd_endpoint
+      attr_reader :circuit_breaker
 
       class << self
         def from_env(env)
@@ -26,7 +26,7 @@ module CI
 
       def initialize(
         timeout: 30, build_id: nil, worker_id: nil, max_requeues: 0, requeue_tolerance: 0,
-        namespace: nil, seed: nil, flaky_tests: [], statsd_endpoint: nil
+        namespace: nil, seed: nil, flaky_tests: [], statsd_endpoint: nil, max_consecutive_failures: nil
       )
         @namespace = namespace
         @timeout = timeout
@@ -37,6 +37,15 @@ module CI
         @seed = seed
         @flaky_tests = flaky_tests
         @statsd_endpoint = statsd_endpoint
+        self.max_consecutive_failures = max_consecutive_failures
+      end
+
+      def max_consecutive_failures=(max)
+        @circuit_breaker = if max
+          CircuitBreaker.new(max_consecutive_failures: max)
+        else
+          CircuitBreaker::Disabled
+        end
       end
 
       def flaky?(test)

@@ -8,6 +8,7 @@ class CI::Queue::RedisTest < Minitest::Test
     @redis = ::Redis.new(url: @redis_url)
     @redis.flushdb
     super
+    @config = @queue.send(:config) # hack
   end
 
   def test_from_uri
@@ -204,7 +205,7 @@ class CI::Queue::RedisTest < Minitest::Test
   end
 
   def build_queue
-    worker(1, max_requeues: 1, requeue_tolerance: 0.1, populate: false)
+    worker(1, max_requeues: 1, requeue_tolerance: 0.1, populate: false, max_consecutive_failures: 10)
   end
 
   def populate(worker, tests: TEST_LIST.dup)

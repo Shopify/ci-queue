@@ -39,6 +39,29 @@ module Integration
       assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
     end
 
+    def test_circuit_breaker
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '--max-requeues', '1',
+          '--requeue-tolerance', '1',
+          '--max-consecutive-failures', '3',
+          '-Itest',
+          'test/failing_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      assert_empty err
+      output = normalize(out.lines.last.strip)
+      assert_equal 'Ran 3 tests, 3 assertions, 0 failures, 0 errors, 0 skips, 3 requeues in X.XXs', output
+    end
+
     def test_redis_runner
       out, err = capture_subprocess_io do
         system(

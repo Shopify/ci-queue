@@ -2,14 +2,12 @@ module CI
   module Queue
     module Redis
       class Base
+        include Common
+
         def initialize(redis_url, config)
           @redis_url = redis_url
           @redis = ::Redis.new(url: redis_url)
           @config = config
-        end
-
-        def flaky?(test)
-          @config.flaky?(test)
         end
 
         def exhausted?
@@ -59,7 +57,7 @@ module CI
 
         private
 
-        attr_reader :redis, :config, :redis_url
+        attr_reader :redis, :redis_url
 
         def key(*args)
           ['build', build_id, *args].join(':')

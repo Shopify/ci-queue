@@ -1,6 +1,7 @@
 module CI
   module Queue
     class Static
+      include Common
       class << self
         def from_uri(uri, config)
           tests = uri.opaque.split(':').map { |t| CGI.unescape(t) }
@@ -15,10 +16,6 @@ module CI
         @config = config
         @progress = 0
         @total = tests.size
-      end
-
-      def flaky?(test)
-        @config.flaky?(test)
       end
 
       def build
@@ -51,7 +48,7 @@ module CI
       end
 
       def poll
-        while test = @queue.shift
+        while !config.circuit_breaker.open? && test = @queue.shift
           yield index.fetch(test)
           @progress += 1
         end
@@ -75,7 +72,7 @@ module CI
 
       private
 
-      attr_reader :index, :config
+      attr_reader :index
 
       def should_requeue?(key)
         requeues[key] < config.max_requeues && requeues.values.inject(0, :+) < config.global_max_requeues(total)
