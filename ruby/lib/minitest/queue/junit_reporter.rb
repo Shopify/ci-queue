@@ -24,7 +24,7 @@ module Minitest
 
         xml = Builder::XmlMarkup.new(indent: 2)
         xml.instruct!
-        xml.test_suites do
+        xml.testsuites do
           suites.each do |suite, tests|
             add_tests_to(xml, suite, tests)
           end
