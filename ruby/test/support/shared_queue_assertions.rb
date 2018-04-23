@@ -20,6 +20,16 @@ module SharedQueueAssertions
     assert_equal TEST_LIST.size, @queue.progress
   end
 
+  def test_circuit_breaker
+    12.times { @queue.report_failure! }
+    assert_predicate config.circuit_breaker, :open?
+
+    poll(@queue) do
+      assert false, "The queue shouldn't have poped a test"
+    end
+    assert_equal TEST_LIST.size, @queue.size
+  end
+
   def test_size
     assert_equal TEST_LIST.size, @queue.size
     poll(@queue)
@@ -74,6 +84,7 @@ module SharedQueueAssertions
       worker_id: '1',
       max_requeues: 1,
       requeue_tolerance: 0.1,
+      max_consecutive_failures: 10,
     )
   end
 

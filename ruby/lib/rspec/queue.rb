@@ -135,6 +135,15 @@ module RSpec
           queue_config.requeue_tolerance = Float(ratio)
         end
 
+        help = split_heredoc(<<-EOS)
+          Defines after how many consecutive failures the worker will be considered unhealthy and terminate itself.
+          Defaults to disabled.
+        EOS
+        parser.separator ""
+        parser.on('--max-consecutive-failures MAX', *help) do |max|
+          queue_config.max_consecutive_failures = Integer(max)
+        end
+
         parser
       end
 
@@ -187,6 +196,12 @@ module RSpec
 
       def finish(reporter, acknowledge: true)
         if acknowledge && reporter.respond_to?(:requeue)
+          if @exception
+            reporter.report_failure!
+          else
+            reporter.report_success!
+          end
+
           if @exception && reporter.requeue
             reporter.cancel_run!
             dup.mark_as_requeued!(reporter)
@@ -299,6 +314,14 @@ module RSpec
         @queue = queue
         @example = example
         super(reporter)
+      end
+
+      def report_success!
+        @queue.report_success!
+      end
+
+      def report_failure!
+        @queue.report_failure!
       end
 
       def requeue

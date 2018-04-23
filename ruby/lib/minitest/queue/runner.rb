@@ -271,6 +271,15 @@ module Minitest
             queue_config.requeue_tolerance = Float(ratio)
           end
 
+          help = split_heredoc(<<-EOS)
+            Defines after how many consecutive failures the worker will be considered unhealthy and terminate itself.
+            Defaults to disabled.
+          EOS
+          opts.separator ""
+          opts.on('--max-consecutive-failures MAX', *help) do |max|
+            queue_config.max_consecutive_failures = Integer(max)
+          end
+
           opts.separator ""
           opts.separator "    retry: Replays a previous run in the same order."
 
