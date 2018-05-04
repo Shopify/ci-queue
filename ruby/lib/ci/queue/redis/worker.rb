@@ -3,6 +3,11 @@ require 'ci/queue/static'
 module CI
   module Queue
     module Redis
+      CONNECTION_ERRORS = [
+        ::Redis::BaseConnectionError,
+        ::SocketError, # https://github.com/redis/redis-rb/pull/631
+      ].freeze
+
       ReservationError = Class.new(StandardError)
 
       class << self
@@ -51,7 +56,7 @@ module CI
               sleep 0.05
             end
           end
-        rescue ::Redis::BaseConnectionError
+        rescue *CONNECTION_ERRORS
         end
 
         def retry_queue
@@ -148,7 +153,7 @@ module CI
             end
           end
           register
-        rescue ::Redis::BaseConnectionError
+        rescue *CONNECTION_ERRORS
           raise if @master
         end
 
