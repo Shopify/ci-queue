@@ -44,10 +44,6 @@ module CI
           raise LostMaster, "The master worker is still `#{master_status}` after 10 seconds waiting."
         end
 
-        def workers_count
-          redis.scard(key('workers'))
-        end
-
         def queue_initialized?
           @queue_initialized ||= begin
             status = master_status
@@ -84,6 +80,23 @@ module CI
           ::File.read(::File.join(CI::Queue::DEV_SCRIPTS_ROOT, "#{name}.lua"))
         rescue SystemCallError
           ::File.read(::File.join(CI::Queue::RELEASE_SCRIPTS_ROOT, "#{name}.lua"))
+        end
+
+        UNDEFINED = Object.new
+        private_const :UNDEFINED
+
+        def handle_redis_errors(fallback: UNDEFINED, retries: 3)
+          yield
+        rescue ::Redis::BaseConnectionError, SocketError => error # https://github.com/redis/redis-rb/pull/631
+          if retries > 0
+            retries -= 1
+            sleep 1
+            retry
+          elsif fallback != UNDEFINED
+            fallback
+          else
+            raise InfrastructureError, error.message
+          end
         end
       end
     end

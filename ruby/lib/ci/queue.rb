@@ -15,6 +15,8 @@ module CI
   module Queue
     extend self
 
+    InfrastructureError = Class.new(StandardError)
+
     attr_accessor :shuffler
 
     def shuffle(tests, random)

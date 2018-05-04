@@ -118,7 +118,9 @@ module CI
               "You have to acknowledge it before you can reserve another one"
           end
 
-          @reserved_test = (try_to_reserve_lost_test || try_to_reserve_test)
+          @reserved_test = handle_redis_errors(fallback: nil) do
+            try_to_reserve_lost_test || try_to_reserve_test
+          end
         end
 
         def try_to_reserve_test
@@ -137,23 +139,26 @@ module CI
           )
         end
 
-        def push(tests)
-          @total = tests.size
+        def master?
+          return @master if defined? @master
 
-          if @master = redis.setnx(key('master-status'), 'setup')
+          @master = handle_redis_errors(fallback: false) { redis.setnx(key('master-status'), 'setup') }
+        end
+
+        def initialize_queue
+          handle_redis_errors do
             redis.multi do
               redis.lpush(key('queue'), tests) unless tests.empty?
               redis.set(key('total'), @total)
               redis.set(key('master-status'), 'ready')
             end
           end
-          register
-        rescue ::Redis::BaseConnectionError
-          raise if @master
         end
 
-        def register
-          redis.sadd(key('workers'), worker_id)
+        def push(tests)
+          @total = tests.size
+
+          initialize_queue if master?
         end
       end
     end
