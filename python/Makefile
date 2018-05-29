@@ -27,7 +27,7 @@ run_tests: clean
 test: autopep8 run_tests lint
 
 install:
-	pip install -e .[test]
+	pip install --ignore-installed six -e .[test]
 
 release:
 	rm -rf build dist
