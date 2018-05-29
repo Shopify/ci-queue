@@ -367,13 +367,14 @@ module RSpec
           @configuration.add_formatter(BuildStatusRecorder)
 
           @configuration.with_suite_hooks do
+            break if @world.wants_to_quit
             queue.poll do |example|
               success &= example.run(QueueReporter.new(reporter, queue, example))
             end
           end
         end
 
-        success &= !@world.non_example_failure
+        return 0 if @world.non_example_failure
         success ? 0 : @configuration.failure_exit_code
       end
 
