@@ -18,6 +18,10 @@ module RSpec
         configuration.queue_url || ENV['CI_QUEUE_URL']
       end
 
+      def retrying
+        configuration.retrying
+      end
+
       def invalid_usage!(message)
         reopen_previous_step
         puts red(message)
@@ -48,10 +52,11 @@ module RSpec
     end
 
     Core::Configuration.add_setting(:queue_url)
+    Core::Configuration.add_setting(:retrying)
     Core::Configuration.prepend(ConfigurationExtension)
 
     module ConfigurationOptionsExtension
-      attr_accessor :queue_url
+      attr_accessor :queue_url, :retrying
     end
     Core::ConfigurationOptions.prepend(ConfigurationOptionsExtension)
 
@@ -73,9 +78,19 @@ module RSpec
           options[:queue_url] = url
         end
 
+        help = split_heredoc(<<-EOS)
+          Wait for all workers to complete and summarize the test failures.
+        EOS
         parser.on('--report', *help) do |url|
           options[:report] = true
           options[:runner] = RSpec::Queue::ReportRunner.new
+        end
+
+        help = split_heredoc(<<-EOS)
+          Replays a previous run in the same order.
+        EOS
+        parser.on('--retry', *help) do |url|
+          options[:retrying] = true
         end
 
         help = split_heredoc(<<-EOS)
@@ -359,6 +374,7 @@ module RSpec
         end
 
         queue = CI::Queue.from_uri(queue_url, RSpec::Queue.config)
+        queue = queue.retry_queue if retrying
         BuildStatusRecorder.build = queue.build
         queue.populate(examples, random: ordering_seed, &:id)
         examples_count = examples.size # TODO: figure out which stub value would be best
