@@ -4,6 +4,11 @@ module CI
       class Base
         include Common
 
+        CONNECTION_ERRORS = [
+          ::Redis::BaseConnectionError,
+          ::SocketError, # https://github.com/redis/redis-rb/pull/631
+        ].freeze
+
         def initialize(redis_url, config)
           @redis_url = redis_url
           @redis = ::Redis.new(url: redis_url)

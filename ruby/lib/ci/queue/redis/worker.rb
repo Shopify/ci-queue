@@ -3,11 +3,6 @@ require 'ci/queue/static'
 module CI
   module Queue
     module Redis
-      CONNECTION_ERRORS = [
-        ::Redis::BaseConnectionError,
-        ::SocketError, # https://github.com/redis/redis-rb/pull/631
-      ].freeze
-
       ReservationError = Class.new(StandardError)
 
       class << self
