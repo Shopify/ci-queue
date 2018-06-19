@@ -57,8 +57,11 @@ module Minitest
 
         trap('TERM') { Minitest.queue.shutdown! }
         trap('INT') { Minitest.queue.shutdown! }
-        load_tests
-        populate_queue
+
+        unless queue.rescue_connection_errors { queue.exhausted? }
+          load_tests
+          populate_queue
+        end
         # Let minitest's at_exit hook trigger
       end
 
