@@ -63,6 +63,7 @@ module SharedQueueAssertions
 
   def test_requeue
     assert_equal [shuffled_test_list.first, *shuffled_test_list], poll(@queue, false)
+    assert_equal @queue.total, @queue.progress
   end
 
   def test_acknowledge
