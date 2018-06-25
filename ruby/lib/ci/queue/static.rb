@@ -50,7 +50,6 @@ module CI
       def poll
         while !config.circuit_breaker.open? && test = @queue.shift
           yield index.fetch(test)
-          @progress += 1
         end
       end
 
@@ -59,6 +58,7 @@ module CI
       end
 
       def acknowledge(test)
+        @progress += 1
         true
       end
 
