@@ -3,7 +3,7 @@
 name: ci-queue
 
 up:
-- ruby: 2.1.6
+- ruby: 2.3.7
 - bundler
 - railgun
 

@@ -259,7 +259,6 @@ module RSpec
       end
 
       def run(reporter)
-        return if RSpec.world.wants_to_quit
         instance = example_group.new(example.inspect_output)
         example_group.set_ivars(instance, example_group.before_context_ivars)
         example.run(instance, reporter)
@@ -386,6 +385,7 @@ module RSpec
             break if @world.wants_to_quit
             queue.poll do |example|
               success &= example.run(QueueReporter.new(reporter, queue, example))
+              break if @world.wants_to_quit
             end
           end
         end
