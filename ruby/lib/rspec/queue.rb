@@ -15,7 +15,7 @@ module RSpec
       private
 
       def queue_url
-        configuration.queue_url || ENV['CI_QUEUE_URL']
+        configuration.queue_url || ENV['CI_QUEUE_URL'] || ENV['REDIS_URL'] || "redis://localhost:6379"
       end
 
       def retrying
@@ -71,7 +71,8 @@ module RSpec
 
         help = split_heredoc(<<-EOS)
           URL of the queue, e.g. redis://example.com.
-          Defaults to $CI_QUEUE_URL if set.
+          Will use $CI_QUEUE_URL or $REDIS_URL if set.
+          Defaults to redis://localhost:6379.
         EOS
         parser.separator ""
         parser.on('--queue URL', *help) do |url|
