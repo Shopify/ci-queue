@@ -188,7 +188,8 @@ module Minitest
 
           help = split_heredoc(<<-EOS)
             URL of the queue, e.g. redis://example.com.
-            Defaults to $CI_QUEUE_URL if set.
+            Will use $CI_QUEUE_URL or $REDIS_URL if set.
+            Defaults to redis://localhost:6379.
           EOS
           opts.separator ""
           opts.on('--queue URL', *help) do |url|
@@ -198,7 +199,7 @@ module Minitest
           help = split_heredoc(<<-EOS)
             Unique identifier for the workload. All workers working on the same suite of tests must have the same build identifier.
             If the build is tried again, or another revision is built, this value must be different.
-            It's automatically inferred on Buildkite, CircleCI and Travis.
+            It's automatically inferred on Buildkite, CircleCI, Heroku CI, and Travis.
           EOS
           opts.separator ""
           opts.on('--build BUILD_ID', *help) do |build_id|
@@ -239,7 +240,7 @@ module Minitest
 
           help = split_heredoc(<<-EOS)
             Sepcify a seed used to shuffle the test suite.
-            On Buildkite, CircleCI and Travis, the commit revision will be used by default.
+            On Buildkite, CircleCI, Heroku CI, and Travis, the commit revision will be used by default.
           EOS
           opts.separator ""
           opts.on('--seed SEED', *help) do |seed|
@@ -249,7 +250,7 @@ module Minitest
           help = split_heredoc(<<-EOS)
             A unique identifier for this worker, It must be consistent to allow retries.
             If not specified, retries won't be available.
-            It's automatically inferred on Buildkite and CircleCI.
+            It's automatically inferred on Buildkite, Heroku CI, and CircleCI.
           EOS
           opts.separator ""
           opts.on('--worker WORKER_ID', *help) do |worker_id|
@@ -314,7 +315,7 @@ module Minitest
       end
 
       def queue_url
-        @queue_url || ENV['CI_QUEUE_URL']
+        @queue_url || ENV['CI_QUEUE_URL'] || ENV['REDIS_URL'] || "redis://localhost:6379"
       end
 
       def invalid_usage!(message)

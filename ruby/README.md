@@ -23,6 +23,7 @@ Or install it yourself as:
   - Buildkite
   - CircleCI
   - Travis
+  - Heroku CI
 
 If you are using another CI system, please refer to the command usage message.
 
