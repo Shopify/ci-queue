@@ -188,8 +188,7 @@ module Minitest
 
           help = split_heredoc(<<-EOS)
             URL of the queue, e.g. redis://example.com.
-            Will use $CI_QUEUE_URL or $REDIS_URL if set.
-            Defaults to redis://localhost:6379.
+            Defaults to $CI_QUEUE_URL or $REDIS_URL if set.
           EOS
           opts.separator ""
           opts.on('--queue URL', *help) do |url|
@@ -315,7 +314,7 @@ module Minitest
       end
 
       def queue_url
-        @queue_url || ENV['CI_QUEUE_URL'] || ENV['REDIS_URL'] || "redis://localhost:6379"
+        @queue_url || ENV['CI_QUEUE_URL'] || ENV['REDIS_URL']
       end
 
       def invalid_usage!(message)

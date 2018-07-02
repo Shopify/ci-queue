@@ -15,7 +15,7 @@ module RSpec
       private
 
       def queue_url
-        configuration.queue_url || ENV['CI_QUEUE_URL'] || ENV['REDIS_URL'] || "redis://localhost:6379"
+        configuration.queue_url || ENV['CI_QUEUE_URL'] || ENV['REDIS_URL']
       end
 
       def retrying
@@ -71,8 +71,7 @@ module RSpec
 
         help = split_heredoc(<<-EOS)
           URL of the queue, e.g. redis://example.com.
-          Will use $CI_QUEUE_URL or $REDIS_URL if set.
-          Defaults to redis://localhost:6379.
+          Defaults to $CI_QUEUE_URL or $REDIS_URL if set.
         EOS
         parser.separator ""
         parser.on('--queue URL', *help) do |url|
@@ -320,7 +319,7 @@ module RSpec
         @options.options.delete(:requires) # Prevent loading of spec_helper so the app doesn't need to boot
         @options.configure(@configuration)
 
-        invalid_usage!('Missing --queue parameter') unless queue_url
+        invalid_usage!('Missing --queue parameter. For example: `--queue redis://localhost:6379`') unless queue_url
         invalid_usage!('Missing --build parameter') unless RSpec::Queue.config.build_id
       end
     end
@@ -362,7 +361,7 @@ module RSpec
 
       def setup(err, out)
         super
-        invalid_usage!('Missing --queue parameter') unless queue_url
+        invalid_usage!('Missing --queue parameter. For example: `--queue redis://localhost:6379`') unless queue_url
         invalid_usage!('Missing --build parameter') unless RSpec::Queue.config.build_id
         invalid_usage!('Missing --worker parameter') unless RSpec::Queue.config.worker_id
       end
