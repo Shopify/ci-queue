@@ -261,7 +261,8 @@ module RSpec
       def run(reporter)
         instance = example_group.new(example.inspect_output)
         example_group.set_ivars(instance, example_group.before_context_ivars)
-        example.run(instance, reporter)
+        result = example.run(instance, reporter)
+        result.nil? ? true : result
       end
     end
 
