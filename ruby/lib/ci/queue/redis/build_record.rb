@@ -18,7 +18,11 @@ module CI
 
         def record_error(id, payload, stats: nil)
           redis.pipelined do
-            redis.hset(key('error-reports'), id, payload)
+            redis.hset(
+              key('error-reports'),
+              id.force_encoding(Encoding::BINARY),
+              payload.force_encoding(Encoding::BINARY),
+            )
             record_stats(stats)
           end
           nil
@@ -26,7 +30,7 @@ module CI
 
         def record_success(id, stats: nil)
           redis.pipelined do
-            redis.hdel(key('error-reports'), id)
+            redis.hdel(key('error-reports'), id.force_encoding(Encoding::BINARY))
             record_stats(stats)
           end
           nil
