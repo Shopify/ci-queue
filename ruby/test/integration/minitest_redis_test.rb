@@ -249,6 +249,29 @@ module Integration
       END
     end
 
+    def test_utf8_tests_and_marshal
+      out, err = capture_subprocess_io do
+        system(
+          { 'MARSHAL' => '1' },
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '-Itest',
+          'test/utf8_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      assert_empty err
+      output = normalize(out)
+      assert_equal strip_heredoc(<<-END), output
+        Ran 1 tests, 1 assertions, 1 failures, 0 errors, 0 skips, 0 requeues in X.XXs
+      END
+    end
+
     private
 
     def normalize_xml(output)
