@@ -259,10 +259,10 @@ module RSpec
       end
 
       def run(reporter)
-        return if RSpec.world.wants_to_quit
         instance = example_group.new(example.inspect_output)
         example_group.set_ivars(instance, example_group.before_context_ivars)
-        example.run(instance, reporter)
+        result = example.run(instance, reporter)
+        result.nil? ? true : result
       end
     end
 
@@ -364,6 +364,7 @@ module RSpec
         invalid_usage!('Missing --queue parameter') unless queue_url
         invalid_usage!('Missing --build parameter') unless RSpec::Queue.config.build_id
         invalid_usage!('Missing --worker parameter') unless RSpec::Queue.config.worker_id
+        RSpec.configuration.backtrace_formatter.filter_gem('ci-queue')
       end
 
       def run_specs(example_groups)
@@ -386,6 +387,7 @@ module RSpec
             break if @world.wants_to_quit
             queue.poll do |example|
               success &= example.run(QueueReporter.new(reporter, queue, example))
+              break if @world.wants_to_quit
             end
           end
         end

@@ -260,6 +260,79 @@ module Integration
       assert_equal expected_output, normalize(out)
     end
 
+    def test_world_wants_to_quit
+      out, err = capture_subprocess_io do
+        system(
+          { 'EARLY_EXIT' => '1' },
+          @exe,
+          '--queue', @redis_url,
+          '--seed', '123',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          chdir: 'test/fixtures/early_exit_suite',
+        )
+      end
+
+      assert_empty err
+      expected_output = strip_heredoc <<-EOS
+
+        Randomized with seed 123
+
+
+        Finished in X.XXXXX seconds (files took X.XXXXX seconds to load)
+        0 examples, 0 failures
+
+        Randomized with seed 123
+
+      EOS
+      assert_equal expected_output, normalize(out)
+
+      assert_equal 0, $?.exitstatus
+
+
+      out, err = capture_subprocess_io do
+        system(
+          @exe,
+          '--queue', @redis_url,
+          '--seed', '123',
+          '--build', '1',
+          '--worker', '2',
+          '--timeout', '1',
+          chdir: 'test/fixtures/early_exit_suite',
+        )
+      end
+
+      assert_empty err
+      expected_output = strip_heredoc <<-EOS
+
+        Randomized with seed 123
+        F
+
+        Failures:
+
+          1) Object should be executed
+             Failure/Error: expect(1 + 1).to be == 4
+
+               expected: == 4
+                    got:    2
+             # ./spec/dummy_spec.rb:5:in `block (2 levels) in <top (required)>'
+
+        Finished in X.XXXXX seconds (files took X.XXXXX seconds to load)
+        1 example, 1 failure
+
+        Failed examples:
+
+        rspec ./spec/dummy_spec.rb:4 # Object should be executed
+
+        Randomized with seed 123
+
+      EOS
+
+      assert_equal expected_output, normalize(out)
+      assert_equal 1, $?.exitstatus
+    end
+
     private
 
     def normalize(output)
