@@ -1,5 +1,5 @@
 RSpec.configure do |config|
-  config.backtrace_exclusion_patterns << %r{(rspec|ci)/queue}
+  config.backtrace_inclusion_patterns << %r{/test/fixtures/}
   config.before(:suite) do
     raise "Whoops"
   end
