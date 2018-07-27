@@ -37,7 +37,10 @@ module Minitest
       end
 
       def retry_command
-        self.queue = queue.retry_queue
+        retry_queue = queue.retry_queue
+        unless retry_queue.exhausted?
+          self.queue = retry_queue
+        end
         run_command
       end
 
@@ -58,7 +61,9 @@ module Minitest
         trap('TERM') { Minitest.queue.shutdown! }
         trap('INT') { Minitest.queue.shutdown! }
 
-        unless queue.rescue_connection_errors { queue.exhausted? }
+        if queue.rescue_connection_errors { queue.exhausted? }
+          puts green("All tests were ran already")
+        else
           load_tests
           populate_queue
         end

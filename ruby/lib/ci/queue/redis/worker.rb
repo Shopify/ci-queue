@@ -55,7 +55,11 @@ module CI
         end
 
         def retry_queue
-          log = redis.lrange(key('worker', worker_id, 'queue'), 0, -1).reverse.uniq
+          failures = build.failed_tests.to_set
+          log = redis.lrange(key('worker', worker_id, 'queue'), 0, -1)
+          log.select! { |id| failures.include?(id) }
+          log.uniq!
+          log.reverse!
           Retry.new(log, config, redis: redis)
         end
 

@@ -16,6 +16,10 @@ module CI
           @queue.exhausted?
         end
 
+        def failed_tests
+          redis.hkeys(key('error-reports'))
+        end
+
         def record_error(id, payload, stats: nil)
           redis.pipelined do
             redis.hset(
