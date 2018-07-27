@@ -99,7 +99,47 @@ module Integration
       end
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
+      assert_equal 'Ran 6 tests, 4 assertions, 2 failures, 1 errors, 0 skips, 3 requeues in X.XXs', output
+    end
+
+    def test_retry_success
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '--max-requeues', '1',
+          '--requeue-tolerance', '1',
+          '-Itest',
+          'test/passing_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty err
+      output = normalize(out.lines.last.strip)
+      assert_equal 'Ran 100 tests, 100 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
+
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'retry',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '--max-requeues', '1',
+          '--requeue-tolerance', '1',
+          '-Itest',
+          'test/passing_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty err
+      output = normalize(out.lines.last.strip)
+      assert_equal 'All tests were ran already', output
     end
 
     def test_down_redis

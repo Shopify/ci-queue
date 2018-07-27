@@ -40,12 +40,22 @@ class CI::Queue::RedisTest < Minitest::Test
     CI::Queue::Redis.requeue_offset = previous_offset
   end
 
-  def test_retry_queue
+  def test_retry_queue_with_all_tests_passing
     test_order = poll(@queue)
     retry_queue = @queue.retry_queue
     populate(retry_queue)
     retry_test_order = poll(retry_queue)
-    assert_equal test_order, retry_test_order
+    assert_equal [], retry_test_order
+  end
+
+  def test_retry_queue_with_all_tests_passing
+    test_order = poll(@queue)
+    retry_queue = @queue.retry_queue
+    populate(retry_queue)
+    retry_test_order = poll(retry_queue) do |test|
+      @queue.build.record_error(test.id, 'Failed')
+    end
+    assert_equal retry_test_order, retry_test_order
   end
 
   def test_shutdown
@@ -103,8 +113,8 @@ class CI::Queue::RedisTest < Minitest::Test
     end
 
     assert_predicate @queue, :exhausted?
-    assert_equal [shuffled_test_list.first], populate(@queue.retry_queue).to_a
-    assert_equal shuffled_test_list.sort, populate(second_queue.retry_queue).to_a.sort
+    assert_equal [], populate(@queue.retry_queue).to_a
+    assert_equal [], populate(second_queue.retry_queue).to_a.sort
   end
 
   def test_test_isnt_requeued_if_it_was_picked_up_by_another_worker
