@@ -142,6 +142,95 @@ module Integration
       assert_equal 'All tests were ran already', output
     end
 
+    def test_retry_report
+      # Run first worker, failing all tests
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '-Itest',
+          'test/failing_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty err
+      output = normalize(out.lines.last.strip)
+      assert_equal 'Ran 100 tests, 100 assertions, 100 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
+
+      # Run the reporter
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'report',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--timeout', '1',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty err
+      expect = 'Ran 100 tests, 100 assertions, 100 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)'
+      assert_equal expect, normalize(out.strip.lines[1].strip)
+
+      # Simulate another worker successfuly retrying all errors (very hard to reproduce properly)
+      queue_config = CI::Queue::Configuration.new(
+        timeout: 1,
+        build_id: '1',
+        worker_id: '2',
+      )
+      queue = CI::Queue.from_uri(@redis_url, queue_config)
+      error_reports = queue.build.error_reports
+      assert_equal 100, error_reports.size
+
+      error_reports.keys.each_with_index do |test_id, index|
+        queue.build.record_success(test_id.dup, stats: {
+          'assertions' => index + 1,
+          'errors' => 0,
+          'failures' => 0,
+          'skips' => 0,
+          'requeues' => 0,
+          'total_time' => index + 1,
+        })
+      end
+
+      # Retry first worker, bailing out
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'retry',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '-Itest',
+          'test/failing_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty err
+      output = normalize(out.lines.last.strip)
+      assert_equal 'All tests were ran already', output
+
+      # Re-run the reporter
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'report',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--timeout', '1',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty err
+      expect = 'Ran 100 tests, 100 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)'
+      assert_equal expect, normalize(out.strip.lines[1].strip)
+    end
+
     def test_down_redis
       out, err = capture_subprocess_io do
         system(
