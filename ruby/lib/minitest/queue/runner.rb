@@ -37,6 +37,7 @@ module Minitest
       end
 
       def retry_command
+        reset_counters
         retry_queue = queue.retry_queue
         unless retry_queue.exhausted?
           self.queue = retry_queue
@@ -154,6 +155,10 @@ module Minitest
 
         _, status = Process.wait2(child_pid)
         return status.success?
+      end
+
+      def reset_counters
+        queue.build.reset_stats(BuildStatusRecorder::COUNTERS)
       end
 
       def populate_queue

@@ -51,6 +51,14 @@ module CI
           stat_names.zip(counts.map { |values| values.map(&:to_f).inject(:+).to_f }).to_h
         end
 
+        def reset_stats(stat_names)
+          redis.pipelined do
+            stat_names.each do |stat_name|
+              redis.hdel(key(stat_name), config.worker_id)
+            end
+          end
+        end
+
         private
 
         attr_reader :config, :redis

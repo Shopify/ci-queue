@@ -25,7 +25,7 @@ module Minitest
       end
 
       def success?
-        errors == 0 && failures == 0
+        build.error_reports.empty?
       end
 
       def record(*)

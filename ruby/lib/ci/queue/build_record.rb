@@ -31,6 +31,10 @@ module CI
         stat_names.zip(stats.values_at(*stat_names).map(&:to_f))
       end
 
+      def reset_stats(stat_names)
+        stat_names.each { |s| stats.delete(s) }
+      end
+
       private
 
       attr_reader :stats
