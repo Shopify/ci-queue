@@ -14,7 +14,7 @@ module Integration
     def test_redis_runner
       out, err = capture_subprocess_io do
         system(
-          { 'BUILDKITE' => '1', 'BUILDKITE_COMMIT' => 'aaaaaaaaaaaaa' },
+          { 'BUILDKITE' => '1', 'SHOPIFY_BUILD_COMMIT' => 'aaaaaaaaaaaaa' },
           @exe,
           '--queue', @redis_url,
           '--seed', '123',
@@ -59,7 +59,7 @@ module Integration
     def test_redis_runner_retry
       out, err = capture_subprocess_io do
         system(
-          { 'BUILDKITE' => '1', 'BUILDKITE_COMMIT' => 'aaaaaaaaaaaaa' },
+          { 'BUILDKITE' => '1', 'SHOPIFY_BUILD_COMMIT' => 'aaaaaaaaaaaaa' },
           @exe,
           '--queue', @redis_url,
           '--seed', '123',
@@ -101,7 +101,7 @@ module Integration
 
       out, err = capture_subprocess_io do
         system(
-          { 'BUILDKITE' => '1', 'BUILDKITE_COMMIT' => 'aaaaaaaaaaaaa' },
+          { 'BUILDKITE' => '1', 'SHOPIFY_BUILD_COMMIT' => 'aaaaaaaaaaaaa' },
           @exe,
           '--queue', @redis_url,
           '--retry',
@@ -136,7 +136,7 @@ module Integration
     def test_before_suite_errors
       out, err = capture_subprocess_io do
         system(
-          { 'BUILDKITE' => '1', 'BUILDKITE_COMMIT' => 'aaaaaaaaaaaaa' },
+          { 'BUILDKITE' => '1', 'SHOPIFY_BUILD_COMMIT' => 'aaaaaaaaaaaaa' },
           @exe,
           '--queue', @redis_url,
           '--seed', '123',
@@ -176,7 +176,7 @@ module Integration
     def test_report
       out, err = capture_subprocess_io do
         system(
-          { 'BUILDKITE' => '1', 'BUILDKITE_COMMIT' => 'aaaaaaaaaaaaa' },
+          { 'BUILDKITE' => '1', 'SHOPIFY_BUILD_COMMIT' => 'aaaaaaaaaaaaa' },
           @exe,
           '--queue', @redis_url,
           '--seed', '123',
@@ -220,7 +220,7 @@ module Integration
 
       out, err = capture_subprocess_io do
         system(
-          { 'BUILDKITE' => '1', 'BUILDKITE_COMMIT' => 'aaaaaaaaaaaaa' },
+          { 'BUILDKITE' => '1', 'SHOPIFY_BUILD_COMMIT' => 'aaaaaaaaaaaaa' },
           @exe,
           '--queue', @redis_url,
           '--build', '1',

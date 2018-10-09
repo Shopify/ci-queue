@@ -28,7 +28,7 @@ module CI::Queue
       config = Configuration.from_env(
         'BUILDKITE_BUILD_ID' => '9e08ef3c-d6e6-4a86-91dd-577ce5205b8e',
         'BUILDKITE_PARALLEL_JOB' => '12',
-        'BUILDKITE_COMMIT' => 'faa647bbb8168a77cf338e7488c3f8445c3e6554',
+        'SHOPIFY_BUILD_COMMIT' => 'faa647bbb8168a77cf338e7488c3f8445c3e6554',
       )
       assert_equal '9e08ef3c-d6e6-4a86-91dd-577ce5205b8e', config.build_id
       assert_equal '12', config.worker_id
