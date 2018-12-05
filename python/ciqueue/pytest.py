@@ -5,6 +5,7 @@ py.test -p ciqueue.pytest --queue redis://<host>:6379?worker=<worker_id>&build=<
 """
 from __future__ import absolute_import
 from __future__ import print_function
+from collections import OrderedDict
 import zlib
 from ciqueue._pytest import test_queue
 from ciqueue._pytest import outcomes
@@ -25,7 +26,7 @@ def pytest_addoption(parser):
 class ItemIndex(object):
 
     def __init__(self, items):
-        self.index = dict((test_queue.key_item(i), i) for i in items)
+        self.index = OrderedDict((test_queue.key_item(i), i) for i in items)
 
     def __len__(self):
         return len(self.index)
