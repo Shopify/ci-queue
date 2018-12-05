@@ -174,8 +174,28 @@ def pytest_runtestloop(session):
         config.pluginmanager.register(RedisReporter(config, queue))
     session.items = ItemList(tests_index, queue)
 
-    for item in session.items:
-        item.config.hook.pytest_runtest_protocol(item=item, nextitem=None)
+    items = iter(session.items)
+
+    # Pull two tests at a time to provide nextitem to pytest, which
+    # allows for optimal teardown of fixtures.
+    try:
+        item = next(items)
+    except StopIteration:
+        # There were no tests queued.
+        return True
+
+    while True:
+        try:
+            nextitem = next(items)
+        except StopIteration:
+            # There are no more tests -- finish our final one.
+            item.config.hook.pytest_runtest_protocol(item=item, nextitem=None)
+            break
+
+        item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+        item = nextitem
+
         if session.shouldstop:
             raise session.Interrupted(session.shouldstop)
+
     return True

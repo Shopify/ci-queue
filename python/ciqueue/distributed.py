@@ -70,7 +70,7 @@ class Worker(Base):
 
     def __iter__(self):
         def poll():
-            while not self.shutdown_required and len(self):  # pylint: disable=len-as-condition
+            while not self.shutdown_required and self.redis.llen(self.key('queue')):
                 test = self._reserve()
                 if test:
                     yield test.decode()
