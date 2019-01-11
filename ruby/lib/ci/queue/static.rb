@@ -16,6 +16,11 @@ module CI
         @config = config
         @progress = 0
         @total = tests.size
+        @shutdown_required = false
+      end
+
+      def shutdown!
+        @shutdown_required = true
       end
 
       def build
@@ -48,7 +53,7 @@ module CI
       end
 
       def poll
-        while !config.circuit_breaker.open? && test = @queue.shift
+        while !@shutdown_required && !config.circuit_breaker.open? && test = @queue.shift
           yield index.fetch(test)
         end
       end
