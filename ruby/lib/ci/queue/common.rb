@@ -6,6 +6,10 @@ module CI
       # to override in classes including this module
       CONNECTION_ERRORS = [].freeze
 
+      def retrying?
+        false
+      end
+
       def flaky?(test)
         @config.flaky?(test)
       end

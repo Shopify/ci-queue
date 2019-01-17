@@ -37,15 +37,22 @@ module Minitest
       end
 
       def retry_command
-        reset_counters
-        retry_queue = queue.retry_queue
-        unless retry_queue.exhausted?
-          self.queue = retry_queue
-        end
-        run_command
+        STDERR.puts "Warning: the retry subcommand is deprecated."
+        run_command # aliased for backward compatibility purpose
       end
 
       def run_command
+        if queue.retrying?
+          reset_counters
+          retry_queue = queue.retry_queue
+          if retry_queue.exhausted?
+            puts "The retry queue does not contain any failure, we'll process the main queue instead."
+          else
+            puts "Retrying failed tests."
+            self.queue = retry_queue
+          end
+        end
+
         set_load_path
         Minitest.queue = queue
         reporters = [

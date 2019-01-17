@@ -54,6 +54,12 @@ module CI
         rescue *CONNECTION_ERRORS
         end
 
+        def retrying?
+          redis.exists(key('worker', worker_id, 'queue'))
+        rescue *CONNECTION_ERRORS
+          false
+        end
+
         def retry_queue
           failures = build.failed_tests.to_set
           log = redis.lrange(key('worker', worker_id, 'queue'), 0, -1)
