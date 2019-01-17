@@ -16,7 +16,6 @@ when 'python'
     run('sudo', 'make', 'install')
   end
 when 'ruby'
-  run('gem', 'install', 'bundler', '-v', '1.5.1')
 else
   abort("Missing or invalid SUITE environment variable")
 end
