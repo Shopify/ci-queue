@@ -84,7 +84,7 @@ module Integration
 
       out, err = capture_subprocess_io do
         system(
-          @exe, 'retry',
+          @exe, 'run',
           '--queue', @redis_url,
           '--seed', 'foobar',
           '--build', '1',
@@ -124,7 +124,7 @@ module Integration
 
       out, err = capture_subprocess_io do
         system(
-          @exe, 'retry',
+          @exe, 'run',
           '--queue', @redis_url,
           '--seed', 'foobar',
           '--build', '1',
@@ -200,7 +200,7 @@ module Integration
       # Retry first worker, bailing out
       out, err = capture_subprocess_io do
         system(
-          @exe, 'retry',
+          @exe, 'run',
           '--queue', @redis_url,
           '--seed', 'foobar',
           '--build', '1',

@@ -104,7 +104,6 @@ module Integration
           { 'BUILDKITE' => '1', 'BUILDKITE_COMMIT' => 'aaaaaaaaaaaaa' },
           @exe,
           '--queue', @redis_url,
-          '--retry',
           '--seed', '123',
           '--build', '1',
           '--worker', '1',
@@ -117,6 +116,7 @@ module Integration
 
       assert_empty err
       expected_output = strip_heredoc <<-EOS
+        Found 0 tests to retry, processing the main queue.
 
         Randomized with seed 123
 
