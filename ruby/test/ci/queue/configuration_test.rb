@@ -44,6 +44,19 @@ module CI::Queue
       assert_equal 'faa647bbb8168a77cf338e7488c3f8445c3e6554', config.seed
     end
 
+
+    def test_semaphore2_defaults
+      config = Configuration.from_env(
+        'SEMAPHORE_PIPELINE_ID' => 'a47d9178-a94e-435a-9bbd-a095aee1e41c',
+        'SEMAPHORE_JOB_ID' => '04f953b6-493c-424e-a9a4-e8a0c28f4bc2',
+        'SEMAPHORE_GIT_SHA' => 'faa647bbb8168a77cf338e7488c3f8445c3e6554',
+      )
+
+      assert_equal 'a47d9178-a94e-435a-9bbd-a095aee1e41c', config.build_id
+      assert_equal '04f953b6-493c-424e-a9a4-e8a0c28f4bc2', config.worker_id
+      assert_equal 'faa647bbb8168a77cf338e7488c3f8445c3e6554', config.seed
+    end
+
     def test_namespace
       config = Configuration.new(build_id: '9e08ef3c-d6e6-4a86-91dd-577ce5205b8e')
       assert_equal '9e08ef3c-d6e6-4a86-91dd-577ce5205b8e', config.build_id
