@@ -24,6 +24,7 @@ Or install it yourself as:
   - CircleCI
   - Travis
   - Heroku CI
+  - Semaphore 2
 
 If you are using another CI system, please refer to the command usage message.
 
