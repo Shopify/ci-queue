@@ -377,7 +377,6 @@ module RSpec
             puts "Found 0 tests to retry, processing the main queue."
           else
             puts "Retrying #{retry_queue.size} failed tests."
-            reset_counters
             queue = retry_queue
           end
         end

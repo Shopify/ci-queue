@@ -132,6 +132,108 @@ module Integration
       assert_equal 0, $?.exitstatus
     end
 
+    def test_retry_report
+      # Run first worker, failing all tests
+      out, err = capture_subprocess_io do
+        system(
+          @exe,
+          '--queue', @redis_url,
+          '--seed', '123',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      assert_empty err
+      expected_output = "3 examples, 1 failure"
+
+      assert_match expected_output, normalize(out)
+      assert_equal 1, $?.exitstatus
+
+      # Run the reporter
+      out, err = capture_subprocess_io do
+        system(
+          @exe,
+          '--queue', @redis_url,
+          '--build', '1',
+          '--report',
+          '--timeout', '5',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      assert_empty err
+      expected_output = strip_heredoc <<-EOS
+        Waiting for workers to complete
+        1 error found
+
+          Object doesn't work on first try
+          Failure/Error: expect(1 + 1).to be == 42
+
+            expected: == 42
+                 got:    2
+          # ./spec/dummy_spec.rb:11:in `block (2 levels) in <top (required)>'
+
+        rspec ./spec/dummy_spec.rb:6 # Object doesn't work on first try
+      EOS
+
+      assert_equal expected_output, normalize(out)
+
+
+      # Re-run the tests expecting a pass
+      out, err = capture_subprocess_io do
+        system(
+          { 'RETRIED' => '1' },
+          @exe,
+          '--queue', @redis_url,
+          '--seed', '123',
+          '--build', '1',
+          '--timeout', '1',
+          '--worker', '1',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      expected_retry_output = strip_heredoc <<-EOS
+        Retrying 1 failed tests.
+
+        Randomized with seed 123
+        .
+
+        Finished in X.XXXXX seconds (files took X.XXXXX seconds to load)
+        1 example, 0 failures
+
+        Randomized with seed 123
+
+      EOS
+
+      assert_empty err
+      assert_equal expected_retry_output, normalize(out)
+      assert_equal 0, $?.exitstatus
+
+       # Run the reporter
+       out, err = capture_subprocess_io do
+        system(
+          @exe,
+          '--queue', @redis_url,
+          '--build', '1',
+          '--report',
+          '--timeout', '5',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      assert_empty err
+      expected_report_output = strip_heredoc <<-EOS
+        Waiting for workers to complete
+        No errors found
+      EOS
+
+      assert_equal expected_report_output, normalize(out)
+    end
+
 
     def test_before_suite_errors
       out, err = capture_subprocess_io do
