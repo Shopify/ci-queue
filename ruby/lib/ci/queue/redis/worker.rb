@@ -46,7 +46,7 @@ module CI
           wait_for_master
           until shutdown_required? || config.circuit_breaker.open? || exhausted?
             if test = reserve
-              yield index.fetch(test)
+              yield index.fetch(test), @last_warning
             else
               sleep 0.05
             end
@@ -140,11 +140,17 @@ module CI
         end
 
         def try_to_reserve_lost_test
-          eval_script(
+          lost_test = eval_script(
             :reserve_lost,
             keys: [key('running'), key('completed'), key('worker', worker_id, 'queue')],
             argv: [Time.now.to_f, timeout],
           )
+
+          if lost_test
+            build.record_warning(Warnings::RESERVED_LOST_TEST, test: lost_test, timeout: timeout)
+          end
+
+          lost_test
         end
 
         def push(tests)

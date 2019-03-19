@@ -328,6 +328,11 @@ module Integration
     end
 
     def test_redis_reporter
+      # HACK: Simulate a timeout
+      config = CI::Queue::Configuration.new(build_id: '1', worker_id: '1', timeout: '1')
+      build_record = CI::Queue::Redis::BuildRecord.new(self, ::Redis.new(url: @redis_url), config)
+      build_record.record_warning(CI::Queue::Warnings::RESERVED_LOST_TEST, test: 'Atest#test_bar', timeout: 2)
+
       out, err = capture_subprocess_io do
         system(
           @exe, 'run',
@@ -360,6 +365,11 @@ module Integration
       output = normalize(out)
       assert_equal strip_heredoc(<<-END), output
         Waiting for workers to complete
+
+        [WARNING] Atest#test_bar was picked up by another worker because it didn't complete in the allocated 2 seconds.
+        You may want to either optimize this test of bump ci-queue timeout.
+        It's also possible that the worker that was processing it was terminated without being able to report back.
+
         Ran 7 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs (aggregated)
 
         FAIL ATest#test_bar

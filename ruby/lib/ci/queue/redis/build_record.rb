@@ -20,6 +20,19 @@ module CI
           redis.hkeys(key('error-reports'))
         end
 
+        def pop_warnings
+          warnings = redis.multi do
+            redis.lrange(key('warnings'), 0, -1)
+            redis.del(key('warnings'))
+          end.first
+
+          warnings.map { |p| Marshal.load(p) }
+        end
+
+        def record_warning(type, attributes)
+          redis.rpush(key('warnings'), Marshal.dump([type, attributes]))
+        end
+
         def record_error(id, payload, stats: nil)
           redis.pipelined do
             redis.hset(
