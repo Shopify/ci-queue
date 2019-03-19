@@ -182,6 +182,28 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_equal 2, @redis.scard(('build:42:workers'))
   end
 
+  def test_timeout_warning
+    begin
+      threads = 2.times.map do |i|
+        Thread.new do
+          queue = worker(i, tests: [TEST_LIST.first], build_id: '24')
+          queue.poll do |test|
+            sleep 1 # timeout
+            queue.acknowledge(test)
+          end
+        end
+      end
+
+      threads.each { |t| t.join(3) }
+      threads.each { |t| refute_predicate t, :alive? }
+
+      queue = worker(12, build_id: '24')
+      assert_equal [[:RESERVED_LOST_TEST, {test: 'ATest#test_foo', timeout: 0.2}]], queue.build.pop_warnings
+    ensure
+      threads.each(&:kill)
+    end
+  end
+
   def test_continuously_timing_out_tests
     3.times do
       @redis.flushdb

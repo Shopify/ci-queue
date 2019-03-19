@@ -17,6 +17,10 @@ module CI
 
     attr_accessor :shuffler
 
+    module Warnings
+      RESERVED_LOST_TEST = :RESERVED_LOST_TEST
+    end
+
     def shuffle(tests, random)
       if shuffler
         shuffler.call(tests, random)

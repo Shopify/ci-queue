@@ -18,10 +18,14 @@ module CI
         def wait_for_workers
           return false unless wait_for_master(timeout: config.timeout)
 
+          yield
+
           time_left = config.timeout
           until exhausted? || time_left <= 0
-            sleep 0.1
-            time_left -= 0.1
+            sleep 1
+            time_left -= 1
+
+            yield
           end
           exhausted?
         rescue CI::Queue::Redis::LostMaster

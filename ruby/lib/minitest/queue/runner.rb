@@ -133,7 +133,7 @@ module Minitest
 
         step("Waiting for workers to complete")
 
-        unless supervisor.wait_for_workers
+        unless supervisor.wait_for_workers { display_warnings(supervisor.build) }
           unless supervisor.queue_initialized?
             abort! "No master was elected. Did all workers crash?"
           end
@@ -152,6 +152,19 @@ module Minitest
 
       attr_reader :queue_config, :options, :command, :argv
       attr_accessor :queue, :queue_url, :load_paths
+
+      def display_warnings(build)
+        build.pop_warnings.each do |type, attributes|
+          case type
+          when CI::Queue::Warnings::RESERVED_LOST_TEST
+            puts yellow(
+              "[WARNING] #{attributes[:test]} was picked up by another worker because it didn't complete in the allocated #{attributes[:timeout]} seconds.\n" \
+              "You may want to either optimize this test of bump ci-queue timeout.\n" \
+              "It's also possible that the worker that was processing it was terminated without being able to report back.\n"
+            )
+          end
+        end
+      end
 
       def run_tests_in_fork(queue)
         child_pid = fork do
