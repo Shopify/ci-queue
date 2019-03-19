@@ -160,7 +160,7 @@ module Minitest
             puts reopen_previous_step
             puts yellow(
               "[WARNING] #{attributes[:test]} was picked up by another worker because it didn't complete in the allocated #{attributes[:timeout]} seconds.\n" \
-              "You may want to either optimize this test of bump ci-queue timeout.\n" \
+              "You may want to either optimize this test or bump ci-queue timeout.\n" \
               "It's also possible that the worker that was processing it was terminated without being able to report back.\n"
             )
           end
