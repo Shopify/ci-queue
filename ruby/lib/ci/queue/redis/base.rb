@@ -11,7 +11,7 @@ module CI
 
         def initialize(redis_url, config)
           @redis_url = redis_url
-          @redis = ::Redis.new(url: redis_url)
+          @redis = Client.new(url: redis_url)
           @config = config
         end
 
