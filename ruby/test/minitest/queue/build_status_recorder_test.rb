@@ -1,5 +1,6 @@
 require 'test_helper'
 
+
 module Minitest::Queue
   class BuildStatusRecorderTest < Minitest::Test
     include ReporterTestHelper

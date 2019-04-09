@@ -11,7 +11,10 @@ module CI
       Error = Class.new(StandardError)
       LostMaster = Class.new(Error)
 
+      Client = ::Redis.dup
+
       class << self
+        attr_accessor :client
 
         def new(*args)
           Worker.new(*args)
