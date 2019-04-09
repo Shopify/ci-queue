@@ -159,7 +159,7 @@ module Minitest
           when CI::Queue::Warnings::RESERVED_LOST_TEST
             puts reopen_previous_step
             puts yellow(
-              "[WARNING] #{attributes[:test]} was picked up by another worker because it didn't complete in the allocated #{attributes[:timeout]} seconds.\n" \
+              "[WARNING] #{attributes[:test]} was picked up by another worker because worker##{attributes[:previous_owner]} didn't report back in the allocated #{attributes[:timeout]} seconds.\n" \
               "You may want to either optimize this test or bump ci-queue timeout.\n" \
               "It's also possible that the worker that was processing it was terminated without being able to report back.\n"
             )

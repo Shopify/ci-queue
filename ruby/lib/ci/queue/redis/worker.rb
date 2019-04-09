@@ -134,20 +134,25 @@ module CI
         def try_to_reserve_test
           eval_script(
             :reserve,
-            keys: [key('queue'), key('running'), key('processed'), key('worker', worker_id, 'queue')],
-            argv: [Time.now.to_f],
+            keys: [key('queue'), key('running'), key('processed'), key('worker', worker_id, 'queue'), key('owners')],
+            argv: [Time.now.to_f, worker_id],
           )
         end
 
         def try_to_reserve_lost_test
-          lost_test = eval_script(
+          lost_test, previous_owner = eval_script(
             :reserve_lost,
-            keys: [key('running'), key('completed'), key('worker', worker_id, 'queue')],
-            argv: [Time.now.to_f, timeout],
+            keys: [key('running'), key('completed'), key('worker', worker_id, 'queue'), key('owners')],
+            argv: [Time.now.to_f, timeout, worker_id],
           )
 
           if lost_test
-            build.record_warning(Warnings::RESERVED_LOST_TEST, test: lost_test, timeout: timeout)
+            build.record_warning(
+              Warnings::RESERVED_LOST_TEST,
+              test: lost_test,
+              timeout: timeout,
+              previous_owner: previous_owner,
+            )
           end
 
           lost_test

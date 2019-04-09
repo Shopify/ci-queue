@@ -198,7 +198,7 @@ class CI::Queue::RedisTest < Minitest::Test
       threads.each { |t| refute_predicate t, :alive? }
 
       queue = worker(12, build_id: '24')
-      assert_equal [[:RESERVED_LOST_TEST, {test: 'ATest#test_foo', timeout: 0.2}]], queue.build.pop_warnings
+      assert_equal [[:RESERVED_LOST_TEST, {test: 'ATest#test_foo', timeout: 0.2, previous_owner: '0'}]], queue.build.pop_warnings
     ensure
       threads.each(&:kill)
     end
