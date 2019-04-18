@@ -37,7 +37,7 @@ setuplib.setup(
     packages=['ciqueue', 'ciqueue._pytest'],
     install_requires=[
         'dill>=0.2.7',
-        'pytest>=2.7,<=3.3.1',
+        'pytest>=2.7,<=3.5.1',
         'redis>=2.10.5',
         'tblib>=1.3.2',
         'uritools>=2.0.0',
