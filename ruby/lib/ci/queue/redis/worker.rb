@@ -11,7 +11,7 @@ module CI
       self.requeue_offset = 42
 
       class Worker < Base
-        attr_reader :total
+        attr_reader :total, :index
 
         def initialize(redis, config)
           @reserved_test = nil
@@ -103,8 +103,6 @@ module CI
         end
 
         private
-
-        attr_reader :index
 
         def worker_id
           config.worker_id
