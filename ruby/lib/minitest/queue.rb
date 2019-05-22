@@ -142,7 +142,9 @@ module Minitest
 
     def __run(*args)
       if queue
-        run_from_queue(*args)
+        prepend_and_append_to_queue do
+          run_from_queue(*args)
+        end
 
         if queue.config.circuit_breaker.open?
           STDERR.puts "This worker is exiting early because it encountered too many consecutive test failures, probably because of some corrupted state."
@@ -176,6 +178,19 @@ module Minitest
           # Then we only record it if it is successful.
           reporter.record(result)
         end
+      end
+    end
+
+    def prepend_and_append_to_queue
+      run_tests_from_file
+      yield
+      run_tests_from_file
+    end
+
+    def run_tests_from_file
+      if File.exist?(ENV['APPEND_PREPEND_LIST_PATH'])
+        tests = File.read(ENV['APPEND_PREPEND_LIST_PATH']).lines
+        # actually run the test with example.run like in `run_from_queue`. Need to get the example from the name in the tests array
       end
     end
   end
