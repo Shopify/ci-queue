@@ -142,7 +142,7 @@ module Minitest
 
     def __run(*args)
       if queue
-        prepend_and_append_to_queue do
+        prepend_and_append_to_queue(*args) do
           run_from_queue(*args)
         end
 
@@ -181,16 +181,21 @@ module Minitest
       end
     end
 
-    def prepend_and_append_to_queue
-      run_tests_from_file
+    def prepend_and_append_to_queue(reporter, *)
+      file_path = ENV['APPEND_PREPEND_LIST_PATH']
+      tests = []
+      tests = File.read(file_path).lines if !file_path.nil? && File.exist?(file_path)
+      tests = tests.map { |test| queue.index.fetch(test) }
+
+      run_tests_from_file(tests, reporter)
       yield
-      run_tests_from_file
+      run_tests_from_file(tests, reporter)
     end
 
-    def run_tests_from_file
-      if File.exist?(ENV['APPEND_PREPEND_LIST_PATH'])
-        tests = File.read(ENV['APPEND_PREPEND_LIST_PATH']).lines
-        # actually run the test with example.run like in `run_from_queue`. Need to get the example from the name in the tests array
+    def run_tests_from_file(tests, reporter)
+      tests.each do |test|
+        result = test.run
+        reporter.record(result)
       end
     end
   end
