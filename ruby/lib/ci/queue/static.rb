@@ -9,7 +9,7 @@ module CI
         end
       end
 
-      attr_reader :progress, :total
+      attr_reader :progress, :total, :index
 
       def initialize(tests, config)
         @queue = tests
@@ -71,8 +71,6 @@ module CI
       end
 
       private
-
-      attr_reader :index
 
       def should_requeue?(key)
         requeues[key] < config.max_requeues && requeues.values.inject(0, :+) < config.global_max_requeues(total)
