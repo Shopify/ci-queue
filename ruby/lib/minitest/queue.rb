@@ -185,8 +185,11 @@ module Minitest
       file_path = ENV['APPEND_PREPEND_LIST_PATH']
       tests = []
       tests = File.read(file_path).lines.map(&:chomp) if !file_path.nil? && File.exist?(file_path)
-      require'pry-byebug';binding.pry
-      tests = tests.map { |test| queue.index.fetch(test) }
+      tests = tests.map do |test|
+        queue.index.fetch(test)
+      rescue KeyError
+        nil
+      end.flatten
 
       run_tests_from_file(tests, reporter)
       yield
