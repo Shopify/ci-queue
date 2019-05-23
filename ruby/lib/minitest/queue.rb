@@ -181,7 +181,7 @@ module Minitest
       end
     end
 
-    def prepend_and_append_to_queue(reporter, *)
+    def prepend_and_append_to_queue(**args)
       file_path = ENV['APPEND_PREPEND_LIST_PATH']
       tests = []
       tests = File.read(file_path).lines.map(&:chomp) if !file_path.nil? && File.exist?(file_path)
@@ -191,15 +191,36 @@ module Minitest
         nil
       end.compact
 
-      run_tests_from_file(tests, reporter)
+      reporter = OnboardingReporter
+
+      run_tests_from_file(tests, reporter, :before)
       yield
-      run_tests_from_file(tests, reporter)
+      run_tests_from_file(tests, reporter, :after)
     end
 
-    def run_tests_from_file(tests, reporter)
+    def run_tests_from_file(tests, reporter, context)
       tests.each do |test|
         result = test.run
-        reporter.record(result)
+        reporter.record(result, context)
+      end
+    end
+  end
+end
+
+module Minitest
+  module Queue
+    class OnboardingReporter < Minitest::Reporters::BaseReporter
+      def initialize(onboarding_record:)
+        @onboarding = onboarding_record
+      end
+
+      def report
+        #in the summary step, read the results from the onboarding record and report
+      end
+
+      def record(result, context)
+        if test.failure || test.error?
+          @onboarding.report_error(result.id, context)
       end
     end
   end
