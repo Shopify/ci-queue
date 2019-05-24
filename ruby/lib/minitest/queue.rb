@@ -189,7 +189,7 @@ module Minitest
         queue.index.fetch(test)
       rescue KeyError
         nil
-      end.flatten
+      end.compact
 
       run_tests_from_file(tests, reporter)
       yield
