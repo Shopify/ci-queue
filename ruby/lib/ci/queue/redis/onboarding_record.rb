@@ -2,10 +2,10 @@ module CI
   module Queue
     module Redis
       class OnboardingRecord
-        def initialize(queue, redis, config)
+        def initialize(queue, redis)
           @queue = queue
           @redis = redis
-          @config = config
+          # @config = config
         end
 
         def record_error(id, context)

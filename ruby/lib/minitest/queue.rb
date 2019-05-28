@@ -191,7 +191,7 @@ module Minitest
         nil
       end.compact
 
-      reporter = OnboardingReporter
+      reporter = OnboardingReporter.new(OnboardingRecord.new(queue, queue.supervisor.redis))
 
       run_tests_from_file(tests, reporter, :before)
       yield
