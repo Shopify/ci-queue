@@ -142,7 +142,7 @@ module Minitest
 
     def __run(*args)
       if queue
-        prepend_and_append_to_queue(*args) do
+        prepend_and_append_to_queue do
           run_from_queue(*args)
         end
 
@@ -181,7 +181,7 @@ module Minitest
       end
     end
 
-    def prepend_and_append_to_queue(**args)
+    def prepend_and_append_to_queue
       file_path = ENV['APPEND_PREPEND_LIST_PATH']
       tests = []
       tests = File.read(file_path).lines.map(&:chomp) if !file_path.nil? && File.exist?(file_path)
@@ -191,7 +191,8 @@ module Minitest
         nil
       end.compact
 
-      reporter = OnboardingReporter.new(OnboardingRecord.new(queue, queue.supervisor.redis))
+      require'pry-byebug';binding.pry
+      reporter = OnboardingReporter.new(::CI::Queue::Redis::OnboardingRecord.new(queue, queue.supervisor.send(:redis)))
 
       run_tests_from_file(tests, reporter, :before)
       yield
@@ -210,7 +211,7 @@ end
 module Minitest
   module Queue
     class OnboardingReporter < Minitest::Reporters::BaseReporter
-      def initialize(onboarding_record:)
+      def initialize(onboarding_record)
         @onboarding = onboarding_record
       end
 
