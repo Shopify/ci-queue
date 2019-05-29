@@ -191,7 +191,6 @@ module Minitest
         nil
       end.compact
 
-      require'pry-byebug';binding.pry
       reporter = OnboardingReporter.new(::CI::Queue::Redis::OnboardingRecord.new(queue, queue.supervisor.send(:redis)))
 
       run_tests_from_file(tests, reporter, :before)
