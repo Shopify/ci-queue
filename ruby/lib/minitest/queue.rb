@@ -221,6 +221,7 @@ module Minitest
       def record(result, context)
         if test.failure || test.error?
           @onboarding.report_error(result.id, context)
+        end
       end
     end
   end
