@@ -210,6 +210,9 @@ end
 module Minitest
   module Queue
     class OnboardingReporter < Minitest::Reporters::BaseReporter
+
+      attr_reader :onboarding
+
       def initialize(onboarding_record)
         @onboarding = onboarding_record
       end
@@ -219,8 +222,8 @@ module Minitest
       end
 
       def record(result, context)
-        if test.failure || test.error?
-          @onboarding.report_error(result.id, context)
+        if result.failure || result.error?
+          onboarding.report_error(result.id, context)
         end
       end
     end
