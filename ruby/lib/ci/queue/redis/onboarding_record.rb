@@ -8,15 +8,23 @@ module CI
           # @config = config
         end
 
-        def record_error(id, context)
-          redis.pipelined do
-            redis.hset(
-              key('onboarding'),
-              ENV['BUILDKITE_JOB_ID'],
-              id.force_encoding(Encoding::BINARY),
-              payload.force_encoding(Encoding::BINARY),
-            )
+        def record_error(result, context)
+          puts result.name
+          if result.passed?
+            puts "passed"
+          else
+            puts "failed or something"
           end
+
+
+          # redis.pipelined do
+          #   redis.hset(
+          #     key('onboarding'),
+          #     ENV['BUILDKITE_JOB_ID'],
+          #     id.force_encoding(Encoding::BINARY),
+          #     payload.force_encoding(Encoding::BINARY),
+          #   )
+          # end
         end
 
         def get_errors
