@@ -223,7 +223,7 @@ module Minitest
 
       def record(result, context)
         if result.failure || result.error?
-          onboarding.report_error(result, context)
+          onboarding.record_error(result, context)
         end
       end
     end
