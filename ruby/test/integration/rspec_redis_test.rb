@@ -9,6 +9,9 @@ module Integration
       @redis = Redis.new(url: @redis_url)
       @redis.flushdb
       @exe = File.expand_path('../../../exe/rspec-queue', __FILE__)
+
+      @order_path = File.expand_path('../../fixtures/log/test_order.log', __FILE__)
+      File.delete(@order_path) if File.exist?(@order_path)
     end
 
     def test_redis_runner
@@ -54,6 +57,16 @@ module Integration
       EOS
 
       assert_equal expected_output, normalize(out)
+
+
+      expected_test_order = [
+        "./spec/dummy_spec.rb[1:1]\n",
+        "./spec/dummy_spec.rb[1:3:1]\n",
+        "./spec/dummy_spec.rb[1:2]\n",
+        "./spec/dummy_spec.rb[1:2]\n",
+      ]
+
+      assert_equal expected_test_order, File.read(@order_path).lines
     end
 
     def test_redis_runner_retry
