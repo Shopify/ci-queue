@@ -11,4 +11,4 @@ test/fixtures/log/test_order.log
 /spec/reports/
 /tmp/
 /lib/ci/queue/redis/*.lua
-
+test_order.log

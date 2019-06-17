@@ -1,7 +1,9 @@
+require 'fileutils'
 require 'delegate'
 require 'rspec/core'
 require 'ci/queue'
 require 'rspec/queue/build_status_recorder'
+require 'rspec/queue/order_recorder'
 
 module RSpec
   module Queue
@@ -387,6 +389,8 @@ module RSpec
         success = true
         @configuration.reporter.report(examples_count) do |reporter|
           @configuration.add_formatter(BuildStatusRecorder)
+          FileUtils.mkdir_p('log')
+          @configuration.add_formatter(OrderRecorder, open('log/test_order.log', 'w+'))
 
           @configuration.with_suite_hooks do
             break if @world.wants_to_quit
