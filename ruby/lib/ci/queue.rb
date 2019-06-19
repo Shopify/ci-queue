@@ -9,6 +9,7 @@ require 'ci/queue/common'
 require 'ci/queue/build_record'
 require 'ci/queue/static'
 require 'ci/queue/file'
+require 'ci/queue/grind'
 require 'ci/queue/bisect'
 
 module CI
