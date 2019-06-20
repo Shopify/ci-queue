@@ -396,8 +396,9 @@ module RSpec
             break if @world.wants_to_quit
             queue.poll do |example|
               time = Time.now
+              $stdout.puts "[#{Time.now}] test: <#{example.example.inspect}>"
               success &= example.run(QueueReporter.new(reporter, queue, example))
-              $stdout.puts "[#{Time.now}] test: <#{example.description}> took #{Time.now - time}"
+              $stdout.puts "[#{Time.now}] test: <#{example.example.inspect}> took #{Time.now - time}"
               $stdout.flush
               break if @world.wants_to_quit
             end
