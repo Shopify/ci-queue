@@ -337,6 +337,10 @@ module RSpec
       end
 
       def requeue
+        $stdout.puts "XXXXXXXXXXXXXXXXXXXXXXXX"
+        $stdout.puts "REQUEUE ALERT: #{@example.inspect} is being requeued"
+        $stdout.puts "XXXXXXXXXXXXXXXXXXXXXXXX"
+        $stdout.flush
         @queue.requeue(@example)
       end
 
