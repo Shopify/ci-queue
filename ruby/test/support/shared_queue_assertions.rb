@@ -22,7 +22,7 @@ module SharedQueueAssertions
 
   def test_circuit_breaker
     12.times { @queue.report_failure! }
-    assert_predicate config.circuit_breaker, :open?
+    assert config.circuit_breakers.any?(&:open?)
 
     poll(@queue) do
       assert false, "The queue shouldn't have poped a test"
