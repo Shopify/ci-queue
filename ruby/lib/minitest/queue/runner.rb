@@ -70,11 +70,43 @@ module Minitest
         trap('INT') { Minitest.queue.shutdown! }
 
         if queue.rescue_connection_errors { queue.exhausted? }
-          puts green("All tests were ran already")
+          puts green('All tests were ran already')
         else
           load_tests
           populate_queue
         end
+        # Let minitest's at_exit hook trigger
+      end
+
+      def grind_command
+        invalid_usage!('No list to grind provided') if grind_list.nil?
+        invalid_usage!('No grind count provided') if grind_count.nil?
+
+        set_load_path
+
+        queue_config.build_id = queue_config.build_id + '-grind'
+        queue_config.grind_count = grind_count
+
+        reporter_queue = CI::Queue::Redis::Grind.new(queue_url, queue_config)
+
+        Minitest.queue = queue
+        reporters = [
+          GrindRecorder.new(build: reporter_queue.build)
+        ]
+        if queue_config.statsd_endpoint
+          reporters << Minitest::Reporters::StatsdReporter.new(statsd_endpoint: queue_config.statsd_endpoint)
+        end
+        Minitest.queue_reporters = reporters
+
+        trap('TERM') { Minitest.queue.shutdown! }
+        trap('INT') { Minitest.queue.shutdown! }
+
+        load_tests
+
+        @queue = CI::Queue::Grind.new(grind_list, queue_config)
+        Minitest.queue = queue
+        populate_queue
+
         # Let minitest's at_exit hook trigger
       end
 
@@ -148,10 +180,25 @@ module Minitest
         exit! reporter.success? ? 0 : 1
       end
 
+      def report_grind_command
+        queue_config.build_id = queue_config.build_id + '-grind'
+        @queue = CI::Queue::Redis::Grind.new(queue_url, queue_config)
+
+        supervisor = begin
+          queue.supervisor
+        rescue NotImplementedError => error
+          abort! error.message
+        end
+
+        reporter = GrindReporter.new(build: supervisor.build)
+        reporter.report
+        exit! reporter.success? ? 0 : 1
+      end
+
       private
 
       attr_reader :queue_config, :options, :command, :argv
-      attr_accessor :queue, :queue_url, :load_paths
+      attr_accessor :queue, :queue_url, :grind_list, :grind_count, :load_paths
 
       def display_warnings(build)
         build.pop_warnings.each do |type, attributes|
@@ -224,6 +271,22 @@ module Minitest
           opts.separator ""
           opts.on('--queue URL', *help) do |url|
             self.queue_url = url
+          end
+
+          help = split_heredoc(<<-EOS)
+            Path to the file that includes the list of tests to grind.
+          EOS
+          opts.separator ""
+          opts.on('--grind-list PATH', *help) do |url|
+            self.grind_list = url
+          end
+
+          help = split_heredoc(<<-EOS)
+            Count defines how often each test in the grind list is going to be run.
+          EOS
+          opts.separator ""
+          opts.on('--grind-count COUNT', *help) do |count|
+            self.grind_count = count.to_i
           end
 
           help = split_heredoc(<<-EOS)

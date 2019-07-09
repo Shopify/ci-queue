@@ -30,4 +30,8 @@ module OutputTestHelpers
   def freeze_xml_timing(output)
     output.gsub(/time="[\d\-\.e]+"/, 'time="X.XX"')
   end
+
+  def normalize(output)
+    freeze_timing(decolorize_output(output))
+  end
 end

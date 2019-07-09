@@ -1,5 +1,4 @@
 require 'minitest'
-gem 'minitest-reporters', '~> 1.1'
 require 'minitest/reporters'
 
 require 'minitest/queue/failure_formatter'
@@ -9,6 +8,8 @@ require 'minitest/queue/build_status_recorder'
 require 'minitest/queue/build_status_reporter'
 require 'minitest/queue/order_reporter'
 require 'minitest/queue/junit_reporter'
+require 'minitest/queue/grind_recorder'
+require 'minitest/queue/grind_reporter'
 
 module Minitest
   class Requeue < Skip
@@ -97,6 +98,7 @@ module Minitest
 
   module Queue
     class SingleExample
+
       def initialize(runnable, method_name)
         @runnable = runnable
         @method_name = method_name

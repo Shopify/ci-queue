@@ -78,6 +78,7 @@ module Integration
           chdir: 'test/fixtures/',
         )
       end
+
       assert_empty err
       output = normalize(out.lines.last.strip)
       assert_equal 'Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
@@ -97,6 +98,7 @@ module Integration
           chdir: 'test/fixtures/',
         )
       end
+
       assert_empty err
       output = normalize(out.lines.last.strip)
       assert_equal 'Ran 6 tests, 4 assertions, 2 failures, 1 errors, 0 skips, 3 requeues in X.XXs', output
@@ -415,10 +417,6 @@ module Integration
 
     def normalize_xml(output)
       freeze_xml_timing(rewrite_paths(output))
-    end
-
-    def normalize(output)
-      freeze_timing(decolorize_output(output))
     end
   end
 end
