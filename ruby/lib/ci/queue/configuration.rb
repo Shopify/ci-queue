@@ -3,7 +3,7 @@ module CI
     class Configuration
       attr_accessor :timeout, :build_id, :worker_id, :max_requeues, :grind_count
       attr_accessor :requeue_tolerance, :namespace, :seed, :failing_test, :statsd_endpoint
-      attr_reader :circuit_breaker
+      attr_reader :circuit_breakers
 
       class << self
         def from_env(env)
@@ -27,8 +27,9 @@ module CI
       def initialize(
         timeout: 30, build_id: nil, worker_id: nil, max_requeues: 0, requeue_tolerance: 0,
         namespace: nil, seed: nil, flaky_tests: [], statsd_endpoint: nil, max_consecutive_failures: nil,
-        grind_count: nil
+        grind_count: nil, max_duration: nil
       )
+        @circuit_breakers = [CircuitBreaker::Disabled]
         @namespace = namespace
         @timeout = timeout
         @build_id = build_id
@@ -39,14 +40,19 @@ module CI
         @flaky_tests = flaky_tests
         @statsd_endpoint = statsd_endpoint
         @grind_count = grind_count
+        @max_duration = max_duration
         self.max_consecutive_failures = max_consecutive_failures
       end
 
       def max_consecutive_failures=(max)
-        @circuit_breaker = if max
-          CircuitBreaker.new(max_consecutive_failures: max)
-        else
-          CircuitBreaker::Disabled
+        if max
+          @circuit_breakers << CircuitBreaker.new(max_consecutive_failures: max)
+        end
+      end
+
+      def max_duration=(duration)
+        if duration
+          @circuit_breakers << CircuitBreaker::Timeout.new(duration: duration)
         end
       end
 

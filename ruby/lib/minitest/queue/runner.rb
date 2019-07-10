@@ -360,6 +360,15 @@ module Minitest
           end
 
           help = split_heredoc(<<-EOS)
+            Defines how long ci-queue should maximally run in seconds
+            Defaults to none.
+          EOS
+          opts.separator ""
+          opts.on('--max-duration SECONDS', *help) do |max|
+            queue_config.max_duration = Integer(max)
+          end
+
+          help = split_heredoc(<<-EOS)
             Defines how many requeues can happen overall, based on the test suite size. e.g 0.05 for 5%.
             Defaults to 0.
           EOS

@@ -94,6 +94,46 @@ module Integration
       assert_equal expected.strip, output
     end
 
+    def test_grind_max_time
+      grind_count = 1000000
+      system(
+        { 'BUILDKITE' => '1' },
+        @exe, 'grind',
+        '--queue', @redis_url,
+        '--seed', 'foobar',
+        '--build', '1',
+        '--worker', '1',
+        '--timeout', '1',
+        '--grind-count', grind_count.to_s,
+        '--grind-list', 'grind_list.txt',
+        '--max-duration', '1',
+        '-Itest',
+        'test/dummy_test.rb',
+        chdir: 'test/fixtures/',
+      )
+
+      out, err = capture_subprocess_io do
+        system(
+          { 'BUILDKITE' => '1' },
+          @exe, 'report_grind',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '5',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      output = normalize(out).strip
+      runs_line = output.lines[2]
+      run_count = runs_line.scan(/\w+/).last.to_i
+
+      assert_empty err
+      assert run_count < grind_count
+    end
+
+
     def test_can_grind_multiple_things
       system(
         { 'BUILDKITE' => '1' },

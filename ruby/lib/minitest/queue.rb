@@ -146,8 +146,8 @@ module Minitest
       if queue
         run_from_queue(*args)
 
-        if queue.config.circuit_breaker.open?
-          STDERR.puts "This worker is exiting early because it encountered too many consecutive test failures, probably because of some corrupted state."
+        if queue.config.circuit_breakers.any?(&:open?)
+          STDERR.puts queue.config.circuit_breakers.map(&:message).join(' ').strip
         end
       else
         super

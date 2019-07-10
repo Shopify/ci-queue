@@ -15,11 +15,11 @@ module CI
       end
 
       def report_failure!
-        config.circuit_breaker.report_failure!
+        config.circuit_breakers.each(&:report_failure!)
       end
 
       def report_success!
-        config.circuit_breaker.report_success!
+        config.circuit_breakers.each(&:report_success!)
       end
 
       def rescue_connection_errors(handler = ->(err) { nil })
