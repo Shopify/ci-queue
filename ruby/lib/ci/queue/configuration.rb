@@ -40,7 +40,7 @@ module CI
         @flaky_tests = flaky_tests
         @statsd_endpoint = statsd_endpoint
         @grind_count = grind_count
-        @max_duration = max_duration
+        self.max_duration = max_duration
         self.max_consecutive_failures = max_consecutive_failures
       end
 
