@@ -280,13 +280,13 @@ module Integration
        <testsuites>
          <testsuite name="ATest" filepath="test/dummy_test.rb" skipped="5" failures="1" errors="0" tests="6" assertions="5" time="X.XX">
            <testcase name="test_foo" lineno="4" classname="ATest" assertions="0" time="X.XX" flaky_test="false">
-           <skipped type="test_foo"/>
+           <skipped type="Minitest::Skip"/>
            </testcase>
            <testcase name="test_bar" lineno="8" classname="ATest" assertions="1" time="X.XX" flaky_test="false">
-           <skipped type="test_bar"/>
+           <skipped type="Minitest::Assertion"/>
            </testcase>
            <testcase name="test_flaky" lineno="12" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
-           <failure type="test_flaky" message="Expected false to be truthy.">
+           <failure type="Minitest::Assertion" message="Expected false to be truthy.">
        Skipped:
        test_flaky(ATest) [./test/fixtures/test/dummy_test.rb:17]:
        Expected false to be truthy.
@@ -295,14 +295,14 @@ module Integration
            <testcase name="test_flaky_passes" lineno="25" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
            </testcase>
            <testcase name="test_flaky_fails_retry" lineno="21" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
-           <failure type="test_flaky_fails_retry" message="Expected false to be truthy.">
+           <failure type="Minitest::Assertion" message="Expected false to be truthy.">
        Skipped:
        test_flaky_fails_retry(ATest) [./test/fixtures/test/dummy_test.rb:22]:
        Expected false to be truthy.
            </failure>
            </testcase>
            <testcase name="test_bar" lineno="8" classname="ATest" assertions="1" time="X.XX" flaky_test="false">
-           <failure type="test_bar" message="Expected false to be truthy.">
+           <failure type="Minitest::Assertion" message="Expected false to be truthy.">
        Failure:
        test_bar(ATest) [./test/fixtures/test/dummy_test.rb:9]:
        Expected false to be truthy.
@@ -311,12 +311,12 @@ module Integration
          </testsuite>
          <testsuite name="BTest" filepath="test/dummy_test.rb" skipped="1" failures="0" errors="1" tests="3" assertions="1" time="X.XX">
            <testcase name="test_bar" lineno="35" classname="BTest" assertions="0" time="X.XX" flaky_test="false">
-           <skipped type="test_bar"/>
+           <skipped type="TypeError"/>
            </testcase>
            <testcase name="test_foo" lineno="31" classname="BTest" assertions="1" time="X.XX" flaky_test="false">
            </testcase>
            <testcase name="test_bar" lineno="35" classname="BTest" assertions="0" time="X.XX" flaky_test="false">
-           <error type="test_bar" message="TypeError: String can't be coerced into Fixnum...">
+           <error type="TypeError" message="TypeError: String can't be coerced into Fixnum...">
        Failure:
        test_bar(BTest) [./test/fixtures/test/dummy_test.rb:36]:
        TypeError: String can't be coerced into Fixnum
