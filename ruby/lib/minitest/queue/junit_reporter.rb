@@ -57,16 +57,16 @@ module Minitest
 
       def xml_message_for(test)
         xml = XmlMarkup.new(indent: 2, margin: 2)
-        error = test.failure
+        failure = test.failure
 
         if test.skipped? && !test.flaked?
-          xml.skipped(type: test.name)
+          xml.skipped(type: failure.error.class.name)
         elsif test.error?
-          xml.error(type: test.name, message: xml.trunc!(error.message)) do
+          xml.error(type: failure.error.class.name, message: xml.trunc!(failure.message)) do
             xml.text!(message_for(test))
           end
-        elsif test.failure
-          xml.failure(type: test.name, message: xml.trunc!(error.message)) do
+        elsif failure
+          xml.failure(type: failure.error.class.name, message: xml.trunc!(failure.message)) do
             xml.text!(message_for(test))
           end
         end
