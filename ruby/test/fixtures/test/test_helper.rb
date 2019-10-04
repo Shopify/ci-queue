@@ -5,3 +5,5 @@ if ENV['MARSHAL']
 end
 
 require 'minitest/autorun'
+
+Minitest::Reporters.use!([Minitest::Reporters::SpecReporter.new])
