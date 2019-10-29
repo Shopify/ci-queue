@@ -1,4 +1,5 @@
 require 'test_helper'
+require 'tmpdir'
 
 module Integration
   class MinitestRedisTest < Minitest::Test
@@ -327,6 +328,59 @@ module Integration
          </testsuite>
        </testsuites>
       END
+    end
+
+    def test_redis_reporter_failure_file
+      Dir.mktmpdir do |dir|
+        failure_file = File.join(dir, 'failure_file.json')
+
+        capture_subprocess_io do
+          system(
+            { 'BUILDKITE' => '1' },
+            @exe, 'run',
+            '--queue', @redis_url,
+            '--seed', 'foobar',
+            '--build', '1',
+            '--worker', '1',
+            '--timeout', '1',
+            '--max-requeues', '1',
+            '--requeue-tolerance', '1',
+            '-Itest',
+            'test/dummy_test.rb',
+            chdir: 'test/fixtures/',
+          )
+        end
+
+        capture_subprocess_io do
+          system(
+            @exe, 'report',
+            '--queue', @redis_url,
+            '--build', '1',
+            '--timeout', '1',
+            '--failure-file', failure_file,
+            chdir: 'test/fixtures/',
+          )
+        end
+
+        content = File.read(failure_file)
+        failure = JSON.parse(content, symbolize_names: true)
+                      .sort_by { |failure_report| failure_report[:test_line] }
+                      .first
+
+
+        ## output and test_file
+        expected = {
+          test_file: "ci-queue/ruby/test/fixtures/test/dummy_test.rb",
+          test_line: 8,
+          test_and_module_name: "ATest#test_bar",
+          test_name: "test_bar",
+        }
+
+        assert_includes failure[:test_file], expected[:test_file]
+        assert_equal failure[:test_line], expected[:test_line]
+        assert_equal failure[:test_and_module_name], expected[:test_and_module_name]
+        assert_equal failure[:test_name], expected[:test_name]
+      end
     end
 
     def test_redis_reporter

@@ -1,7 +1,7 @@
 module CI
   module Queue
     class Configuration
-      attr_accessor :timeout, :build_id, :worker_id, :max_requeues, :grind_count
+      attr_accessor :timeout, :build_id, :worker_id, :max_requeues, :grind_count, :failure_file
       attr_accessor :requeue_tolerance, :namespace, :seed, :failing_test, :statsd_endpoint
       attr_reader :circuit_breakers
 
@@ -27,19 +27,20 @@ module CI
       def initialize(
         timeout: 30, build_id: nil, worker_id: nil, max_requeues: 0, requeue_tolerance: 0,
         namespace: nil, seed: nil, flaky_tests: [], statsd_endpoint: nil, max_consecutive_failures: nil,
-        grind_count: nil, max_duration: nil
+        grind_count: nil, max_duration: nil, failure_file: nil
       )
         @circuit_breakers = [CircuitBreaker::Disabled]
-        @namespace = namespace
-        @timeout = timeout
         @build_id = build_id
-        @worker_id = worker_id
+        @failure_file = failure_file
+        @flaky_tests = flaky_tests
+        @grind_count = grind_count
         @max_requeues = max_requeues
+        @namespace = namespace
         @requeue_tolerance = requeue_tolerance
         @seed = seed
-        @flaky_tests = flaky_tests
         @statsd_endpoint = statsd_endpoint
-        @grind_count = grind_count
+        @timeout = timeout
+        @worker_id = worker_id
         self.max_duration = max_duration
         self.max_consecutive_failures = max_consecutive_failures
       end
