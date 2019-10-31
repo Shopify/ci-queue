@@ -57,6 +57,18 @@ module Minitest
         @data[:test_and_module_name]
       end
 
+      def test_file
+        @data[:test_file]
+      end
+
+      def test_line
+        @data[:test_line]
+      end
+
+      def to_h
+        @data
+      end
+
       def to_s
         output
       end

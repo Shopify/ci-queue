@@ -37,7 +37,7 @@ setuplib.setup(
     packages=['ciqueue', 'ciqueue._pytest'],
     install_requires=[
         'dill>=0.2.7',
-        'pytest>=2.7,<=3.3.1',
+        'pytest>=2.7,<=3.5.0',
         'redis>=2.10.5',
         'tblib>=1.3.2',
         'uritools>=2.0.0',
@@ -45,7 +45,7 @@ setuplib.setup(
     ],
     extras_require={
         'test': [
-            'tox==2.9.1',
+            'tox==3.13.2',
             'shopify_python==0.4.1',
             'pycodestyle == 2.4.0',
         ]

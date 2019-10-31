@@ -1,4 +1,5 @@
 require 'optparse'
+require 'json'
 require 'minitest/queue'
 require 'ci/queue'
 require 'digest/md5'
@@ -176,6 +177,12 @@ module Minitest
         end
 
         reporter = BuildStatusReporter.new(build: supervisor.build)
+
+        if queue_config.failure_file
+          failures = reporter.error_reports.map(&:to_h).to_json
+          File.write(queue_config.failure_file, failures)
+        end
+
         reporter.report
         exit! reporter.success? ? 0 : 1
       end
@@ -375,6 +382,15 @@ module Minitest
           opts.separator ""
           opts.on('--requeue-tolerance RATIO', *help) do |ratio|
             queue_config.requeue_tolerance = Float(ratio)
+          end
+
+          help = split_heredoc(<<-EOS)
+            Defines a file where the test failures are written to in the json format.
+            Defaults to disabled.
+          EOS
+          opts.separator ""
+          opts.on('--failure-file FILE', *help) do |file|
+            queue_config.failure_file = file
           end
 
           help = split_heredoc(<<-EOS)

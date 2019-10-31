@@ -20,7 +20,10 @@ module Minitest
       end
 
       def to_h
+        test_file, test_line = test.source_location
         {
+          test_file: test_file,
+          test_line: test_line,
           test_and_module_name: "#{test.klass}##{test.name}",
           test_name: test.name,
           output: to_s,
