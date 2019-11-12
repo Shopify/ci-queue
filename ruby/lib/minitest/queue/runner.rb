@@ -1,10 +1,11 @@
-require 'optparse'
 require 'json'
 require 'minitest/queue'
 require 'ci/queue'
 require 'digest/md5'
 require 'minitest/reporters/bisect_reporter'
 require 'minitest/reporters/statsd_reporter'
+
+require 'pry'
 
 module Minitest
   module Queue
@@ -19,15 +20,16 @@ module Minitest
       end
 
       def initialize(argv)
-        @queue_config = CI::Queue::Configuration.from_env(ENV)
-        @command, @argv = parse(argv)
+        @queue_config = CI::Queue::Configuration.new(ENV, argv).config
+        @command = argv[0]
+        @files = argv[1..-1]
       end
 
       def run!
         invalid_usage!("No command given") if command.nil?
-        invalid_usage!('Missing queue URL') unless queue_url
+        invalid_usage!('Missing queue URL') unless queue_config.queue_url
 
-        @queue = CI::Queue.from_uri(queue_url, queue_config)
+        @queue = CI::Queue.from_uri(queue_config.queue_url, queue_config)
 
         method = "#{command}_command"
         if respond_to?(method)
@@ -80,15 +82,14 @@ module Minitest
       end
 
       def grind_command
-        invalid_usage!('No list to grind provided') if grind_list.nil?
-        invalid_usage!('No grind count provided') if grind_count.nil?
+        invalid_usage!('No list to grind provided') if queue_config.grind_list.nil?
+        invalid_usage!('No grind count provided') if queue_config.grind_count.nil?
 
         set_load_path
 
         queue_config.build_id = queue_config.build_id + '-grind'
-        queue_config.grind_count = grind_count
 
-        reporter_queue = CI::Queue::Redis::Grind.new(queue_url, queue_config)
+        reporter_queue = CI::Queue::Redis::Grind.new(queue_config.queue_url, queue_config)
 
         Minitest.queue = queue
         reporters = [
@@ -104,7 +105,7 @@ module Minitest
 
         load_tests
 
-        @queue = CI::Queue::Grind.new(grind_list, queue_config)
+        @queue = CI::Queue::Grind.new(queue_config.grind_list, queue_config)
         Minitest.queue = queue
         populate_queue
 
@@ -114,7 +115,7 @@ module Minitest
       def bisect_command
         invalid_usage! "Missing the FAILING_TEST argument." unless queue_config.failing_test
 
-        @queue = CI::Queue::Bisect.new(queue_url, queue_config)
+        @queue = CI::Queue::Bisect.new(queue_config.queue_url, queue_config)
         Minitest.queue = queue
         set_load_path
         load_tests
@@ -148,7 +149,7 @@ module Minitest
           step(green('The following command should reproduce the leak on your machine:'), collapsed: false)
           command = %w(bundle exec minitest-queue --queue - run)
           command << "-I#{load_paths}" if load_paths
-          command += argv
+          command += files
 
           puts
           puts "cat <<EOF |\n#{failing_order.to_a.map(&:id).join("\n")}\nEOF\n#{command.join(' ')}"
@@ -189,7 +190,7 @@ module Minitest
 
       def report_grind_command
         queue_config.build_id = queue_config.build_id + '-grind'
-        @queue = CI::Queue::Redis::Grind.new(queue_url, queue_config)
+        @queue = CI::Queue::Redis::Grind.new(queue_config.queue_url, queue_config)
 
         supervisor = begin
           queue.supervisor
@@ -204,8 +205,8 @@ module Minitest
 
       private
 
-      attr_reader :queue_config, :options, :command, :argv
-      attr_accessor :queue, :queue_url, :grind_list, :grind_count, :load_paths
+      attr_reader :queue_config, :options, :command, :files
+      attr_accessor :queue, :load_paths
 
       def display_warnings(build)
         build.pop_warnings.each do |type, attributes|
@@ -249,179 +250,9 @@ module Minitest
       end
 
       def load_tests
-        argv.sort.each do |f|
+        files.sort.each do |f|
           require File.expand_path(f)
         end
-      end
-
-      def parse(argv)
-        parser.parse!(argv)
-        command = argv.shift
-        return command, argv
-      end
-
-      def parser
-        @parser ||= OptionParser.new do |opts|
-          opts.banner = "Usage: minitest-queue [options] COMMAND [ARGS]"
-
-          opts.separator ""
-          opts.separator "Example: minitest-queue -Itest --queue redis://example.com run test/**/*_test.rb"
-
-          opts.separator ""
-          opts.separator "GLOBAL OPTIONS"
-
-
-          help = split_heredoc(<<-EOS)
-            URL of the queue, e.g. redis://example.com.
-            Defaults to $CI_QUEUE_URL if set.
-          EOS
-          opts.separator ""
-          opts.on('--queue URL', *help) do |url|
-            self.queue_url = url
-          end
-
-          help = split_heredoc(<<-EOS)
-            Path to the file that includes the list of tests to grind.
-          EOS
-          opts.separator ""
-          opts.on('--grind-list PATH', *help) do |url|
-            self.grind_list = url
-          end
-
-          help = split_heredoc(<<-EOS)
-            Count defines how often each test in the grind list is going to be run.
-          EOS
-          opts.separator ""
-          opts.on('--grind-count COUNT', *help) do |count|
-            self.grind_count = count.to_i
-          end
-
-          help = split_heredoc(<<-EOS)
-            Unique identifier for the workload. All workers working on the same suite of tests must have the same build identifier.
-            If the build is tried again, or another revision is built, this value must be different.
-            It's automatically inferred on Buildkite, CircleCI, Heroku CI, and Travis.
-          EOS
-          opts.separator ""
-          opts.on('--build BUILD_ID', *help) do |build_id|
-            queue_config.build_id = build_id
-          end
-
-          help = split_heredoc(<<-EOS)
-            Optional. Sets a prefix for the build id in case a single CI build runs multiple independent test suites.
-              Example: --namespace integration
-          EOS
-          opts.separator ""
-          opts.on('--namespace NAMESPACE', *help) do |namespace|
-            queue_config.namespace = namespace
-          end
-
-          opts.separator ""
-          opts.separator "COMMANDS"
-          opts.separator ""
-          opts.separator "    run [TEST_FILES...]: Participate in leader election, and then work off the test queue."
-
-          help = split_heredoc(<<-EOS)
-            Specify a timeout after which if a test haven't completed, it will be picked up by another worker.
-            It is very important to set this vlaue higher than the slowest test in the suite, otherwise performance will be impacted.
-            Defaults to 30 seconds.
-          EOS
-          opts.separator ""
-          opts.on('--timeout TIMEOUT', *help) do |timeout|
-            queue_config.timeout = Float(timeout)
-          end
-
-          help = split_heredoc(<<-EOS)
-            Specify $LOAD_PATH directory, similar to Ruby's -I
-          EOS
-          opts.separator ""
-          opts.on('-IPATHS', *help) do |paths|
-            self.load_paths = paths
-          end
-
-          help = split_heredoc(<<-EOS)
-            Sepcify a seed used to shuffle the test suite.
-            On Buildkite, CircleCI, Heroku CI, and Travis, the commit revision will be used by default.
-          EOS
-          opts.separator ""
-          opts.on('--seed SEED', *help) do |seed|
-            queue_config.seed = seed
-          end
-
-          help = split_heredoc(<<-EOS)
-            A unique identifier for this worker, It must be consistent to allow retries.
-            If not specified, retries won't be available.
-            It's automatically inferred on Buildkite, Heroku CI, and CircleCI.
-          EOS
-          opts.separator ""
-          opts.on('--worker WORKER_ID', *help) do |worker_id|
-            queue_config.worker_id = worker_id
-          end
-
-          help = split_heredoc(<<-EOS)
-            Defines how many time a single test can be requeued.
-            Defaults to 0.
-          EOS
-          opts.separator ""
-          opts.on('--max-requeues MAX', *help) do |max|
-            queue_config.max_requeues = Integer(max)
-          end
-
-          help = split_heredoc(<<-EOS)
-            Defines how long ci-queue should maximally run in seconds
-            Defaults to none.
-          EOS
-          opts.separator ""
-          opts.on('--max-duration SECONDS', *help) do |max|
-            queue_config.max_duration = Integer(max)
-          end
-
-          help = split_heredoc(<<-EOS)
-            Defines how many requeues can happen overall, based on the test suite size. e.g 0.05 for 5%.
-            Defaults to 0.
-          EOS
-          opts.separator ""
-          opts.on('--requeue-tolerance RATIO', *help) do |ratio|
-            queue_config.requeue_tolerance = Float(ratio)
-          end
-
-          help = split_heredoc(<<-EOS)
-            Defines a file where the test failures are written to in the json format.
-            Defaults to disabled.
-          EOS
-          opts.separator ""
-          opts.on('--failure-file FILE', *help) do |file|
-            queue_config.failure_file = file
-          end
-
-          help = split_heredoc(<<-EOS)
-            Defines after how many consecutive failures the worker will be considered unhealthy and terminate itself.
-            Defaults to disabled.
-          EOS
-          opts.separator ""
-          opts.on('--max-consecutive-failures MAX', *help) do |max|
-            queue_config.max_consecutive_failures = Integer(max)
-          end
-
-          opts.separator ""
-          opts.separator "    retry: Replays a previous run in the same order."
-
-          opts.separator ""
-          opts.separator "    report: Wait for all workers to complete and summarize the test failures."
-
-          opts.separator ""
-          opts.separator "    bisect: bisect a test suite to find global state leaks."
-          help = split_heredoc(<<-EOS)
-            The identifier of the failing test.
-          EOS
-          opts.separator ""
-          opts.on('--failing-test TEST_IDENTIFIER') do |identifier|
-            queue_config.failing_test = identifier
-          end
-        end
-      end
-
-      def split_heredoc(string)
-        string.lines.map(&:strip)
       end
 
       def ordering_seed
@@ -432,14 +263,10 @@ module Minitest
         end
       end
 
-      def queue_url
-        @queue_url || ENV['CI_QUEUE_URL']
-      end
-
       def invalid_usage!(message)
         reopen_previous_step
         puts red(message)
-        puts parser
+        # puts CI::Queue::ParseArgv.help
         exit! 1 # exit! is required to avoid minitest at_exit callback
       end
 

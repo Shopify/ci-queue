@@ -11,7 +11,7 @@ module CI
       end
 
       def flaky?(test)
-        @config.flaky?(test)
+        @config.flaky?(test.id)
       end
 
       def report_failure!

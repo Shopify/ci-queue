@@ -1,4 +1,4 @@
-require 'test_helper'
+require_relative './test_helper'
 
 class ATest < Minitest::Test
   def test_foo
