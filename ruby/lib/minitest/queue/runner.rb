@@ -5,8 +5,6 @@ require 'digest/md5'
 require 'minitest/reporters/bisect_reporter'
 require 'minitest/reporters/statsd_reporter'
 
-require 'pry'
-
 module Minitest
   module Queue
     class Runner

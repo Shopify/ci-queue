@@ -1,5 +1,4 @@
 require 'test_helper'
-require 'pry'
 
 module Integration
   class GrindRedisTest < Minitest::Test
@@ -136,59 +135,59 @@ module Integration
     end
 
 
-    # def test_can_grind_multiple_things
-    #   system(
-    #     { 'BUILDKITE' => '1' },
-    #     @exe, 'grind',
-    #     '--grind-list', 'grind_multiples_list.txt',
-    #     '--queue', @redis_url,
-    #     '--build', '1',
-    #     '--worker', '1',
-    #     '--timeout', '1',
-    #     '--grind-count', '10',
-    #     '-Itest',
-    #     'test/dummy_test.rb',
-    #     chdir: 'test/fixtures/',
-    #   )
+    def test_can_grind_multiple_things
+      system(
+        { 'BUILDKITE' => '1' },
+        @exe, 'grind',
+        '--grind-list', 'grind_multiples_list.txt',
+        '--queue', @redis_url,
+        '--build', '1',
+        '--worker', '1',
+        '--timeout', '1',
+        '--grind-count', '10',
+        '-Itest',
+        'test/dummy_test.rb',
+        chdir: 'test/fixtures/',
+      )
 
-    #   out, err = capture_subprocess_io do
-    #     system(
-    #       { 'BUILDKITE' => '1' },
-    #       @exe, 'report_grind',
-    #       '--queue', @redis_url,
-    #       '--seed', 'foobar',
-    #       '--build', '1',
-    #       '--worker', '1',
-    #       '--timeout', '5',
-    #       chdir: 'test/fixtures/',
-    #     )
-    #   end
+      out, err = capture_subprocess_io do
+        system(
+          { 'BUILDKITE' => '1' },
+          @exe, 'report_grind',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '5',
+          chdir: 'test/fixtures/',
+        )
+      end
 
-    #   output = normalize(out).strip
+      output = normalize(out).strip
 
-    #   expected = <<~EOS
-    #     +++ Results
-    #     ATest#test_flaky
-    #     Runs: 10
-    #     Failures: 1
-    #     Flakiness Percentage: 10%
-    #     Errors:
-    #     \tFAIL ATest#test_flaky
-    #     \tExpected false to be truthy.
-    #     \t    test/dummy_test.rb:17:in `test_flaky'
-    #     \t
+      expected = <<~EOS
+        +++ Results
+        ATest#test_flaky
+        Runs: 10
+        Failures: 1
+        Flakiness Percentage: 10%
+        Errors:
+        \tFAIL ATest#test_flaky
+        \tExpected false to be truthy.
+        \t    test/dummy_test.rb:17:in `test_flaky'
+        \t
 
-    #     ATest#test_bar
-    #     Runs: 10
-    #     Failures: 10
-    #     Flakiness Percentage: 100%
-    #     Errors:
-    #     \tFAIL ATest#test_bar
-    #     \tExpected false to be truthy.
-    #     \t    test/dummy_test.rb:9:in `test_bar'
-    #   EOS
-    #   assert_equal expected.strip, output
-    #   assert_empty err
-    # end
+        ATest#test_bar
+        Runs: 10
+        Failures: 10
+        Flakiness Percentage: 100%
+        Errors:
+        \tFAIL ATest#test_bar
+        \tExpected false to be truthy.
+        \t    test/dummy_test.rb:9:in `test_bar'
+      EOS
+      assert_equal expected.strip, output
+      assert_empty err
+    end
   end
 end
