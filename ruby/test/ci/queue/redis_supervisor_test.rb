@@ -49,10 +49,10 @@ class CI::Queue::Redis::SupervisorTest < Minitest::Test
   def worker(id)
     CI::Queue::Redis.new(
       @redis_url,
-      CI::Queue::Configuration.new(
-        build_id: '42',
+      queue_config(
         worker_id: id.to_s,
         timeout: 0.2,
+        circuit_breakers: [CI::Queue::CircuitBreaker::Disabled]
       ),
     ).populate(SharedQueueAssertions::TEST_LIST)
   end
@@ -60,7 +60,19 @@ class CI::Queue::Redis::SupervisorTest < Minitest::Test
   def supervisor
     CI::Queue::Redis::Supervisor.new(
       @redis_url,
-      CI::Queue::Configuration.new(build_id: '42'),
+      queue_config(
+        timeout: 30,
+      ),
     )
+  end
+
+  def queue_config(**args)
+    config = CI::Queue::Configuration::Config.new()
+    config.build_id = '42'
+    config.circuit_breakers = [CI::Queue::CircuitBreaker::Disabled]
+    args.each do |key, value|
+      config.public_send("#{key}=", value)
+    end
+    config
   end
 end
