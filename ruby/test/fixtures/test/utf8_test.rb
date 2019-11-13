@@ -1,4 +1,4 @@
-require 'test_helper'
+require_relative './test_helper'
 require 'active_support/all'
 
 class Utf8Test < ActiveSupport::TestCase

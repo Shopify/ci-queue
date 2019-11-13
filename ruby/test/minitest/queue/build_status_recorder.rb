@@ -50,12 +50,21 @@ module Minitest::Queue
     def worker(id)
       CI::Queue::Redis.new(
         @redis_url,
-        CI::Queue::Configuration.new(
-          build_id: '42',
-          worker_id: id.to_s,
-          timeout: 0.2,
-        ),
+        queue_config(id.to_s),
       ).populate([])
+    end
+
+
+    def queue_config(worker_id)
+      config = mock()
+      config.stubs(:build_id).returns('42')
+      config.stubs(:worker_id).returns(worker_id)
+      config.stubs(:timeout).returns(0.2)
+      # config.stubs(:circuit_breakers).returns([CI::Queue::CircuitBreaker::Disabled])
+      # args.each do |key, value|
+      #   config.stubs(key).returns(value)
+      # end
+      config
     end
 
     def summary

@@ -259,13 +259,14 @@ class CI::Queue::RedisTest < Minitest::Test
   end
 
   def queue_config(worker_id, **args)
-    config = CI::Queue::Configuration::Config.new()
-    config.build_id = '42'
-    config.worker_id = worker_id
-    config.timeout = 0.2
-    config.circuit_breakers = [CI::Queue::CircuitBreaker::Disabled]
+    config = mock()
+    config.stubs(:timeout).returns(0.2)
+    config.stubs(:build_id).returns('42')
+    config.stubs(:worker_id).returns(worker_id)
+    config.stubs(:circuit_breakers).returns([CI::Queue::CircuitBreaker::Disabled])
+    config.stubs(:global_max_requeues).returns(0)
     args.each do |key, value|
-      config.public_send("#{key}=", value)
+      config.stubs(key).returns(value)
     end
     config
   end

@@ -1,4 +1,4 @@
-require 'test_helper'
+require_relative './test_helper'
 
 class FailingTest < Minitest::Test
   100.times do |i|

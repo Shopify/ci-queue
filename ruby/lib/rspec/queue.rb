@@ -9,7 +9,7 @@ module RSpec
   module Queue
     class << self
       def config
-        @config ||= CI::Queue::Configuration.from_env(ENV)
+        @config ||= CI::Queue::Configuration.new(ENV, [])
       end
     end
 

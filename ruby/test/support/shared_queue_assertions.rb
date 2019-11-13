@@ -79,14 +79,17 @@ module SharedQueueAssertions
   end
 
   def config
-    @config ||= CI::Queue::Configuration.new(
-      timeout: 0.2,
-      build_id: '42',
-      worker_id: '1',
-      max_requeues: 1,
-      requeue_tolerance: 0.1,
-      max_consecutive_failures: 10,
-    )
+    @config ||= begin
+      config = mock()
+      config.stubs(:build_id).returns('42')
+      config.stubs(:worker_id).returns('1')
+      config.stubs(:timeout).returns(0.2)
+      config.stubs(:max_requeues).returns(1)
+      config.stubs(:requeue_tolerance).returns(0.1)
+      config.stubs(:max_consecutive_failures).returns(10)
+      config.stubs(:circuit_breakers).returns([CircuitBreaker::Disabled])
+      config
+    end
   end
 
   def populate(queue, tests: TEST_LIST.dup)

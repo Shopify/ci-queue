@@ -20,9 +20,9 @@ module Minitest
       end
 
       def initialize(argv)
-        @queue_config = CI::Queue::Configuration.new(ENV, argv).config
-        @command = argv[0]
-        @files = argv[1..-1]
+        @queue_config = CI::Queue::Configuration.new(ENV, argv)
+        @command = fetch_command(argv)
+        @files = fetch_files(argv)
       end
 
       def run!
@@ -207,6 +207,14 @@ module Minitest
 
       attr_reader :queue_config, :options, :command, :files
       attr_accessor :queue, :load_paths
+
+      def fetch_command(argv)
+        argv[0]
+      end
+
+      def fetch_files(argv)
+        argv[1..-1]
+      end
 
       def display_warnings(build)
         build.pop_warnings.each do |type, attributes|

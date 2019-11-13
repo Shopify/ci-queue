@@ -2,38 +2,30 @@ require 'optparse'
 
 module CI
   module Queue
-    class ParseArgv
-      Config = Struct.new(
-        :queue_url,
-        :grind_list,
-        :grind_count,
-        :build_id,
-        :namespace,
-        :timeout,
-        :load_paths,
-        :seed,
-        :worker_id,
-        :max_requeues,
-        :max_duration,
-        :requeue_tolerance,
-        :failure_file,
-        :max_consecutive_failures,
-        :failing_test,
-      )
+    class ArgvConfiguration
+      attr_reader :queue_url
+      attr_reader :grind_list
+      attr_reader :grind_count
+      attr_reader :build_id
+      attr_reader :namespace
+      attr_reader :timeout
+      attr_reader :load_paths
+      attr_reader :seed
+      attr_reader :worker_id
+      attr_reader :max_requeues
+      attr_reader :max_duration
+      attr_reader :requeue_tolerance
+      attr_reader :failure_file
+      attr_reader :max_consecutive_failures
+      attr_reader :failing_test
 
       def self.help
-        parse_argv_instance = CI::Queue::ParseArgv.new({})
+        parse_argv_instance = CI::Queue::ArgvConfiguration.new({})
         parse_argv_instance.parser.help
       end
 
       def initialize(argv)
-        @argv = argv
-        @config = Config.new
-      end
-
-      def config
-        parser.parse!(@argv)
-        @config
+        parser.parse!(argv)
       end
 
       def parser
@@ -53,7 +45,7 @@ module CI
           EOS
           opts.separator ""
           opts.on('--queue URL', *help) do |url|
-            @config.queue_url = url
+            @queue_url = url
           end
 
           help = <<~EOS
@@ -61,7 +53,7 @@ module CI
           EOS
           opts.separator ""
           opts.on('--grind-list PATH', *help) do |url|
-            @config.grind_list = url
+            @grind_list = url
           end
 
           help = <<~EOS
@@ -69,7 +61,7 @@ module CI
           EOS
           opts.separator ""
           opts.on('--grind-count COUNT', *help) do |count|
-            @config.grind_count = count.to_i
+            @grind_count = count.to_i
           end
 
           help = <<~EOS
@@ -79,7 +71,7 @@ module CI
           EOS
           opts.separator ""
           opts.on('--build BUILD_ID', *help) do |build_id|
-            @config.build_id = build_id
+            @build_id = build_id
           end
 
           help = <<~EOS
@@ -88,7 +80,7 @@ module CI
           EOS
           opts.separator ""
           opts.on('--namespace NAMESPACE', *help) do |namespace|
-            @config.namespace = namespace
+            @namespace = namespace
           end
 
           opts.separator ""
@@ -103,7 +95,7 @@ module CI
           EOS
           opts.separator ""
           opts.on('--timeout TIMEOUT', *help) do |timeout|
-            @config.timeout = Float(timeout)
+            @timeout = Float(timeout)
           end
 
           help = <<~EOS
@@ -111,7 +103,7 @@ module CI
           EOS
           opts.separator ""
           opts.on('-IPATHS', *help) do |paths|
-            @config.load_paths = paths
+            @load_paths = paths
           end
 
           help = <<~EOS
@@ -120,7 +112,7 @@ module CI
           EOS
           opts.separator ""
           opts.on('--seed SEED', *help) do |seed|
-            @config.seed = seed
+            @seed = seed
           end
 
           help = <<~EOS
@@ -130,7 +122,7 @@ module CI
           EOS
           opts.separator ""
           opts.on('--worker WORKER_ID', *help) do |worker_id|
-            @config.worker_id = worker_id
+            @worker_id = worker_id
           end
 
           help = <<~EOS
@@ -139,7 +131,7 @@ module CI
           EOS
           opts.separator ""
           opts.on('--max-requeues MAX', *help) do |max|
-            @config.max_requeues = Integer(max)
+            @max_requeues = Integer(max)
           end
 
           help = <<~EOS
@@ -148,7 +140,7 @@ module CI
           EOS
           opts.separator ""
           opts.on('--max-duration SECONDS', *help) do |max|
-            @config.max_duration = Integer(max)
+            @max_duration = Integer(max)
           end
 
           help = <<~EOS
@@ -157,7 +149,7 @@ module CI
           EOS
           opts.separator ""
           opts.on('--requeue-tolerance RATIO', *help) do |ratio|
-            @config.requeue_tolerance = Float(ratio)
+            @requeue_tolerance = Float(ratio)
           end
 
           help = <<~EOS
@@ -166,7 +158,7 @@ module CI
           EOS
           opts.separator ""
           opts.on('--failure-file FILE', *help) do |file|
-            @config.failure_file = file
+            @failure_file = file
           end
 
           help = <<~EOS
@@ -175,7 +167,7 @@ module CI
           EOS
           opts.separator ""
           opts.on('--max-consecutive-failures MAX', *help) do |max|
-            @config.max_consecutive_failures = Integer(max)
+            @max_consecutive_failures = Integer(max)
           end
 
           opts.separator ""
@@ -191,7 +183,7 @@ module CI
           EOS
           opts.separator ""
           opts.on('--failing-test TEST_IDENTIFIER') do |identifier|
-            @config.failing_test = identifier
+            @failing_test = identifier
           end
         end
       end

@@ -180,11 +180,11 @@ module Integration
       assert_equal expect, normalize(out.strip.lines[1].strip)
 
       # Simulate another worker successfuly retrying all errors (very hard to reproduce properly)
-      queue_config = CI::Queue::Configuration.new(
-        timeout: 1,
-        build_id: '1',
-        worker_id: '2',
-      )
+      queue_config = mock()
+      queue_config.stubs(:timeout).returns(1)
+      queue_config.stubs(:build_id).returns('1')
+      queue_config.stubs(:worker_id).returns('2')
+
       queue = CI::Queue.from_uri(@redis_url, queue_config)
       error_reports = queue.build.error_reports
       assert_equal 100, error_reports.size
@@ -385,8 +385,11 @@ module Integration
 
     def test_redis_reporter
       # HACK: Simulate a timeout
-      config = CI::Queue::Configuration.new(build_id: '1', worker_id: '1', timeout: '1')
-      build_record = CI::Queue::Redis::BuildRecord.new(self, ::Redis.new(url: @redis_url), config)
+      queue_config = mock()
+      queue_config.stubs(:timeout).returns(1)
+      queue_config.stubs(:build_id).returns('1')
+      queue_config.stubs(:worker_id).returns('1')
+      build_record = CI::Queue::Redis::BuildRecord.new(self, ::Redis.new(url: @redis_url), queue_config)
       build_record.record_warning(CI::Queue::Warnings::RESERVED_LOST_TEST, test: 'Atest#test_bar', timeout: 2)
 
       out, err = capture_subprocess_io do

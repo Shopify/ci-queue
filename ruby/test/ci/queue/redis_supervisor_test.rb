@@ -67,11 +67,11 @@ class CI::Queue::Redis::SupervisorTest < Minitest::Test
   end
 
   def queue_config(**args)
-    config = CI::Queue::Configuration::Config.new()
-    config.build_id = '42'
-    config.circuit_breakers = [CI::Queue::CircuitBreaker::Disabled]
+    config = mock()
+    config.stubs(:build_id).returns('42')
+    config.stubs(:circuit_breakers).returns([CI::Queue::CircuitBreaker::Disabled])
     args.each do |key, value|
-      config.public_send("#{key}=", value)
+      config.stubs(key).returns(value)
     end
     config
   end
