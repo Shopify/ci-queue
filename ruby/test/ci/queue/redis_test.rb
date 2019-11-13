@@ -249,17 +249,24 @@ class CI::Queue::RedisTest < Minitest::Test
     skip_populate = args.delete(:populate) == false
     queue = CI::Queue::Redis.new(
       @redis_url,
-      CI::Queue::Configuration.new(
-        build_id: '42',
-        worker_id: id.to_s,
-        timeout: 0.2,
-        **args,
-      )
+      queue_config(id.to_s, args)
     )
     if skip_populate
       return queue
     else
       populate(queue, tests: tests)
     end
+  end
+
+  def queue_config(worker_id, **args)
+    config = CI::Queue::Configuration::Config.new()
+    config.build_id = '42'
+    config.worker_id = worker_id
+    config.timeout = 0.2
+    config.circuit_breakers = [CI::Queue::CircuitBreaker::Disabled]
+    args.each do |key, value|
+      config.public_send("#{key}=", value)
+    end
+    config
   end
 end
