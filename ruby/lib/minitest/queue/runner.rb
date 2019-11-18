@@ -89,10 +89,12 @@ module Minitest
         queue_config.grind_count = grind_count
 
         reporter_queue = CI::Queue::Redis::Grind.new(queue_url, queue_config)
+        test_time_record = CI::Queue::Redis::TestTimeRecord.new(queue_url, queue_config)
 
         Minitest.queue = queue
         reporters = [
-          GrindRecorder.new(build: reporter_queue.build)
+          GrindRecorder.new(build: reporter_queue.build),
+          TestTimeRecorder.new(build: test_time_record)
         ]
         if queue_config.statsd_endpoint
           reporters << Minitest::Reporters::StatsdReporter.new(statsd_endpoint: queue_config.statsd_endpoint)
@@ -197,9 +199,18 @@ module Minitest
           abort! error.message
         end
 
-        reporter = GrindReporter.new(build: supervisor.build)
-        reporter.report
-        exit! reporter.success? ? 0 : 1
+        grind_reporter = GrindReporter.new(build: supervisor.build)
+        grind_reporter.report
+
+        test_time_record = CI::Queue::Redis::TestTimeRecord.new(queue_url, queue_config)
+        test_time_reporter = Minitest::Queue::TestTimeReporter.new(
+          build: test_time_record,
+          limit: queue_config.max_test_duration,
+          percentile: queue_config.max_test_duration_percentile,
+        )
+        test_time_reporter.report
+
+        exit! grind_reporter.success? && test_time_reporter.success? ? 0 : 1
       end
 
       private
@@ -400,6 +411,32 @@ module Minitest
           opts.separator ""
           opts.on('--max-consecutive-failures MAX', *help) do |max|
             queue_config.max_consecutive_failures = Integer(max)
+          end
+
+          help = <<~EOS
+            Set the time limit of the execution time from grinds on a given test.
+            For example, when max-test-duration is set to 10 and
+            max-test-duration-percentile is set to 0.5, the test's median execution time during a grind must be
+            lower than 10 milliseconds.
+            The unit is milliseconds and decimal is allowed.
+            Defaults to disabled.
+          EOS
+          opts.on('--max-test-duration LIMIT_IN_MILLISECONDS', *help) do |limit|
+            queue_config.max_test_duration = Float(limit)
+          end
+
+          help = <<~EOS
+            The percentile for max-test-duration. For example, when max-test-duration is set to 10 and
+            max-test-duration-percentile is set to 0.5, the test's median execution time during a grind must be
+            lower than 10 milliseconds.
+            The percentile must be within the range 0 < percentile <= 1.
+            Defaults to 0.5 (50th percentile).
+          EOS
+          opts.on('--max-test-duration-percentile LIMIT_IN_MILLISECONDS', *help) do |percentile|
+            queue_config.max_test_duration_percentile = Float(percentile)
+            if queue_config.max_test_duration_percentile <= 0 || queue_config.max_test_duration_percentile > 1
+              raise OptionParser::ParseError.new("must be within range (0, 1]")
+            end
           end
 
           opts.separator ""
