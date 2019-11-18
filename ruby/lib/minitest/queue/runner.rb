@@ -271,7 +271,7 @@ module Minitest
           opts.separator "GLOBAL OPTIONS"
 
 
-          help = split_heredoc(<<-EOS)
+          help = <<~EOS
             URL of the queue, e.g. redis://example.com.
             Defaults to $CI_QUEUE_URL if set.
           EOS
@@ -280,7 +280,7 @@ module Minitest
             self.queue_url = url
           end
 
-          help = split_heredoc(<<-EOS)
+          help = <<~EOS
             Path to the file that includes the list of tests to grind.
           EOS
           opts.separator ""
@@ -288,7 +288,7 @@ module Minitest
             self.grind_list = url
           end
 
-          help = split_heredoc(<<-EOS)
+          help = <<~EOS
             Count defines how often each test in the grind list is going to be run.
           EOS
           opts.separator ""
@@ -296,7 +296,7 @@ module Minitest
             self.grind_count = count.to_i
           end
 
-          help = split_heredoc(<<-EOS)
+          help = <<~EOS
             Unique identifier for the workload. All workers working on the same suite of tests must have the same build identifier.
             If the build is tried again, or another revision is built, this value must be different.
             It's automatically inferred on Buildkite, CircleCI, Heroku CI, and Travis.
@@ -306,7 +306,7 @@ module Minitest
             queue_config.build_id = build_id
           end
 
-          help = split_heredoc(<<-EOS)
+          help = <<~EOS
             Optional. Sets a prefix for the build id in case a single CI build runs multiple independent test suites.
               Example: --namespace integration
           EOS
@@ -320,7 +320,7 @@ module Minitest
           opts.separator ""
           opts.separator "    run [TEST_FILES...]: Participate in leader election, and then work off the test queue."
 
-          help = split_heredoc(<<-EOS)
+          help = <<~EOS
             Specify a timeout after which if a test haven't completed, it will be picked up by another worker.
             It is very important to set this vlaue higher than the slowest test in the suite, otherwise performance will be impacted.
             Defaults to 30 seconds.
@@ -330,7 +330,7 @@ module Minitest
             queue_config.timeout = Float(timeout)
           end
 
-          help = split_heredoc(<<-EOS)
+          help = <<~EOS
             Specify $LOAD_PATH directory, similar to Ruby's -I
           EOS
           opts.separator ""
@@ -338,7 +338,7 @@ module Minitest
             self.load_paths = paths
           end
 
-          help = split_heredoc(<<-EOS)
+          help = <<~EOS
             Sepcify a seed used to shuffle the test suite.
             On Buildkite, CircleCI, Heroku CI, and Travis, the commit revision will be used by default.
           EOS
@@ -347,7 +347,7 @@ module Minitest
             queue_config.seed = seed
           end
 
-          help = split_heredoc(<<-EOS)
+          help = <<~EOS
             A unique identifier for this worker, It must be consistent to allow retries.
             If not specified, retries won't be available.
             It's automatically inferred on Buildkite, Heroku CI, and CircleCI.
@@ -357,7 +357,7 @@ module Minitest
             queue_config.worker_id = worker_id
           end
 
-          help = split_heredoc(<<-EOS)
+          help = <<~EOS
             Defines how many time a single test can be requeued.
             Defaults to 0.
           EOS
@@ -366,7 +366,7 @@ module Minitest
             queue_config.max_requeues = Integer(max)
           end
 
-          help = split_heredoc(<<-EOS)
+          help = <<~EOS
             Defines how long ci-queue should maximally run in seconds
             Defaults to none.
           EOS
@@ -375,7 +375,7 @@ module Minitest
             queue_config.max_duration = Integer(max)
           end
 
-          help = split_heredoc(<<-EOS)
+          help = <<~EOS
             Defines how many requeues can happen overall, based on the test suite size. e.g 0.05 for 5%.
             Defaults to 0.
           EOS
@@ -384,7 +384,7 @@ module Minitest
             queue_config.requeue_tolerance = Float(ratio)
           end
 
-          help = split_heredoc(<<-EOS)
+          help = <<~EOS
             Defines a file where the test failures are written to in the json format.
             Defaults to disabled.
           EOS
@@ -393,7 +393,7 @@ module Minitest
             queue_config.failure_file = file
           end
 
-          help = split_heredoc(<<-EOS)
+          help = <<~EOS
             Defines after how many consecutive failures the worker will be considered unhealthy and terminate itself.
             Defaults to disabled.
           EOS
@@ -410,7 +410,7 @@ module Minitest
 
           opts.separator ""
           opts.separator "    bisect: bisect a test suite to find global state leaks."
-          help = split_heredoc(<<-EOS)
+          help = <<~EOS
             The identifier of the failing test.
           EOS
           opts.separator ""
@@ -418,10 +418,6 @@ module Minitest
             queue_config.failing_test = identifier
           end
         end
-      end
-
-      def split_heredoc(string)
-        string.lines.map(&:strip)
       end
 
       def ordering_seed

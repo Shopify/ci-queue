@@ -66,7 +66,7 @@ module RSpec
 
         parser.separator("\n  **** Queue options ****\n\n")
 
-        help = split_heredoc(<<-EOS)
+        help = <<~EOS
           URL of the queue, e.g. redis://example.com.
           Defaults to $CI_QUEUE_URL if set.
         EOS
@@ -75,7 +75,7 @@ module RSpec
           options[:queue_url] = url
         end
 
-        help = split_heredoc(<<-EOS)
+        help = <<~EOS
           Wait for all workers to complete and summarize the test failures.
         EOS
         parser.on('--report', *help) do |url|
@@ -83,14 +83,14 @@ module RSpec
           options[:runner] = RSpec::Queue::ReportRunner.new
         end
 
-        help = split_heredoc(<<-EOS)
+        help = <<~EOS
           Replays a previous run in the same order.
         EOS
         parser.on('--retry', *help) do |url|
           STDERR.puts "Warning: The --retry flag is deprecated"
         end
 
-        help = split_heredoc(<<-EOS)
+        help = <<~EOS
           Unique identifier for the workload. All workers working on the same suite of tests must have the same build identifier.
           If the build is tried again, or another revision is built, this value must be different.
           It's automatically inferred on Buildkite, CircleCI and Travis.
@@ -100,7 +100,7 @@ module RSpec
           queue_config.build_id = build_id
         end
 
-        help = split_heredoc(<<-EOS)
+        help = <<~EOS
           Optional. Sets a prefix for the build id in case a single CI build runs multiple independent test suites.
             Example: --namespace integration
         EOS
@@ -109,7 +109,7 @@ module RSpec
           queue_config.namespace = namespace
         end
 
-        help = split_heredoc(<<-EOS)
+        help = <<~EOS
           Specify a timeout after which if a test haven't completed, it will be picked up by another worker.
           It is very important to set this vlaue higher than the slowest test in the suite, otherwise performance will be impacted.
           Defaults to 30 seconds.
@@ -119,7 +119,7 @@ module RSpec
           queue_config.timeout = Float(timeout)
         end
 
-        help = split_heredoc(<<-EOS)
+        help = <<~EOS
           A unique identifier for this worker, It must be consistent to allow retries.
           If not specified, retries won't be available.
           It's automatically inferred on Buildkite and CircleCI.
@@ -129,7 +129,7 @@ module RSpec
           queue_config.worker_id = worker_id
         end
 
-        help = split_heredoc(<<-EOS)
+        help = <<~EOS
           Defines how many time a single test can be requeued.
           Defaults to 0.
         EOS
@@ -138,7 +138,7 @@ module RSpec
           queue_config.max_requeues = Integer(max)
         end
 
-        help = split_heredoc(<<-EOS)
+        help = <<~EOS
           Defines how many requeues can happen overall, based on the test suite size. e.g 0.05 for 5%.
           Defaults to 0.
         EOS
@@ -147,7 +147,7 @@ module RSpec
           queue_config.requeue_tolerance = Float(ratio)
         end
 
-        help = split_heredoc(<<-EOS)
+        help = <<~EOS
           Defines after how many consecutive failures the worker will be considered unhealthy and terminate itself.
           Defaults to disabled.
         EOS
@@ -157,10 +157,6 @@ module RSpec
         end
 
         parser
-      end
-
-      def split_heredoc(string)
-        string.lines.map(&:strip)
       end
 
       def queue_config
