@@ -6,7 +6,7 @@ class CI::Queue::Redis::TestTimeRecordTest < Minitest::Test
     redis = Redis.new(url: redis_url)
     redis.flushdb
 
-    config ||= CI::Queue::Configuration.new(
+    config = CI::Queue::Configuration.new(
       timeout: 0.2,
       build_id: '42',
       worker_id: '1',

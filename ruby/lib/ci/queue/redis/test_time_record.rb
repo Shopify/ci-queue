@@ -30,7 +30,7 @@ module CI
         def record_test_name(test_name)
           redis.pipelined do
             redis.lpush(
-              key_to_list_all_test_names,
+              all_test_names_key,
               test_name.force_encoding(Encoding::BINARY),
             )
           end
@@ -39,7 +39,7 @@ module CI
 
         def fetch_all_test_names
           values = redis.pipelined do
-            redis.lrange(key_to_list_all_test_names, 0, -1)
+            redis.lrange(all_test_names_key, 0, -1)
           end
           values.flatten.map(&:to_s)
         end
@@ -52,7 +52,7 @@ module CI
           values.flatten.map(&:to_f)
         end
 
-        def key_to_list_all_test_names
+        def all_test_names_key
           "build:#{config.build_id}:list_of_test_names".force_encoding(Encoding::BINARY)
         end
 
