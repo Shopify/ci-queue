@@ -7,6 +7,7 @@ require 'ci/queue/redis/grind'
 require 'ci/queue/redis/retry'
 require 'ci/queue/redis/supervisor'
 require 'ci/queue/redis/grind_supervisor'
+require 'ci/queue/redis/test_time_record'
 
 module CI
   module Queue
