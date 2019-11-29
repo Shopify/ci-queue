@@ -3,6 +3,7 @@ module CI
     class Configuration
       attr_accessor :timeout, :build_id, :worker_id, :max_requeues, :grind_count, :failure_file
       attr_accessor :requeue_tolerance, :namespace, :seed, :failing_test, :statsd_endpoint
+      attr_accessor :max_test_duration, :max_test_duration_percentile
       attr_reader :circuit_breakers
 
       class << self
@@ -27,7 +28,8 @@ module CI
       def initialize(
         timeout: 30, build_id: nil, worker_id: nil, max_requeues: 0, requeue_tolerance: 0,
         namespace: nil, seed: nil, flaky_tests: [], statsd_endpoint: nil, max_consecutive_failures: nil,
-        grind_count: nil, max_duration: nil, failure_file: nil
+        grind_count: nil, max_duration: nil, failure_file: nil, max_test_duration: nil,
+        max_test_duration_percentile: 0.5
       )
         @circuit_breakers = [CircuitBreaker::Disabled]
         @build_id = build_id
@@ -41,6 +43,8 @@ module CI
         @statsd_endpoint = statsd_endpoint
         @timeout = timeout
         @worker_id = worker_id
+        @max_test_duration = max_test_duration
+        @max_test_duration_percentile = max_test_duration_percentile
         self.max_duration = max_duration
         self.max_consecutive_failures = max_consecutive_failures
       end

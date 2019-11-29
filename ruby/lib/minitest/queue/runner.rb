@@ -89,10 +89,12 @@ module Minitest
         queue_config.grind_count = grind_count
 
         reporter_queue = CI::Queue::Redis::Grind.new(queue_url, queue_config)
+        test_time_record = CI::Queue::Redis::TestTimeRecord.new(queue_url, queue_config)
 
         Minitest.queue = queue
         reporters = [
-          GrindRecorder.new(build: reporter_queue.build)
+          GrindRecorder.new(build: reporter_queue.build),
+          TestTimeRecorder.new(build: test_time_record)
         ]
         if queue_config.statsd_endpoint
           reporters << Minitest::Reporters::StatsdReporter.new(statsd_endpoint: queue_config.statsd_endpoint)
@@ -197,9 +199,18 @@ module Minitest
           abort! error.message
         end
 
-        reporter = GrindReporter.new(build: supervisor.build)
-        reporter.report
-        exit! reporter.success? ? 0 : 1
+        grind_reporter = GrindReporter.new(build: supervisor.build)
+        grind_reporter.report
+
+        test_time_record = CI::Queue::Redis::TestTimeRecord.new(queue_url, queue_config)
+        test_time_reporter = Minitest::Queue::TestTimeReporter.new(
+          build: test_time_record,
+          limit: queue_config.max_test_duration,
+          percentile: queue_config.max_test_duration_percentile,
+        )
+        test_time_reporter.report
+
+        exit! grind_reporter.success? && test_time_reporter.success? ? 0 : 1
       end
 
       private
@@ -276,7 +287,7 @@ module Minitest
             Defaults to $CI_QUEUE_URL if set.
           EOS
           opts.separator ""
-          opts.on('--queue URL', *help) do |url|
+          opts.on('--queue URL', help) do |url|
             self.queue_url = url
           end
 
@@ -284,7 +295,7 @@ module Minitest
             Path to the file that includes the list of tests to grind.
           EOS
           opts.separator ""
-          opts.on('--grind-list PATH', *help) do |url|
+          opts.on('--grind-list PATH', help) do |url|
             self.grind_list = url
           end
 
@@ -292,7 +303,7 @@ module Minitest
             Count defines how often each test in the grind list is going to be run.
           EOS
           opts.separator ""
-          opts.on('--grind-count COUNT', *help) do |count|
+          opts.on('--grind-count COUNT', help) do |count|
             self.grind_count = count.to_i
           end
 
@@ -302,7 +313,7 @@ module Minitest
             It's automatically inferred on Buildkite, CircleCI, Heroku CI, and Travis.
           EOS
           opts.separator ""
-          opts.on('--build BUILD_ID', *help) do |build_id|
+          opts.on('--build BUILD_ID', help) do |build_id|
             queue_config.build_id = build_id
           end
 
@@ -311,7 +322,7 @@ module Minitest
               Example: --namespace integration
           EOS
           opts.separator ""
-          opts.on('--namespace NAMESPACE', *help) do |namespace|
+          opts.on('--namespace NAMESPACE', help) do |namespace|
             queue_config.namespace = namespace
           end
 
@@ -326,15 +337,15 @@ module Minitest
             Defaults to 30 seconds.
           EOS
           opts.separator ""
-          opts.on('--timeout TIMEOUT', *help) do |timeout|
-            queue_config.timeout = Float(timeout)
+          opts.on('--timeout TIMEOUT', Float, help) do |timeout|
+            queue_config.timeout = timeout
           end
 
           help = <<~EOS
             Specify $LOAD_PATH directory, similar to Ruby's -I
           EOS
           opts.separator ""
-          opts.on('-IPATHS', *help) do |paths|
+          opts.on('-IPATHS', help) do |paths|
             self.load_paths = paths
           end
 
@@ -343,7 +354,7 @@ module Minitest
             On Buildkite, CircleCI, Heroku CI, and Travis, the commit revision will be used by default.
           EOS
           opts.separator ""
-          opts.on('--seed SEED', *help) do |seed|
+          opts.on('--seed SEED', help) do |seed|
             queue_config.seed = seed
           end
 
@@ -353,7 +364,7 @@ module Minitest
             It's automatically inferred on Buildkite, Heroku CI, and CircleCI.
           EOS
           opts.separator ""
-          opts.on('--worker WORKER_ID', *help) do |worker_id|
+          opts.on('--worker WORKER_ID', help) do |worker_id|
             queue_config.worker_id = worker_id
           end
 
@@ -362,8 +373,8 @@ module Minitest
             Defaults to 0.
           EOS
           opts.separator ""
-          opts.on('--max-requeues MAX', *help) do |max|
-            queue_config.max_requeues = Integer(max)
+          opts.on('--max-requeues MAX', Integer, help) do |max|
+            queue_config.max_requeues = max
           end
 
           help = <<~EOS
@@ -371,8 +382,8 @@ module Minitest
             Defaults to none.
           EOS
           opts.separator ""
-          opts.on('--max-duration SECONDS', *help) do |max|
-            queue_config.max_duration = Integer(max)
+          opts.on('--max-duration SECONDS', Integer, help) do |max|
+            queue_config.max_duration = max
           end
 
           help = <<~EOS
@@ -380,8 +391,8 @@ module Minitest
             Defaults to 0.
           EOS
           opts.separator ""
-          opts.on('--requeue-tolerance RATIO', *help) do |ratio|
-            queue_config.requeue_tolerance = Float(ratio)
+          opts.on('--requeue-tolerance RATIO', Float, help) do |ratio|
+            queue_config.requeue_tolerance = ratio
           end
 
           help = <<~EOS
@@ -389,7 +400,7 @@ module Minitest
             Defaults to disabled.
           EOS
           opts.separator ""
-          opts.on('--failure-file FILE', *help) do |file|
+          opts.on('--failure-file FILE', help) do |file|
             queue_config.failure_file = file
           end
 
@@ -398,8 +409,34 @@ module Minitest
             Defaults to disabled.
           EOS
           opts.separator ""
-          opts.on('--max-consecutive-failures MAX', *help) do |max|
-            queue_config.max_consecutive_failures = Integer(max)
+          opts.on('--max-consecutive-failures MAX', Integer, help) do |max|
+            queue_config.max_consecutive_failures = max
+          end
+
+          help = <<~EOS
+            Set the time limit of the execution time from grinds on a given test.
+            For example, when max-test-duration is set to 10 and
+            max-test-duration-percentile is set to 0.5, the test's median execution time during a grind must be
+            lower than 10 milliseconds.
+            The unit is milliseconds and decimal is allowed.
+            Defaults to disabled.
+          EOS
+          opts.on('--max-test-duration LIMIT_IN_MILLISECONDS', Float, help) do |limit|
+            queue_config.max_test_duration = limit
+          end
+
+          help = <<~EOS
+            The percentile for max-test-duration. For example, when max-test-duration is set to 10 and
+            max-test-duration-percentile is set to 0.5, the test's median execution time during a grind must be
+            lower than 10 milliseconds.
+            The percentile must be within the range 0 < percentile <= 1.
+            Defaults to 0.5 (50th percentile).
+          EOS
+          opts.on('--max-test-duration-percentile LIMIT_IN_MILLISECONDS', Float, help) do |percentile|
+            queue_config.max_test_duration_percentile = percentile
+            if queue_config.max_test_duration_percentile <= 0 || queue_config.max_test_duration_percentile > 1
+              raise OptionParser::ParseError.new("must be within range (0, 1]")
+            end
           end
 
           opts.separator ""
