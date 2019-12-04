@@ -11,6 +11,7 @@ require 'minitest/queue/junit_reporter'
 require 'minitest/queue/grind_recorder'
 require 'minitest/queue/grind_reporter'
 require 'minitest/queue/test_time_recorder'
+require 'minitest/queue/test_time_reporter'
 
 module Minitest
   class Requeue < Skip
