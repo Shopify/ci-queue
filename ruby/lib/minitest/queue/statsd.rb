@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 # Implements a small and limited StatsD implementation to reduce importing unnecessary dependencies because
 # we don't want to require on the bundle which would slow down a CI Queue run
 

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'redis'
 require 'ci/queue/redis/build_record'
 require 'ci/queue/redis/base'

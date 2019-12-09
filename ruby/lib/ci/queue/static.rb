@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module CI
   module Queue
     class Static

@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 require 'test_helper'
 
 module Integration
@@ -88,7 +89,7 @@ module Integration
         Errors:
         \tFAIL ATest#test_flaky
         \tExpected false to be truthy.
-        \t    test/dummy_test.rb:17:in `test_flaky'
+        \t    test/dummy_test.rb:18:in `test_flaky'
       EOS
       assert_empty err
       assert_equal expected.strip, output
@@ -172,7 +173,7 @@ module Integration
         Errors:
         \tFAIL ATest#test_flaky
         \tExpected false to be truthy.
-        \t    test/dummy_test.rb:17:in `test_flaky'
+        \t    test/dummy_test.rb:18:in `test_flaky'
         \t
 
         ATest#test_bar
@@ -182,7 +183,7 @@ module Integration
         Errors:
         \tFAIL ATest#test_bar
         \tExpected false to be truthy.
-        \t    test/dummy_test.rb:9:in `test_bar'
+        \t    test/dummy_test.rb:10:in `test_bar'
       EOS
       assert_equal expected.strip, output
       assert_empty err

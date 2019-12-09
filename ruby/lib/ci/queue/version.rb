@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module CI
   module Queue
     VERSION = '0.16.0'

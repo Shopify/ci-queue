@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 module CI
   module Queue
     module Redis
@@ -37,8 +38,8 @@ module CI
           redis.pipelined do
             redis.hset(
               key('error-reports'),
-              id.force_encoding(Encoding::BINARY),
-              payload.force_encoding(Encoding::BINARY),
+              id.dup.force_encoding(Encoding::BINARY),
+              payload.dup.force_encoding(Encoding::BINARY),
             )
             record_stats(stats)
           end
@@ -47,7 +48,7 @@ module CI
 
         def record_success(id, stats: nil)
           redis.pipelined do
-            redis.hdel(key('error-reports'), id.force_encoding(Encoding::BINARY))
+            redis.hdel(key('error-reports'), id.dup.force_encoding(Encoding::BINARY))
             record_stats(stats)
           end
           nil

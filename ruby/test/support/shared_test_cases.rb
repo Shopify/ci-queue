@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 module SharedTestCases
   class TestCase
     attr_reader :name

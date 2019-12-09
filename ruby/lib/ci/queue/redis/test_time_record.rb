@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 module CI
   module Queue
     module Redis
@@ -31,7 +32,7 @@ module CI
           redis.pipelined do
             redis.lpush(
               all_test_names_key,
-              test_name.force_encoding(Encoding::BINARY),
+              test_name.dup.force_encoding(Encoding::BINARY),
             )
           end
           nil
@@ -53,11 +54,11 @@ module CI
         end
 
         def all_test_names_key
-          "build:#{config.build_id}:list_of_test_names".force_encoding(Encoding::BINARY)
+          "build:#{config.build_id}:list_of_test_names".dup.force_encoding(Encoding::BINARY)
         end
 
         def test_time_key(test_name)
-          "build:#{config.build_id}:#{test_name}".force_encoding(Encoding::BINARY)
+          "build:#{config.build_id}:#{test_name}".dup.force_encoding(Encoding::BINARY)
         end
       end
     end

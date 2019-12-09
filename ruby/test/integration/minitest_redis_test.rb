@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 require 'test_helper'
 require 'tmpdir'
 
@@ -280,49 +281,49 @@ module Integration
        <?xml version="1.0" encoding="UTF-8"?>
        <testsuites>
          <testsuite name="ATest" filepath="test/dummy_test.rb" skipped="5" failures="1" errors="0" tests="6" assertions="5" time="X.XX">
-           <testcase name="test_foo" lineno="4" classname="ATest" assertions="0" time="X.XX" flaky_test="false">
+           <testcase name="test_foo" lineno="5" classname="ATest" assertions="0" time="X.XX" flaky_test="false">
            <skipped type="Minitest::Skip"/>
            </testcase>
-           <testcase name="test_bar" lineno="8" classname="ATest" assertions="1" time="X.XX" flaky_test="false">
+           <testcase name="test_bar" lineno="9" classname="ATest" assertions="1" time="X.XX" flaky_test="false">
            <skipped type="Minitest::Assertion"/>
            </testcase>
-           <testcase name="test_flaky" lineno="12" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
+           <testcase name="test_flaky" lineno="13" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
            <failure type="Minitest::Assertion" message="Expected false to be truthy.">
        Skipped:
-       test_flaky(ATest) [./test/fixtures/test/dummy_test.rb:17]:
+       test_flaky(ATest) [./test/fixtures/test/dummy_test.rb:18]:
        Expected false to be truthy.
            </failure>
            </testcase>
-           <testcase name="test_flaky_passes" lineno="25" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
+           <testcase name="test_flaky_passes" lineno="26" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
            </testcase>
-           <testcase name="test_flaky_fails_retry" lineno="21" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
+           <testcase name="test_flaky_fails_retry" lineno="22" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
            <failure type="Minitest::Assertion" message="Expected false to be truthy.">
        Skipped:
-       test_flaky_fails_retry(ATest) [./test/fixtures/test/dummy_test.rb:22]:
+       test_flaky_fails_retry(ATest) [./test/fixtures/test/dummy_test.rb:23]:
        Expected false to be truthy.
            </failure>
            </testcase>
-           <testcase name="test_bar" lineno="8" classname="ATest" assertions="1" time="X.XX" flaky_test="false">
+           <testcase name="test_bar" lineno="9" classname="ATest" assertions="1" time="X.XX" flaky_test="false">
            <failure type="Minitest::Assertion" message="Expected false to be truthy.">
        Failure:
-       test_bar(ATest) [./test/fixtures/test/dummy_test.rb:9]:
+       test_bar(ATest) [./test/fixtures/test/dummy_test.rb:10]:
        Expected false to be truthy.
            </failure>
            </testcase>
          </testsuite>
          <testsuite name="BTest" filepath="test/dummy_test.rb" skipped="1" failures="0" errors="1" tests="3" assertions="1" time="X.XX">
-           <testcase name="test_bar" lineno="35" classname="BTest" assertions="0" time="X.XX" flaky_test="false">
+           <testcase name="test_bar" lineno="36" classname="BTest" assertions="0" time="X.XX" flaky_test="false">
            <skipped type="TypeError"/>
            </testcase>
-           <testcase name="test_foo" lineno="31" classname="BTest" assertions="1" time="X.XX" flaky_test="false">
+           <testcase name="test_foo" lineno="32" classname="BTest" assertions="1" time="X.XX" flaky_test="false">
            </testcase>
-           <testcase name="test_bar" lineno="35" classname="BTest" assertions="0" time="X.XX" flaky_test="false">
+           <testcase name="test_bar" lineno="36" classname="BTest" assertions="0" time="X.XX" flaky_test="false">
            <error type="TypeError" message="TypeError: String can't be coerced into Fixnum...">
        Failure:
-       test_bar(BTest) [./test/fixtures/test/dummy_test.rb:36]:
+       test_bar(BTest) [./test/fixtures/test/dummy_test.rb:37]:
        TypeError: String can't be coerced into Fixnum
-           ./test/fixtures/test/dummy_test.rb:36:in `+'
-           ./test/fixtures/test/dummy_test.rb:36:in `test_bar'
+           ./test/fixtures/test/dummy_test.rb:37:in `+'
+           ./test/fixtures/test/dummy_test.rb:37:in `test_bar'
            </error>
            </testcase>
          </testsuite>
@@ -371,7 +372,7 @@ module Integration
         ## output and test_file
         expected = {
           test_file: "ci-queue/ruby/test/fixtures/test/dummy_test.rb",
-          test_line: 8,
+          test_line: 9,
           test_and_module_name: "ATest#test_bar",
           test_name: "test_bar",
         }
@@ -430,16 +431,16 @@ module Integration
 
         FAIL ATest#test_bar
         Expected false to be truthy.
-            test/dummy_test.rb:9:in `test_bar'
+            test/dummy_test.rb:10:in `test_bar'
 
         FAIL ATest#test_flaky_fails_retry
         Expected false to be truthy.
-            test/dummy_test.rb:22:in `test_flaky_fails_retry'
+            test/dummy_test.rb:23:in `test_flaky_fails_retry'
 
         ERROR BTest#test_bar
         TypeError: String can't be coerced into Fixnum
-            test/dummy_test.rb:36:in `+'
-            test/dummy_test.rb:36:in `test_bar'
+            test/dummy_test.rb:37:in `+'
+            test/dummy_test.rb:37:in `test_bar'
 
       END
     end

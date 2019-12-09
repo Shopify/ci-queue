@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 module OutputTestHelpers
   PROJECT_ROOT_PATH = File.expand_path('../../../', __FILE__)
   private

@@ -1,4 +1,5 @@
 # coding: utf-8
+# frozen_string_literal: true
 lib = File.expand_path('../lib', __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 require 'ci/queue/version'
@@ -38,4 +39,5 @@ Gem::Specification.new do |spec|
 
   spec.add_development_dependency 'snappy'
   spec.add_development_dependency 'msgpack'
+  spec.add_development_dependency 'rubocop'
 end

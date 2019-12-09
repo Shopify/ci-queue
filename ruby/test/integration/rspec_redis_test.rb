@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 require 'test_helper'
 
 module Integration
@@ -46,8 +47,8 @@ module Integration
 
                expected: == 42
                     got:    2
-             # ./spec/dummy_spec.rb:11:in `block (2 levels) in <top (required)>'
-             # ./spec/dummy_spec.rb:6
+             # ./spec/dummy_spec.rb:12:in `block (2 levels) in <top (required)>'
+             # ./spec/dummy_spec.rb:7
 
         Finished in X.XXXXX seconds (files took X.XXXXX seconds to load)
         4 examples, 0 failures, 1 pending
@@ -100,8 +101,8 @@ module Integration
 
                expected: == 42
                     got:    2
-             # ./spec/dummy_spec.rb:11:in `block (2 levels) in <top (required)>'
-             # ./spec/dummy_spec.rb:6
+             # ./spec/dummy_spec.rb:12:in `block (2 levels) in <top (required)>'
+             # ./spec/dummy_spec.rb:7
 
         Finished in X.XXXXX seconds (files took X.XXXXX seconds to load)
         4 examples, 0 failures, 1 pending
@@ -187,9 +188,9 @@ module Integration
 
             expected: == 42
                  got:    2
-          # ./spec/dummy_spec.rb:11:in `block (2 levels) in <top (required)>'
+          # ./spec/dummy_spec.rb:12:in `block (2 levels) in <top (required)>'
 
-        rspec ./spec/dummy_spec.rb:6 # Object doesn't work on first try
+        rspec ./spec/dummy_spec.rb:7 # Object doesn't work on first try
       EOS
 
       assert_equal expected_output, normalize(out)
@@ -274,7 +275,7 @@ module Integration
 
         RuntimeError:
           Whoops
-        # ./spec/spec_helper.rb:4:in `block (2 levels) in <top (required)>'
+        # ./spec/spec_helper.rb:5:in `block (2 levels) in <top (required)>'
 
 
         Finished in X.XXXXX seconds (files took X.XXXXX seconds to load)
@@ -318,14 +319,14 @@ module Integration
 
                expected: == 42
                     got:    2
-             # ./spec/dummy_spec.rb:11:in `block (2 levels) in <top (required)>'
+             # ./spec/dummy_spec.rb:12:in `block (2 levels) in <top (required)>'
 
         Finished in X.XXXXX seconds (files took X.XXXXX seconds to load)
         3 examples, 1 failure
 
         Failed examples:
 
-        rspec ./spec/dummy_spec.rb:6 # Object doesn't work on first try
+        rspec ./spec/dummy_spec.rb:7 # Object doesn't work on first try
 
         Randomized with seed 123
 
@@ -355,9 +356,9 @@ module Integration
 
             expected: == 42
                  got:    2
-          # ./spec/dummy_spec.rb:11:in `block (2 levels) in <top (required)>'
+          # ./spec/dummy_spec.rb:12:in `block (2 levels) in <top (required)>'
 
-        rspec ./spec/dummy_spec.rb:6 # Object doesn't work on first try
+        rspec ./spec/dummy_spec.rb:7 # Object doesn't work on first try
       EOS
 
       assert_equal expected_output, normalize(out)
@@ -419,14 +420,14 @@ module Integration
 
                expected: == 4
                     got:    2
-             # ./spec/dummy_spec.rb:5:in `block (2 levels) in <top (required)>'
+             # ./spec/dummy_spec.rb:6:in `block (2 levels) in <top (required)>'
 
         Finished in X.XXXXX seconds (files took X.XXXXX seconds to load)
         1 example, 1 failure
 
         Failed examples:
 
-        rspec ./spec/dummy_spec.rb:4 # Object should be executed
+        rspec ./spec/dummy_spec.rb:5 # Object should be executed
 
         Randomized with seed 123
 

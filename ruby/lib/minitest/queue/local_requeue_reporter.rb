@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 require 'ci/queue/output_helpers'
 require 'minitest/reporters'
 

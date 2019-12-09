@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 RSpec.world.wants_to_quit = !!ENV['EARLY_EXIT']
 
 RSpec.describe Object do
