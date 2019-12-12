@@ -61,6 +61,7 @@ module Minitest
           LocalRequeueReporter.new,
           BuildStatusRecorder.new(build: queue.build),
           JUnitReporter.new,
+          TestDataReporter.new(namespace: queue_config&.namespace),
           OrderReporter.new(path: 'log/test_order.log'),
         ]
         if queue_config.statsd_endpoint
@@ -95,6 +96,7 @@ module Minitest
         Minitest.queue = queue
         reporters = [
           GrindRecorder.new(build: reporter_queue.build),
+          TestDataReporter.new(namespace: queue_config&.namespace),
           TestTimeRecorder.new(build: test_time_record)
         ]
         if queue_config.statsd_endpoint

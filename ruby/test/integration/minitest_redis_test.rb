@@ -9,6 +9,8 @@ module Integration
     def setup
       @junit_path = File.expand_path('../../fixtures/log/junit.xml', __FILE__)
       File.delete(@junit_path) if File.exist?(@junit_path)
+      @test_data_path = File.expand_path('../../fixtures/log/test_data.json', __FILE__)
+      File.delete(@test_data_path) if File.exist?(@test_data_path)
       @order_path = File.expand_path('../../fixtures/log/test_order.log', __FILE__)
       File.delete(@order_path) if File.exist?(@order_path)
 
@@ -254,6 +256,78 @@ module Integration
       assert_empty err
       output = normalize(out.lines.last.strip)
       assert_equal 'Ran 0 tests, 0 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
+    end
+
+    def test_test_data_reporter
+      out, err = capture_subprocess_io do
+        system(
+          {'CI_QUEUE_FLAKY_TESTS' => 'test/ci_queue_flaky_tests_list.txt'},
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--namespace', 'foo',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '--max-requeues', '1',
+          '--requeue-tolerance', '1',
+          '-Itest',
+          'test/dummy_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty err
+      output = normalize(out.lines.last.strip)
+      assert_equal 'Ran 9 tests, 6 assertions, 1 failures, 1 errors, 1 skips, 2 requeues in X.XXs', output
+
+      content = File.read(@test_data_path)
+      failure = JSON.parse(content, symbolize_names: true)
+                    .sort_by { |h| "#{h[:test_id]}##{h[:test_index]}" }
+
+      assert_equal 'foo', failure[0][:namespace]
+      assert_equal 'ATest#test_bar', failure[0][:test_id]
+      assert_equal 'test_bar', failure[0][:test_name]
+      assert_equal 'ATest', failure[0][:test_suite]
+      assert_equal 'failure', failure[0][:test_result]
+      assert_equal true, failure[0][:test_retried]
+      assert_equal false, failure[0][:test_result_ignored]
+      assert_equal 1, failure[0][:test_assertions]
+      assert_equal 'test/dummy_test.rb', failure[0][:test_file_path]
+      assert_equal 9, failure[0][:test_file_line_number]
+      assert_equal 'Minitest::Assertion', failure[0][:error_class]
+      assert_equal 'Expected false to be truthy.', failure[0][:error_message]
+      assert_equal 'test/dummy_test.rb', failure[0][:error_file_path]
+      assert_equal 10, failure[0][:error_file_number]
+
+      assert_equal 'foo', failure[1][:namespace]
+      assert_equal 'ATest#test_bar', failure[1][:test_id]
+      assert_equal 'test_bar', failure[1][:test_name]
+      assert_equal 'ATest', failure[1][:test_suite]
+      assert_equal 'failure', failure[1][:test_result]
+      assert_equal false, failure[1][:test_result_ignored]
+      assert_equal false, failure[1][:test_retried]
+      assert_equal 1, failure[1][:test_assertions]
+      assert_equal 'test/dummy_test.rb', failure[1][:test_file_path]
+      assert_equal 9, failure[1][:test_file_line_number]
+      assert_equal 'Minitest::Assertion', failure[1][:error_class]
+      assert_equal 'Expected false to be truthy.', failure[1][:error_message]
+      assert_equal 'test/dummy_test.rb', failure[1][:error_file_path]
+      assert_equal 10, failure[1][:error_file_number]
+
+      assert failure[0][:test_index] < failure[1][:test_index]
+
+      assert_equal 'ATest#test_flaky', failure[2][:test_id]
+      assert_equal 'skipped', failure[2][:test_result]
+      assert_equal false, failure[2][:test_retried]
+      assert_equal true, failure[2][:test_result_ignored]
+      assert_equal 1, failure[2][:test_assertions]
+      assert_equal 'test/dummy_test.rb', failure[2][:test_file_path]
+      assert_equal 13, failure[2][:test_file_line_number]
+      assert_equal 'Minitest::Assertion', failure[2][:error_class]
+      assert_equal 18, failure[2][:error_file_number]
+
+      assert_equal 'ATest#test_flaky_passes', failure[4][:test_id]
+      assert_equal 'success', failure[4][:test_result]
     end
 
     def test_junit_reporter
