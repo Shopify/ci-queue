@@ -91,13 +91,15 @@ module Minitest
         queue_config.grind_count = grind_count
 
         reporter_queue = CI::Queue::Redis::Grind.new(queue_url, queue_config)
-        test_time_record = CI::Queue::Redis::TestTimeRecord.new(queue_url, queue_config)
+        # TODO: revert when debug of Redis high CPU usage is over
+        # test_time_record = CI::Queue::Redis::TestTimeRecord.new(queue_url, queue_config)
 
         Minitest.queue = queue
         reporters = [
           GrindRecorder.new(build: reporter_queue.build),
           TestDataReporter.new(namespace: queue_config&.namespace),
-          TestTimeRecorder.new(build: test_time_record)
+          # TODO: revert when debug of Redis high CPU usage is over
+          # TestTimeRecorder.new(build: test_time_record)
         ]
         if queue_config.statsd_endpoint
           reporters << Minitest::Reporters::StatsdReporter.new(statsd_endpoint: queue_config.statsd_endpoint)
@@ -204,16 +206,17 @@ module Minitest
 
         grind_reporter = GrindReporter.new(build: supervisor.build)
         grind_reporter.report
+        exit! reporter.success? ? 0 : 1
 
-        test_time_record = CI::Queue::Redis::TestTimeRecord.new(queue_url, queue_config)
-        test_time_reporter = Minitest::Queue::TestTimeReporter.new(
-          build: test_time_record,
-          limit: queue_config.max_test_duration,
-          percentile: queue_config.max_test_duration_percentile,
-        )
-        test_time_reporter.report
+        # test_time_record = CI::Queue::Redis::TestTimeRecord.new(queue_url, queue_config)
+        # test_time_reporter = Minitest::Queue::TestTimeReporter.new(
+        #   build: test_time_record,
+        #   limit: queue_config.max_test_duration,
+        #   percentile: queue_config.max_test_duration_percentile,
+        # )
+        # test_time_reporter.report
 
-        exit! grind_reporter.success? && test_time_reporter.success? ? 0 : 1
+        # exit! grind_reporter.success? && test_time_reporter.success? ? 0 : 1
       end
 
       private
