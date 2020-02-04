@@ -200,7 +200,7 @@ module Integration
         '--timeout', '1',
         '--grind-count', '10',
         '--grind-list', 'grind_list_success.txt',
-        '--track-execution-duration',
+        '--track-test-duration',
         '-Itest',
         'test/dummy_test.rb',
         chdir: 'test/fixtures/',
@@ -216,7 +216,7 @@ module Integration
           '--worker', '1',
           '--timeout', '5',
           '--max-test-duration', '1000',
-          '--track-execution-duration',
+          '--track-test-duration',
           chdir: 'test/fixtures/',
         )
       end
@@ -243,7 +243,7 @@ module Integration
         '--timeout', '1',
         '--grind-count', '10',
         '--grind-list', 'grind_list_success.txt',
-        '--track-execution-duration',
+        '--track-test-duration',
         '-Itest',
         'test/dummy_test.rb',
         chdir: 'test/fixtures/',
@@ -259,7 +259,7 @@ module Integration
           '--worker', '1',
           '--timeout', '5',
           '--max-test-duration', '0.00001',
-          '--track-execution-duration',
+          '--track-test-duration',
           chdir: 'test/fixtures/',
         )
       end
@@ -288,7 +288,7 @@ module Integration
         '--timeout', '1',
         '--grind-count', '10',
         '--grind-list', 'grind_list_success.txt',
-        '--track-execution-duration',
+        '--track-test-duration',
         '-Itest',
         'test/dummy_test.rb',
         chdir: 'test/fixtures/',
@@ -305,7 +305,7 @@ module Integration
           '--timeout', '5',
           '--max-test-duration', '1000',
           '--max-test-duration-percentile', '1.1',
-          '--track-execution-duration',
+          '--track-test-duration',
           chdir: 'test/fixtures/',
         )
       end

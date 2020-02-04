@@ -98,7 +98,7 @@ module Minitest
           TestDataReporter.new(namespace: queue_config&.namespace),
         ]
 
-        if queue_config.track_execution_duration
+        if queue_config.track_test_duration
           test_time_record = CI::Queue::Redis::TestTimeRecord.new(queue_url, queue_config)
           reporters << TestTimeRecorder.new(build: test_time_record)
         end
@@ -209,7 +209,7 @@ module Minitest
         grind_reporter = GrindReporter.new(build: supervisor.build)
         grind_reporter.report
 
-        test_time_reporter_success = if queue_config.track_execution_duration
+        test_time_reporter_success = if queue_config.track_test_duration
           test_time_record = CI::Queue::Redis::TestTimeRecord.new(queue_url, queue_config)
           test_time_reporter = Minitest::Queue::TestTimeReporter.new(
             build: test_time_record,
@@ -429,8 +429,8 @@ module Minitest
           help = <<~EOS
             Must set this option in report and report_grind command if you set --max-test-duration in the report_grind
           EOS
-          opts.on('--track-execution-duration', help) do
-            queue_config.track_execution_duration = true
+          opts.on('--track-test-duration', help) do
+            queue_config.track_test_duration = true
           end
 
           help = <<~EOS
