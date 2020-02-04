@@ -494,7 +494,7 @@ module Integration
       end
       assert_empty err
       output = normalize(out)
-      assert_equal strip_heredoc(<<-END), output
+      expected_output = <<~END
         Waiting for workers to complete
 
         [WARNING] Atest#test_bar was picked up by another worker because it didn't complete in the allocated 2 seconds.
@@ -512,11 +512,8 @@ module Integration
             test/dummy_test.rb:23:in `test_flaky_fails_retry'
 
         ERROR BTest#test_bar
-        TypeError: String can't be coerced into Fixnum
-            test/dummy_test.rb:37:in `+'
-            test/dummy_test.rb:37:in `test_bar'
-
       END
+      assert output.include?(expected_output)
     end
 
     def test_utf8_tests_and_marshal
