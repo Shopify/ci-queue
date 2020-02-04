@@ -392,10 +392,10 @@ module Integration
            <testcase name="test_foo" lineno="32" classname="BTest" assertions="1" time="X.XX" flaky_test="false">
            </testcase>
            <testcase name="test_bar" lineno="36" classname="BTest" assertions="0" time="X.XX" flaky_test="false">
-           <error type="TypeError" message="TypeError: String can't be coerced into Fixnum...">
+           <error type="TypeError" message="TypeError: String can't be coerced into Integer...">
        Failure:
        test_bar(BTest) [./test/fixtures/test/dummy_test.rb:37]:
-       TypeError: String can't be coerced into Fixnum
+       TypeError: String can't be coerced into Integer
            ./test/fixtures/test/dummy_test.rb:37:in `+'
            ./test/fixtures/test/dummy_test.rb:37:in `test_bar'
            </error>
