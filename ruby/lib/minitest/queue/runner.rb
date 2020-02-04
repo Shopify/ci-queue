@@ -91,14 +91,18 @@ module Minitest
         queue_config.grind_count = grind_count
 
         reporter_queue = CI::Queue::Redis::Grind.new(queue_url, queue_config)
-        test_time_record = CI::Queue::Redis::TestTimeRecord.new(queue_url, queue_config)
 
         Minitest.queue = queue
         reporters = [
           GrindRecorder.new(build: reporter_queue.build),
           TestDataReporter.new(namespace: queue_config&.namespace),
-          TestTimeRecorder.new(build: test_time_record)
         ]
+
+        if queue_config.track_test_duration
+          test_time_record = CI::Queue::Redis::TestTimeRecord.new(queue_url, queue_config)
+          reporters << TestTimeRecorder.new(build: test_time_record)
+        end
+
         if queue_config.statsd_endpoint
           reporters << Minitest::Reporters::StatsdReporter.new(statsd_endpoint: queue_config.statsd_endpoint)
         end
@@ -205,15 +209,21 @@ module Minitest
         grind_reporter = GrindReporter.new(build: supervisor.build)
         grind_reporter.report
 
-        test_time_record = CI::Queue::Redis::TestTimeRecord.new(queue_url, queue_config)
-        test_time_reporter = Minitest::Queue::TestTimeReporter.new(
-          build: test_time_record,
-          limit: queue_config.max_test_duration,
-          percentile: queue_config.max_test_duration_percentile,
-        )
-        test_time_reporter.report
+        test_time_reporter_success = if queue_config.track_test_duration
+          test_time_record = CI::Queue::Redis::TestTimeRecord.new(queue_url, queue_config)
+          test_time_reporter = Minitest::Queue::TestTimeReporter.new(
+            build: test_time_record,
+            limit: queue_config.max_test_duration,
+            percentile: queue_config.max_test_duration_percentile,
+          )
+          test_time_reporter.report
 
-        exit! grind_reporter.success? && test_time_reporter.success? ? 0 : 1
+          test_time_reporter.success?
+        else
+          true
+        end
+
+        exit! grind_reporter.success? && test_time_reporter_success ? 0 : 1
       end
 
       private
@@ -414,6 +424,13 @@ module Minitest
           opts.separator ""
           opts.on('--max-consecutive-failures MAX', Integer, help) do |max|
             queue_config.max_consecutive_failures = max
+          end
+
+          help = <<~EOS
+            Must set this option in report and report_grind command if you set --max-test-duration in the report_grind
+          EOS
+          opts.on('--track-test-duration', help) do
+            queue_config.track_test_duration = true
           end
 
           help = <<~EOS
