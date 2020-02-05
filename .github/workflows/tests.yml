@@ -1,0 +1,53 @@
+name: Tests
+
+on: [push]
+
+jobs:
+  ruby-tests:
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Ruby 2.6.5
+        uses: actions/setup-ruby@v1
+        with:
+          ruby-version: 2.6.5
+      - name: Run Ruby tests
+        run: |
+          bin/before-install
+          bin/test
+        env:
+          SUITE: ruby
+          REDIS_HOST: localhost
+
+  python-tests:
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Python 2.7, 3.6, 3.7, 3.8
+        run: |
+          sudo add-apt-repository -y ppa:deadsnakes/ppa
+          sudo apt-get -qq update
+          sudo apt-get install -y python2.7 python3.6 python3.7 python3.8
+          sudo pip install autopep8
+      - name: Run Python tests
+        run: |
+          bin/before-install
+          bin/test
+        env:
+          SUITE: python
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
