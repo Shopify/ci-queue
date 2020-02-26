@@ -27,6 +27,7 @@ module Minitest
           test_line: test_line,
           test_and_module_name: "#{test.klass}##{test.name}",
           test_name: test.name,
+          error_class: test.failure.exception.class.name,
           output: to_s,
         }
       end

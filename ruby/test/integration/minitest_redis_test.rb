@@ -448,6 +448,7 @@ module Integration
           test_file: "ci-queue/ruby/test/fixtures/test/dummy_test.rb",
           test_line: 9,
           test_and_module_name: "ATest#test_bar",
+          error_class: "Minitest::Assertion",
           test_name: "test_bar",
         }
 
@@ -455,6 +456,7 @@ module Integration
         assert_equal failure[:test_line], expected[:test_line]
         assert_equal failure[:test_and_module_name], expected[:test_and_module_name]
         assert_equal failure[:test_name], expected[:test_name]
+        assert_equal failure[:error_class], expected[:error_class]
       end
     end
 
