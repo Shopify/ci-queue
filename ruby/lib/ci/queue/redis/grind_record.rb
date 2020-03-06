@@ -16,6 +16,7 @@ module CI
               key('error-reports'),
               payload.force_encoding(Encoding::BINARY),
             )
+            redis.expire(key('error-reports'), config.report_expires_in)
             record_stats(stats)
           end
           nil
@@ -58,6 +59,7 @@ module CI
           return unless stats
           stats.each do |stat_name, stat_value|
             redis.hset(key(stat_name), config.worker_id, stat_value)
+            redis.expire(key(stat_name), config.report_expires_in)
           end
         end
       end
