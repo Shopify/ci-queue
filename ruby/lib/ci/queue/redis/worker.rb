@@ -162,6 +162,10 @@ module CI
               redis.lpush(key('queue'), tests) unless tests.empty?
               redis.set(key('total'), @total)
               redis.set(key('master-status'), 'ready')
+
+              redis.expire(key('queue'), config.report_expires_in)
+              redis.expire(key('total'), config.report_expires_in)
+              redis.expire(key('master-status'), config.report_expires_in)
             end
           end
           register

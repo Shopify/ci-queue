@@ -459,6 +459,14 @@ module Minitest
             end
           end
 
+          help = <<~EOS
+            Defines how long the test report remain after the test run, in seconds.
+            Defaults to 28,800 (8 hours)
+          EOS
+          opts.on("--report-expires-in SECONDS", Integer, help) do |time|
+            queue.config.report_expires_in = time
+          end
+
           opts.separator ""
           opts.separator "    retry: Replays a previous run in the same order."
 
