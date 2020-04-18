@@ -54,14 +54,10 @@ module CI
           nil
         end
 
-        def visible_failures
-          redis.get(key('visible_failures')).to_i
-        end
+        def max_test_failed?
+          return false if config.max_test_failed.nil?
 
-        def max_visible_failures_reached?
-          return false if config.max_visible_tests.nil?
-
-          build.visible_failures >= config.max_visible_tests
+          @queue.test_failures >= config.max_test_failed
         end
 
         def error_reports

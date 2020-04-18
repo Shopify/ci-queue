@@ -50,7 +50,7 @@ module CI
       end
 
       def poll
-        while config.circuit_breakers.none?(&:open?) && !max_visible_failures_reached? && test = @queue.shift
+        while config.circuit_breakers.none?(&:open?) && !max_test_failed? && test = @queue.shift
           yield index.fetch(test)
         end
       end
@@ -64,18 +64,18 @@ module CI
         true
       end
 
-      def increment_visible_failures
-        @visible_failures = visible_failures + 1
+      def increment_test_failed
+        @test_failed = test_failed + 1
       end
 
-      def visible_failures
-        @visible_failures ||= 0
+      def test_failed
+        @test_failed ||= 0
       end
 
-      def max_visible_failures_reached?
-        return false if config.max_visible_tests.nil?
+      def max_test_failed?
+        return false if config.max_test_failed.nil?
 
-        visible_failures >= config.max_visible_tests
+        test_failed >= config.max_test_failed
       end
 
       def requeue(test)

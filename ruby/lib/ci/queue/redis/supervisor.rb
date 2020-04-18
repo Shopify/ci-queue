@@ -22,13 +22,13 @@ module CI
           yield if block_given?
 
           time_left = config.timeout
-          until exhausted? || time_left <= 0 || build.max_visible_failures_reached?
+          until exhausted? || time_left <= 0 || max_test_failed?
             sleep 1
             time_left -= 1
 
             yield if block_given?
           end
-          exhausted? || build.max_visible_failures_reached?
+          exhausted?
         rescue CI::Queue::Redis::LostMaster
           false
         end

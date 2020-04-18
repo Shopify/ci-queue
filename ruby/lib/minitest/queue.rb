@@ -153,6 +153,10 @@ module Minitest
         if queue.config.circuit_breakers.any?(&:open?)
           STDERR.puts queue.config.circuit_breakers.map(&:message).join(' ').strip
         end
+
+        if queue.max_test_failed?
+          STDERR.puts 'This worker is exiting early because too many failed tests were encountered.'
+        end
       else
         super
       end
@@ -186,7 +190,7 @@ module Minitest
         end
 
         if !requeued && failed
-          queue.increment_visible_failures
+          queue.increment_test_failed
         end
       end
     end
