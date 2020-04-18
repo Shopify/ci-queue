@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 module CI
   module Queue
-    class CircuitBreaker
+    module CircuitBreaker
       module Disabled
         extend self
 
@@ -50,25 +50,27 @@ module CI
         end
       end
 
-      def initialize(max_consecutive_failures:)
-        @max = max_consecutive_failures
-        @consecutive_failures = 0
-      end
+      class MaxConsecutiveFailures
+        def initialize(max_consecutive_failures:)
+          @max = max_consecutive_failures
+          @consecutive_failures = 0
+        end
 
-      def report_failure!
-        @consecutive_failures += 1
-      end
+        def report_failure!
+          @consecutive_failures += 1
+        end
 
-      def report_success!
-        @consecutive_failures = 0
-      end
+        def report_success!
+          @consecutive_failures = 0
+        end
 
-      def open?
-        @consecutive_failures >= @max
-      end
+        def open?
+          @consecutive_failures >= @max
+        end
 
-      def message
-        'This worker is exiting early because it encountered too many consecutive test failures, probably because of some corrupted state.'
+        def message
+          'This worker is exiting early because it encountered too many consecutive test failures, probably because of some corrupted state.'
+        end
       end
     end
   end

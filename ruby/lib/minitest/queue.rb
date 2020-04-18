@@ -174,13 +174,19 @@ module Minitest
           queue.report_success!
         end
 
+        requeued = false
         if failed && queue.requeue(example)
+          requeued = true
           result.requeue!
           reporter.record(result)
         elsif queue.acknowledge(example) || !failed
           # If the test was already acknowledged by another worker (we timed out)
           # Then we only record it if it is successful.
           reporter.record(result)
+        end
+
+        if !requeued && failed
+          queue.increment_visible_failures
         end
       end
     end

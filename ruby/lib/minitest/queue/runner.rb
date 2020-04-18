@@ -181,7 +181,12 @@ module Minitest
           end
 
           unless supervisor.exhausted?
-            abort! "#{supervisor.size} tests weren't run."
+            msg = "#{supervisor.size} tests weren't run."
+            if supervisor.build.max_visible_failures_reached?
+              puts (msg)
+            else
+              abort!(msg)
+            end
           end
         end
 
@@ -397,6 +402,15 @@ module Minitest
           opts.separator ""
           opts.on('--max-duration SECONDS', Integer, help) do |max|
             queue_config.max_duration = max
+          end
+
+          help = <<~EOS
+            Defines how many user visible tests can be fail.
+            Defaults to none.
+          EOS
+          opts.separator ""
+          opts.on('--max-visible-tests MAX', Integer, help) do |max|
+            queue_config.max_visible_tests = max
           end
 
           help = <<~EOS

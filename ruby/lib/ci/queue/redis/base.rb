@@ -61,6 +61,10 @@ module CI
           end
         end
 
+        def increment_visible_failures
+          redis.incr(key('visible_failures'))
+        end
+
         private
 
         attr_reader :redis, :redis_url

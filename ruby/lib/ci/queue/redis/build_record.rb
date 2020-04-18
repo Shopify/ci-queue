@@ -54,6 +54,16 @@ module CI
           nil
         end
 
+        def visible_failures
+          redis.get(key('visible_failures')).to_i
+        end
+
+        def max_visible_failures_reached?
+          return false if config.max_visible_tests.nil?
+
+          build.visible_failures >= config.max_visible_tests
+        end
+
         def error_reports
           redis.hgetall(key('error-reports'))
         end
@@ -62,7 +72,10 @@ module CI
           counts = redis.pipelined do
             stat_names.each { |c| redis.hvals(key(c)) }
           end
-          stat_names.zip(counts.map { |values| values.map(&:to_f).inject(:+).to_f }).to_h
+          sum_counts = counts.map do |values|
+            values.map(&:to_f).inject(:+).to_f
+          end
+          stat_names.zip(sum_counts).to_h
         end
 
         def reset_stats(stat_names)

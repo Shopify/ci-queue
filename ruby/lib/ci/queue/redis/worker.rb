@@ -45,7 +45,7 @@ module CI
 
         def poll
           wait_for_master
-          until shutdown_required? || config.circuit_breakers.any?(&:open?) || exhausted?
+          until shutdown_required? || config.circuit_breakers.any?(&:open?) || exhausted? || build.max_visible_failures_reached?
             if test = reserve
               yield index.fetch(test), @last_warning
             else
