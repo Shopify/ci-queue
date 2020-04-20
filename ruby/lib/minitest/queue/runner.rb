@@ -181,7 +181,13 @@ module Minitest
           end
 
           unless supervisor.exhausted?
-            abort! "#{supervisor.size} tests weren't run."
+            msg = "#{supervisor.size} tests weren't run."
+            if supervisor.max_test_failed?
+              puts('Encountered too many failed tests. Test run was ended early.')
+              puts(msg)
+            else
+              abort!(msg)
+            end
           end
         end
 
@@ -397,6 +403,15 @@ module Minitest
           opts.separator ""
           opts.on('--max-duration SECONDS', Integer, help) do |max|
             queue_config.max_duration = max
+          end
+
+          help = <<~EOS
+            Defines how many user test tests can be fail.
+            Defaults to none.
+          EOS
+          opts.separator ""
+          opts.on('--max-test-failed MAX', Integer, help) do |max|
+            queue_config.max_test_failed = max
           end
 
           help = <<~EOS

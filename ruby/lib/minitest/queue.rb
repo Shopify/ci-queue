@@ -153,6 +153,10 @@ module Minitest
         if queue.config.circuit_breakers.any?(&:open?)
           STDERR.puts queue.config.circuit_breakers.map(&:message).join(' ').strip
         end
+
+        if queue.max_test_failed?
+          STDERR.puts 'This worker is exiting early because too many failed tests were encountered.'
+        end
       else
         super
       end
@@ -174,13 +178,19 @@ module Minitest
           queue.report_success!
         end
 
+        requeued = false
         if failed && queue.requeue(example)
+          requeued = true
           result.requeue!
           reporter.record(result)
         elsif queue.acknowledge(example) || !failed
           # If the test was already acknowledged by another worker (we timed out)
           # Then we only record it if it is successful.
           reporter.record(result)
+        end
+
+        if !requeued && failed
+          queue.increment_test_failed
         end
       end
     end

@@ -61,6 +61,20 @@ module CI
           end
         end
 
+        def increment_test_failed
+          redis.incr(key('test_failed_count'))
+        end
+
+        def test_failed
+          redis.get(key('test_failed_count')).to_i
+        end
+
+        def max_test_failed?
+          return false if config.max_test_failed.nil?
+
+          test_failed >= config.max_test_failed
+        end
+
         private
 
         attr_reader :redis, :redis_url

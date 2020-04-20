@@ -43,6 +43,50 @@ module Integration
       assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
     end
 
+    def test_max_test_failed
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '--max-requeues', '1',
+          '--requeue-tolerance', '1',
+          '--max-test-failed', '3',
+          '-Itest',
+          'test/failing_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      assert_equal 'This worker is exiting early because too many failed tests were encountered.', err.chomp
+      output = normalize(out.lines.last.strip)
+      assert_equal 'Ran 47 tests, 47 assertions, 3 failures, 0 errors, 0 skips, 44 requeues in X.XXs', output
+
+      # Run the reporter
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'report',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--timeout', '1',
+          '--max-test-failed', '3',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty err
+      expected = <<~EXPECTED
+        Waiting for workers to complete
+        Encountered too many failed tests. Test run was ended early.
+        97 tests weren't run.
+        Ran 3 tests, 47 assertions, 3 failures, 0 errors, 0 skips, 44 requeues in X.XXs (aggregated)
+      EXPECTED
+      assert_equal expected.strip, normalize(out.lines[0..4].join.strip)
+    end
+
     def test_circuit_breaker
       out, err = capture_subprocess_io do
         system(

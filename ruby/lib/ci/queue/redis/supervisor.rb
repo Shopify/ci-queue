@@ -22,7 +22,7 @@ module CI
           yield if block_given?
 
           time_left = config.timeout
-          until exhausted? || time_left <= 0
+          until exhausted? || time_left <= 0 || max_test_failed?
             sleep 1
             time_left -= 1
 
