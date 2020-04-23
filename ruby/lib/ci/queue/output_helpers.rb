@@ -8,8 +8,8 @@ module CI
 
       private
 
-      def step(*args)
-        ci_provider.step(*args)
+      def step(*args, **kwargs)
+        ci_provider.step(*args, **kwargs)
       end
 
       def reopen_previous_step

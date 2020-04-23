@@ -88,6 +88,7 @@ module Minitest
     end
 
     def flaked?
+      @flaky ||= false
       !!((Flaked === failure) || @flaky)
     end
 

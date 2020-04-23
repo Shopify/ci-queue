@@ -2,8 +2,8 @@
 module ReporterTestHelper
   private
 
-  def result(*args)
-    result = runnable(*args)
+  def result(*args, **kwargs)
+    result = runnable(*args, **kwargs)
     if defined? Minitest::Result
       result = Minitest::Result.from(result)
     end

@@ -42,15 +42,15 @@ class CI::Queue::RedisTest < Minitest::Test
   end
 
   def test_retry_queue_with_all_tests_passing
-    test_order = poll(@queue)
+    poll(@queue)
     retry_queue = @queue.retry_queue
     populate(retry_queue)
     retry_test_order = poll(retry_queue)
     assert_equal [], retry_test_order
   end
 
-  def test_retry_queue_with_all_tests_passing
-    test_order = poll(@queue)
+  def test_retry_queue_with_all_tests_passing_2
+    poll(@queue)
     retry_queue = @queue.retry_queue
     populate(retry_queue)
     retry_test_order = poll(retry_queue) do |test|
