@@ -15,6 +15,7 @@ module CI
         attr_reader :total
 
         def initialize(redis, config)
+          @last_warning = nil
           @reserved_test = nil
           @shutdown_required = false
           super(redis, config)

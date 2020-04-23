@@ -19,7 +19,7 @@ module Minitest
           @socket = UDPSocket.new
           @socket.connect(host, Integer(port))
         end
-      rescue SocketError => e
+      rescue SocketError
         # No-op, we shouldn't fail CI because of statsd
       end
 

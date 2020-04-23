@@ -12,12 +12,15 @@ jobs:
         ports:
           - 6379:6379
 
+    strategy:
+      matrix:
+        ruby: [ '2.6', '2.7' ]
     steps:
       - uses: actions/checkout@v2
-      - name: Set up Ruby 2.6.x
+      - name: Set up Ruby ${{ matrix.ruby }}
         uses: actions/setup-ruby@v1
         with:
-          ruby-version: 2.6.x
+          ruby-version: ${{ matrix.ruby }}
       - name: Run Ruby tests
         run: |
           bin/before-install
