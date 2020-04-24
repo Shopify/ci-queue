@@ -1,11 +1,7 @@
 # frozen_string_literal: true
-require 'ansi'
-
 module CI
   module Queue
     module OutputHelpers
-      include ANSI::Code
-
       private
 
       def step(*args, **kwargs)
@@ -26,6 +22,22 @@ module CI
         else
           DefaultOutput
         end
+      end
+
+      def red(text)
+        colorize(text, 31)
+      end
+
+      def green(text)
+        colorize(text, 32)
+      end
+
+      def yellow(text)
+        colorize(text, 33)
+      end
+
+      def colorize(text, color_code)
+        "\e[#{color_code}m#{text}\e[0m"
       end
 
       module DefaultOutput

@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 require 'delegate'
-require 'ansi'
+require 'ci/queue/output_helpers'
 
 module Minitest
   module Queue
     class FailureFormatter < SimpleDelegator
-      include ANSI::Code
+      include ::CI::Queue::OutputHelpers
 
       def initialize(test)
         @test = test
