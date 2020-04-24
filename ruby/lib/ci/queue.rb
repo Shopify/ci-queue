@@ -18,10 +18,14 @@ module CI
   module Queue
     extend self
 
-    attr_accessor :shuffler
+    attr_accessor :shuffler, :requeueable
 
     module Warnings
       RESERVED_LOST_TEST = :RESERVED_LOST_TEST
+    end
+
+    def requeueable?(test_result)
+      requeueable.nil? || requeueable.call(test_result)
     end
 
     def shuffle(tests, random)

@@ -180,7 +180,7 @@ module Minitest
         end
 
         requeued = false
-        if failed && queue.requeue(example)
+        if failed && CI::Queue.requeueable?(result) && queue.requeue(example)
           requeued = true
           result.requeue!
           reporter.record(result)
