@@ -211,7 +211,7 @@ module RSpec
             reporter.report_success!
           end
 
-          if @exception && reporter.requeue
+          if @exception && CI::Queue.requeueable?(@exception) && reporter.requeue
             reporter.cancel_run!
             dup.mark_as_requeued!(reporter)
             return true

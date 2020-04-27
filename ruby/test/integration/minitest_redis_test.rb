@@ -43,6 +43,29 @@ module Integration
       assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
     end
 
+    def test_custom_requeue
+      out, err = capture_subprocess_io do
+        system(
+          { 'BUILDKITE' => '1' },
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '--max-requeues', '1',
+          '--requeue-tolerance', '1',
+          '-Itest',
+          'test/custom_requeue_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      assert_empty err
+      output = normalize(out.lines.last.strip)
+      assert_equal '--- Ran 3 tests, 0 assertions, 0 failures, 2 errors, 0 skips, 1 requeues in X.XXs', output
+    end
+
     def test_max_test_failed
       out, err = capture_subprocess_io do
         system(
