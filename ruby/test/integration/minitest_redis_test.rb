@@ -418,58 +418,64 @@ module Integration
       output = normalize(out.lines.last.strip)
       assert_equal 'Ran 9 tests, 6 assertions, 1 failures, 1 errors, 1 skips, 2 requeues in X.XXs', output
 
-      assert_equal strip_heredoc(<<-END), normalize_xml(File.read(@junit_path))
-       <?xml version="1.0" encoding="UTF-8"?>
-       <testsuites>
-         <testsuite name="ATest" filepath="test/dummy_test.rb" skipped="5" failures="1" errors="0" tests="6" assertions="5" time="X.XX">
-           <testcase name="test_foo" lineno="5" classname="ATest" assertions="0" time="X.XX" flaky_test="false">
-           <skipped type="Minitest::Skip"/>
-           </testcase>
-           <testcase name="test_bar" lineno="9" classname="ATest" assertions="1" time="X.XX" flaky_test="false">
-           <skipped type="Minitest::Assertion"/>
-           </testcase>
-           <testcase name="test_flaky" lineno="13" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
-           <failure type="Minitest::Assertion" message="Expected false to be truthy.">
-       Skipped:
-       test_flaky(ATest) [./test/fixtures/test/dummy_test.rb:18]:
-       Expected false to be truthy.
-           </failure>
-           </testcase>
-           <testcase name="test_flaky_passes" lineno="26" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
-           </testcase>
-           <testcase name="test_flaky_fails_retry" lineno="22" classname="ATest" assertions="1" time="X.XX" flaky_test="true">
-           <failure type="Minitest::Assertion" message="Expected false to be truthy.">
-       Skipped:
-       test_flaky_fails_retry(ATest) [./test/fixtures/test/dummy_test.rb:23]:
-       Expected false to be truthy.
-           </failure>
-           </testcase>
-           <testcase name="test_bar" lineno="9" classname="ATest" assertions="1" time="X.XX" flaky_test="false">
-           <failure type="Minitest::Assertion" message="Expected false to be truthy.">
-       Failure:
-       test_bar(ATest) [./test/fixtures/test/dummy_test.rb:10]:
-       Expected false to be truthy.
-           </failure>
-           </testcase>
-         </testsuite>
-         <testsuite name="BTest" filepath="test/dummy_test.rb" skipped="1" failures="0" errors="1" tests="3" assertions="1" time="X.XX">
-           <testcase name="test_bar" lineno="36" classname="BTest" assertions="0" time="X.XX" flaky_test="false">
-           <skipped type="TypeError"/>
-           </testcase>
-           <testcase name="test_foo" lineno="32" classname="BTest" assertions="1" time="X.XX" flaky_test="false">
-           </testcase>
-           <testcase name="test_bar" lineno="36" classname="BTest" assertions="0" time="X.XX" flaky_test="false">
-           <error type="TypeError" message="TypeError: String can't be coerced into Integer...">
-       Failure:
-       test_bar(BTest) [./test/fixtures/test/dummy_test.rb:37]:
-       TypeError: String can't be coerced into Integer
-           ./test/fixtures/test/dummy_test.rb:37:in `+'
-           ./test/fixtures/test/dummy_test.rb:37:in `test_bar'
-           </error>
-           </testcase>
-         </testsuite>
-       </testsuites>
-      END
+      assert_equal <<~XML, normalize_xml(File.read(@junit_path))
+        <?xml version='1.0' encoding='UTF-8'?>
+        <testsuites>
+          <testsuite name='ATest' filepath='test/dummy_test.rb' skipped='5' failures='1' errors='0' tests='6' assertions='5' time='X.XX'>
+            <testcase name='test_foo' classname='ATest' assertions='0' time='X.XX' flaky_test='false' lineno='5'>
+              <skipped type='Minitest::Skip'/>
+            </testcase>
+            <testcase name='test_bar' classname='ATest' assertions='1' time='X.XX' flaky_test='false' lineno='5'>
+              <skipped type='Minitest::Assertion'/>
+            </testcase>
+            <testcase name='test_flaky' classname='ATest' assertions='1' time='X.XX' flaky_test='true' lineno='5'>
+              <failure type='Minitest::Assertion' message='Expected false to be truthy.'>
+                <![CDATA[
+        Skipped:
+        test_flaky(ATest) [./test/fixtures/test/dummy_test.rb:18]:
+        Expected false to be truthy.
+        ]]>
+              </failure>
+            </testcase>
+            <testcase name='test_flaky_passes' classname='ATest' assertions='1' time='X.XX' flaky_test='true' lineno='5'/>
+            <testcase name='test_flaky_fails_retry' classname='ATest' assertions='1' time='X.XX' flaky_test='true' lineno='5'>
+              <failure type='Minitest::Assertion' message='Expected false to be truthy.'>
+                <![CDATA[
+        Skipped:
+        test_flaky_fails_retry(ATest) [./test/fixtures/test/dummy_test.rb:23]:
+        Expected false to be truthy.
+        ]]>
+              </failure>
+            </testcase>
+            <testcase name='test_bar' classname='ATest' assertions='1' time='X.XX' flaky_test='false' lineno='5'>
+              <failure type='Minitest::Assertion' message='Expected false to be truthy.'>
+                <![CDATA[
+        Failure:
+        test_bar(ATest) [./test/fixtures/test/dummy_test.rb:10]:
+        Expected false to be truthy.
+        ]]>
+              </failure>
+            </testcase>
+          </testsuite>
+          <testsuite name='BTest' filepath='test/dummy_test.rb' skipped='1' failures='0' errors='1' tests='3' assertions='1' time='X.XX'>
+            <testcase name='test_bar' classname='BTest' assertions='0' time='X.XX' flaky_test='false' lineno='36'>
+              <skipped type='TypeError'/>
+            </testcase>
+            <testcase name='test_foo' classname='BTest' assertions='1' time='X.XX' flaky_test='false' lineno='36'/>
+            <testcase name='test_bar' classname='BTest' assertions='0' time='X.XX' flaky_test='false' lineno='36'>
+              <error type='TypeError' message='TypeError: String can&apos;t be coerced into Integer'>
+                <![CDATA[
+        Failure:
+        test_bar(BTest) [./test/fixtures/test/dummy_test.rb:37]:
+        TypeError: String can't be coerced into Integer
+            ./test/fixtures/test/dummy_test.rb:37:in `+'
+            ./test/fixtures/test/dummy_test.rb:37:in `test_bar'
+        ]]>
+              </error>
+            </testcase>
+          </testsuite>
+        </testsuites>
+      XML
     end
 
     def test_redis_reporter_failure_file
@@ -603,7 +609,7 @@ module Integration
 
       assert_empty err
       output = normalize(out)
-      assert_equal strip_heredoc(<<-END), output
+      assert_equal <<~END, output
         Ran 1 tests, 1 assertions, 1 failures, 0 errors, 0 skips, 0 requeues in X.XXs
       END
     end
