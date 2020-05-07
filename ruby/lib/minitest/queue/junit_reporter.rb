@@ -16,7 +16,12 @@ module Minitest
       def generate_document
         suites = tests.group_by { |test| test.klass }
 
-        doc = REXML::Document.new
+        doc = REXML::Document.new(nil, {
+          :prologue_quote => :quote,
+          :attribute_quote => :quote,
+        })
+        doc << REXML::XMLDecl.new('1.1', 'utf-8')
+
         testsuites = doc.add_element('testsuites')
         suites.each do |suite, tests|
           add_tests_to(testsuites, suite, tests)
@@ -25,7 +30,6 @@ module Minitest
       end
 
       def format_document(doc, io)
-        io << "<?xml version='1.0' encoding='UTF-8'?>\n"
         formatter = REXML::Formatters::Pretty.new
         formatter.write(doc, io)
         io << "\n"
