@@ -52,7 +52,7 @@ module Minitest
 
       def body
         error = test.failure
-        message = if error.is_a?(MiniTest::UnexpectedError)
+        message = if error.is_a?(Minitest::UnexpectedError)
           "#{error.exception.class}: #{error.exception.message}"
         else
           error.exception.message
