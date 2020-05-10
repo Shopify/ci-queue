@@ -15,31 +15,33 @@ module Minitest::Queue
     end
 
     def test_aggregation
-      @reporter.record(result('a', Minitest::Assertion.new))
-      @reporter.record(result('b', Minitest::UnexpectedError.new(StandardError.new)))
+      @reporter.record(result('a', failure: "Something went wrong"))
+      @reporter.record(result('b', unexpected_error: true))
 
       second_queue = worker(2)
-      second_reporter = second_queue
+      second_reporter = BuildStatusRecorder.new(build: second_queue.build)
       second_reporter.start
 
-      second_reporter.record(result('c', Minitest::Assertion.new))
-      second_reporter.record(result('d', Minitest::UnexpectedError.new(StandardError.new)))
-      second_reporter.record(result('e', Minitest::Skip.new))
-      second_reporter.record(result('f', Minitest::UnexpectedError.new(StandardError.new)))
+      second_reporter.record(result('c', failure: "Something went wrong"))
+      second_reporter.record(result('d', unexpected_error: true))
+      second_reporter.record(result('e', skipped: true))
+      second_reporter.record(result('f', unexpected_error: true))
+      second_reporter.record(result('g', requeued: true))
 
-      assert_equal 6, summary.assertions
+      assert_equal 7, summary.assertions
       assert_equal 2, summary.failures
       assert_equal 3, summary.errors
       assert_equal 1, summary.skips
+      assert_equal 1, summary.requeues
       assert_equal 5, summary.error_reports.size
     end
 
     def test_retrying_test
-      @reporter.record(result('a', Minitest::Assertion.new))
+      @reporter.record(result('a', failure: "Something went wrong"))
       assert_equal 1, summary.error_reports.size
 
       second_queue = worker(2)
-      second_reporter = second_queue
+      second_reporter = BuildStatusRecorder.new(build: second_queue.build)
       second_reporter.start
 
       second_reporter.record(result('a'))
