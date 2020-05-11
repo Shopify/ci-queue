@@ -58,7 +58,7 @@ module Minitest
       private
 
       def mock_build(test_time_hash)
-        build = Minitest::Mock.new
+        build = MiniTest::Mock.new
         build.expect(:fetch, test_time_hash)
         build
       end

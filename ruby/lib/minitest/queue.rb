@@ -198,6 +198,22 @@ module Minitest
   end
 end
 
-Minitest.singleton_class.prepend(Minitest::Queue)
-Minitest::Result.prepend(Minitest::Requeueing)
-Minitest::Result.prepend(Minitest::Flakiness)
+MiniTest.singleton_class.prepend(MiniTest::Queue)
+if defined? MiniTest::Result
+  MiniTest::Result.prepend(MiniTest::Requeueing)
+  MiniTest::Result.prepend(MiniTest::Flakiness)
+else
+  MiniTest::Test.prepend(MiniTest::Requeueing)
+  MiniTest::Test.prepend(MiniTest::Flakiness)
+
+  module MinitestBackwardCompatibility
+    def source_location
+      method(name).source_location
+    end
+
+    def klass
+      self.class.name
+    end
+  end
+  MiniTest::Test.prepend(MinitestBackwardCompatibility)
+end
