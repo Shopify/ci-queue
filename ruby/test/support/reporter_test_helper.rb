@@ -4,7 +4,7 @@ module ReporterTestHelper
 
   def result(name, **kwargs)
     result = Minitest::Result.from(runnable(name, **kwargs))
-    result.source_location = ["test/my_test.rb", 12]
+    result.source_location = ["#{Minitest::Queue.project_root}/test/my_test.rb", 12]
     result
   end
 
@@ -22,9 +22,9 @@ module ReporterTestHelper
   def generate_unexpected_error
     error = StandardError.new
     error.set_backtrace([
-      "#{Dir.pwd}/test/support/reporter_test_helper.rb:15:in `runnable'",
-      "#{Dir.pwd}/test/support/reporter_test_helper.rb:6:in `result'",
-      "#{Dir.pwd}/test/minitest/reporters/junit_reporter_test.rb:65:in `test_generate_junitxml_for_errored_test'",
+      "#{Minitest::Queue.project_root}/test/support/reporter_test_helper.rb:15:in `runnable'",
+      "#{Minitest::Queue.project_root}/test/support/reporter_test_helper.rb:6:in `result'",
+      "#{Minitest::Queue.project_root}/test/minitest/reporters/junit_reporter_test.rb:65:in `test_generate_junitxml_for_errored_test'",
     ])
     Minitest::UnexpectedError.new(error)
   end
@@ -34,9 +34,9 @@ module ReporterTestHelper
 
     error = Minitest::Assertion.new(message)
     error.set_backtrace([
-      "#{Dir.pwd}/test/support/reporter_test_helper.rb:15:in `runnable'",
-      "#{Dir.pwd}/test/support/reporter_test_helper.rb:6:in `result'",
-      "#{Dir.pwd}/test/minitest/reporters/junit_reporter_test.rb:65:in `test_generate_junitxml_for_errored_test'",
+      "#{Minitest::Queue.project_root}/test/support/reporter_test_helper.rb:15:in `runnable'",
+      "#{Minitest::Queue.project_root}/test/support/reporter_test_helper.rb:6:in `result'",
+      "#{Minitest::Queue.project_root}/test/minitest/reporters/junit_reporter_test.rb:65:in `test_generate_junitxml_for_errored_test'",
     ])
     error
   end

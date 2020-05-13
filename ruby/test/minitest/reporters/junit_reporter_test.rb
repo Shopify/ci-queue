@@ -18,8 +18,8 @@ module Minitest::Reporters
         <?xml version="1.1" encoding="UTF-8"?>
         <testsuites>
           <testsuite name="Minitest::Test" filepath="test/my_test.rb" skipped="0" failures="0" errors="0" tests="2" assertions="2" time="0.24">
-            <testcase name="test_foo" classname="Minitest::Test" assertions="1" time="0.12" flaky_test="false" lineno="12"/>
-            <testcase name="test_bar" classname="Minitest::Test" assertions="1" time="0.12" flaky_test="false" lineno="12"/>
+            <testcase name="test_foo" classname="Minitest::Test" assertions="1" time="0.12" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/my_test.rb -n Minitest::Test\\#test_foo" lineno="12"/>
+            <testcase name="test_bar" classname="Minitest::Test" assertions="1" time="0.12" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/my_test.rb -n Minitest::Test\\#test_bar" lineno="12"/>
           </testsuite>
         </testsuites>
       XML
@@ -32,11 +32,11 @@ module Minitest::Reporters
         <?xml version="1.1" encoding="UTF-8"?>
         <testsuites>
           <testsuite name="Minitest::Test" filepath="test/my_test.rb" skipped="0" failures="1" errors="0" tests="1" assertions="1" time="0.12">
-            <testcase name="test_foo" classname="Minitest::Test" assertions="1" time="0.12" flaky_test="false" lineno="12">
+            <testcase name="test_foo" classname="Minitest::Test" assertions="1" time="0.12" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/my_test.rb -n Minitest::Test\\#test_foo" lineno="12">
               <failure type="Minitest::Assertion" message="Assertion failed">
                 <![CDATA[
         Failure:
-        test_foo(Minitest::Test) [#{Dir.pwd}/test/support/reporter_test_helper.rb:15]:
+        test_foo(Minitest::Test) [test/my_test.rb]:
         Assertion failed
         ]]>
               </failure>
@@ -53,11 +53,11 @@ module Minitest::Reporters
         <?xml version="1.1" encoding="UTF-8"?>
         <testsuites>
           <testsuite name="Minitest::Test" filepath="test/my_test.rb" skipped="0" failures="1" errors="0" tests="1" assertions="1" time="0.12">
-            <testcase name="test_foo" classname="Minitest::Test" assertions="1" time="0.12" flaky_test="false" lineno="12">
+            <testcase name="test_foo" classname="Minitest::Test" assertions="1" time="0.12" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/my_test.rb -n Minitest::Test\\#test_foo" lineno="12">
               <failure type="Minitest::Assertion" message="Assertion failed">
                 <![CDATA[
         Failure:
-        test_foo(Minitest::Test) [#{Dir.pwd}/test/support/reporter_test_helper.rb:15]:
+        test_foo(Minitest::Test) [test/my_test.rb]:
         \e[31mAssertion failed\e[0m
         ]]>
               </failure>
@@ -74,7 +74,7 @@ module Minitest::Reporters
         <?xml version="1.1" encoding="UTF-8"?>
         <testsuites>
           <testsuite name="Minitest::Test" filepath="test/my_test.rb" skipped="1" failures="0" errors="0" tests="1" assertions="1" time="0.12">
-            <testcase name="test_foo" classname="Minitest::Test" assertions="1" time="0.12" flaky_test="false" lineno="12">
+            <testcase name="test_foo" classname="Minitest::Test" assertions="1" time="0.12" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/my_test.rb -n Minitest::Test\\#test_foo" lineno="12">
               <skipped type="Minitest::Skip"/>
             </testcase>
           </testsuite>
@@ -89,15 +89,15 @@ module Minitest::Reporters
         <?xml version="1.1" encoding="UTF-8"?>
         <testsuites>
           <testsuite name="Minitest::Test" filepath="test/my_test.rb" skipped="0" failures="0" errors="1" tests="1" assertions="1" time="0.12">
-            <testcase name="test_foo" classname="Minitest::Test" assertions="1" time="0.12" flaky_test="false" lineno="12">
+            <testcase name="test_foo" classname="Minitest::Test" assertions="1" time="0.12" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/my_test.rb -n Minitest::Test\\#test_foo" lineno="12">
               <error type="StandardError" message="StandardError: StandardError">
                 <![CDATA[
         Failure:
-        test_foo(Minitest::Test) [#{Dir.pwd}/test/support/reporter_test_helper.rb:15]:
+        test_foo(Minitest::Test) [test/my_test.rb]:
         StandardError: StandardError
-            #{Dir.pwd}/test/support/reporter_test_helper.rb:15:in `runnable'
-            #{Dir.pwd}/test/support/reporter_test_helper.rb:6:in `result'
-            #{Dir.pwd}/test/minitest/reporters/junit_reporter_test.rb:65:in `test_generate_junitxml_for_errored_test'
+            test/support/reporter_test_helper.rb:15:in `runnable'
+            test/support/reporter_test_helper.rb:6:in `result'
+            test/minitest/reporters/junit_reporter_test.rb:65:in `test_generate_junitxml_for_errored_test'
         ]]>
               </error>
             </testcase>
@@ -113,7 +113,7 @@ module Minitest::Reporters
         <?xml version="1.1" encoding="UTF-8"?>
         <testsuites>
           <testsuite name="Minitest::Test" filepath="test/my_test.rb" skipped="1" failures="0" errors="0" tests="1" assertions="1" time="0.12">
-            <testcase name="test_foo" classname="Minitest::Test" assertions="1" time="0.12" flaky_test="false" lineno="12">
+            <testcase name="test_foo" classname="Minitest::Test" assertions="1" time="0.12" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/my_test.rb -n Minitest::Test\\#test_foo" lineno="12">
               <skipped type="Minitest::Assertion"/>
             </testcase>
           </testsuite>
