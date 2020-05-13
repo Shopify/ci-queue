@@ -103,7 +103,7 @@ module Minitest
   end
 
   module Queue
-    attr_writer :run_command_formatter
+    attr_writer :run_command_formatter, :project_root
 
     def run_command_formatter
       @run_command_formatter ||= if defined?(Railties)
@@ -114,13 +114,13 @@ module Minitest
     end
 
     DEFAULT_RUN_COMMAND_FORMATTER = lambda do |runnable|
-      filename = runnable.source_location[0]
+      filename = Minitest::Queue.relative_path(runnable.source_location[0])
       identifier = "#{runnable.klass}##{runnable.name}"
       ['bundle', 'exec', 'ruby', '-Ilib:test', filename, '-n', identifier]
     end
 
     RAILS_RUN_COMMAND_FORMATTER = lambda do |runnable|
-      filename = runnable.source_location[0]
+      filename = Minitest::Queue.relative_path(runnable.source_location[0])
       lineno = runnable.source_location[1]
       ['bin/rails', 'test', "#{filename}:#{lineno}"]
     end
@@ -132,6 +132,16 @@ module Minitest
       else
         command
       end
+    end
+
+    def self.project_root
+      @project_root ||= Dir.pwd
+    end
+
+    def self.relative_path(path, root: project_root)
+      Pathname(path).relative_path_from(Pathname(root)).to_s
+    rescue ArgumentError
+      path
     end
 
     class SingleExample

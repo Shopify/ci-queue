@@ -42,5 +42,25 @@ module Minitest::Queue
       command = Minitest.run_command_for_runnable(result('a'))
       assert_equal %{test\\ runner Minitest::Test\\#a}, command
     end
+
+    def test_relative_path
+      path = Minitest::Queue.relative_path('/home/willem/src/project/test/my_test.rb', root: '/home/willem/src/project')
+      assert_equal "test/my_test.rb", path
+    end
+
+    def test_relative_path_with_wrong_base_dir
+      path = Minitest::Queue.relative_path('/home/willem/src/project/test/my_test.rb', root: '/home/willem/src/other_project')
+      assert_equal "../project/test/my_test.rb", path
+    end
+
+    def test_relative_path_already_relative
+      path = Minitest::Queue.relative_path('./test/my_test.rb', root: '/home/willem/src/project')
+      assert_equal "./test/my_test.rb", path
+    end
+
+    def test_relative_path_with_empty_path
+      path = Minitest::Queue.relative_path('', root: '/home/willem/src/project')
+      assert_equal "", path
+    end
   end
 end

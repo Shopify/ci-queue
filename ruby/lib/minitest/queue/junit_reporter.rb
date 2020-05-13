@@ -48,17 +48,7 @@ module Minitest
 
       def add_tests_to(testsuites, suite, tests)
         suite_result = analyze_suite(tests)
-        relative_path = if tests.first.source_location.first == 'unknown'
-          Pathname.new('')
-        else
-          file_path = Pathname.new(tests.first.source_location.first)
-          if file_path.relative?
-            file_path
-          else
-            base_path = Pathname.new(@base_path)
-            file_path.relative_path_from(base_path)
-          end
-        end
+        relative_path = location_for_runnable(tests.first) || '<unknown>'
 
         testsuite = testsuites.add_element(
           'testsuite',
@@ -111,24 +101,25 @@ module Minitest
         name = test.name
         error = test.failure
 
+        message_with_relative_paths = error.message.gsub("#{Minitest::Queue.project_root}/", '')
+
         if test.passed?
           nil
         elsif test.skipped?
-          "\nSkipped:\n#{name}(#{suite}) [#{location(error)}]:\n#{error.message}\n"
+          "\nSkipped:\n#{name}(#{suite}) [#{location_for_runnable(test)}]:\n#{message_with_relative_paths}\n"
         elsif test.failure
-          "\nFailure:\n#{name}(#{suite}) [#{location(error)}]:\n#{error.message}\n"
+          "\nFailure:\n#{name}(#{suite}) [#{location_for_runnable(test)}]:\n#{message_with_relative_paths}\n"
         elsif test.error?
-          "\nError:\n#{name}(#{suite}) [#{location(error)}]:\n#{error.message}\n"
+          "\nError:\n#{name}(#{suite}) [#{location_for_runnable(test)}]:\n#{message_with_relative_paths}\n"
         end
       end
 
-      def location(exception)
-        last_before_assertion = ''
-        (exception.backtrace || []).reverse_each do |s|
-          break if s =~ /in .(assert|refute|flunk|pass|fail|raise|must|wont)/
-          last_before_assertion = s
+      def location_for_runnable(runnable)
+        if runnable.source_location.first == 'unknown'
+          nil
+        else
+          Minitest::Queue.relative_path(runnable.source_location.first)
         end
-        last_before_assertion.sub(/:in .*$/, '')
       end
 
       def analyze_suite(tests)
