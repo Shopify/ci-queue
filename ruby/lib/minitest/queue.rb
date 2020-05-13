@@ -106,7 +106,7 @@ module Minitest
     attr_writer :run_command_formatter, :project_root
 
     def run_command_formatter
-      @run_command_formatter ||= if defined?(Railties)
+      @run_command_formatter ||= if defined?(Rails) && defined?(Rails::TestUnitRailtie)
         RAILS_RUN_COMMAND_FORMATTER
       else
         DEFAULT_RUN_COMMAND_FORMATTER
