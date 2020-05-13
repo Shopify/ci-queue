@@ -5,6 +5,10 @@ module Minitest::Queue
   class RunCommandFormatterTest < Minitest::Test
     include ReporterTestHelper
 
+    def teardown
+      Minitest.run_command_formatter = Minitest::Queue::DEFAULT_RUN_COMMAND_FORMATTER
+    end
+
     def test_default_formatter
       result = result('a', failure: "Something went wrong")
 

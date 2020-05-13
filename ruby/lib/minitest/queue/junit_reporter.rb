@@ -79,7 +79,8 @@ module Minitest
             'classname' => suite,
             'assertions' => test.assertions,
             'time' => test.time,
-            'flaky_test' => test.flaked?
+            'flaky_test' => test.flaked?,
+            'run-command' => Minitest.run_command_for_runnable(test),
           }
           attributes['lineno'] = lineno if lineno != -1
 
