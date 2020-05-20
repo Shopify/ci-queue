@@ -96,13 +96,16 @@ module Minitest
         message.lines.first.chomp.gsub(/\e\[[^m]+m/, '')
       end
 
+      def project_root_path_matcher
+        @project_root_path_matcher ||= %r{(?<=\s)#{Regexp.escape(Minitest::Queue.project_root)}/}
+      end
+
       def message_for(test)
         suite = test.klass
         name = test.name
         error = test.failure
 
-        message_with_relative_paths = error.message.gsub("#{Minitest::Queue.project_root}/", '')
-
+        message_with_relative_paths = error.message.gsub(project_root_path_matcher, '')
         if test.passed?
           nil
         elsif test.skipped?

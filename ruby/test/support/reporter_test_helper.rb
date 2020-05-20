@@ -24,7 +24,7 @@ module ReporterTestHelper
     error.set_backtrace([
       "#{Minitest::Queue.project_root}/test/support/reporter_test_helper.rb:15:in `runnable'",
       "#{Minitest::Queue.project_root}/test/support/reporter_test_helper.rb:6:in `result'",
-      "#{Minitest::Queue.project_root}/test/minitest/reporters/junit_reporter_test.rb:65:in `test_generate_junitxml_for_errored_test'",
+      "#{Minitest::Queue.project_root}/app/components/app/test/junit_reporter_test.rb:65:in `test_generate_junitxml_for_errored_test'",
     ])
     Minitest::UnexpectedError.new(error)
   end

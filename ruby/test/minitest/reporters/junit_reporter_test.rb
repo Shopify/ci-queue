@@ -97,13 +97,39 @@ module Minitest::Reporters
         StandardError: StandardError
             test/support/reporter_test_helper.rb:15:in `runnable'
             test/support/reporter_test_helper.rb:6:in `result'
-            test/minitest/reporters/junit_reporter_test.rb:65:in `test_generate_junitxml_for_errored_test'
+            app/components/app/test/junit_reporter_test.rb:65:in `test_generate_junitxml_for_errored_test'
         ]]>
               </error>
             </testcase>
           </testsuite>
         </testsuites>
       XML
+    end
+
+    def test_generate_junitxml_with_proper_relative_paths
+      Minitest::Queue.stub(:project_root, '/app') do
+        @reporter.record(result("test_foo", unexpected_error: true))
+
+        assert_equal <<~XML, generate_xml(@reporter)
+          <?xml version="1.1" encoding="UTF-8"?>
+          <testsuites>
+            <testsuite name="Minitest::Test" filepath="test/my_test.rb" skipped="0" failures="0" errors="1" tests="1" assertions="1" time="0.12">
+              <testcase name="test_foo" classname="Minitest::Test" assertions="1" time="0.12" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/my_test.rb -n Minitest::Test\\#test_foo" lineno="12">
+                <error type="StandardError" message="StandardError: StandardError">
+                  <![CDATA[
+          Failure:
+          test_foo(Minitest::Test) [test/my_test.rb]:
+          StandardError: StandardError
+              test/support/reporter_test_helper.rb:15:in `runnable'
+              test/support/reporter_test_helper.rb:6:in `result'
+              app/components/app/test/junit_reporter_test.rb:65:in `test_generate_junitxml_for_errored_test'
+          ]]>
+                </error>
+              </testcase>
+            </testsuite>
+          </testsuites>
+        XML
+      end
     end
 
     def test_generate_junitxml_for_requeued_test
