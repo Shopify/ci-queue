@@ -69,4 +69,4 @@ rspec-queue --queue redis://example.com --timeout 600 --report
 
 #### Limitations
 
-Because of how `ci-queue` execute the examples, `before(:all)` and `after(:all)` hooks are not supported. `rspec-queue` will explicitly reject them.
+Because of how `ci-queue` executes the examples, `before(:all)` and `after(:all)` hooks are not supported. `rspec-queue` will explicitly reject them.
