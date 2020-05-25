@@ -53,7 +53,7 @@ minitest-queue --queue path/to/test_order.log --failing-test 'SomeTest#test_some
 
 ### RSpec [DEPRECATED]
 
-> ⛔️ The rspec-queue runner is DEPRECATED, so we can focus on the minitest-queue runner exclusively and improve it more.
+> The rspec-queue runner is deprecated. The minitest-queue runner continues to be supported and is actively being improved. We recommend that new projects to set up their test suite using Minitest.
 
 Assuming you use one of the supported CI providers, the command can be as simple as:
 
