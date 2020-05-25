@@ -51,7 +51,9 @@ The runner also comes with a tool to investigate leaky tests:
 minitest-queue --queue path/to/test_order.log --failing-test 'SomeTest#test_something' bisect -Itest test/**/*_test.rb
 ```
 
-### RSpec
+### RSpec [DEPRECATED]
+
+The rspec-queue runner is deprecated. The minitest-queue runner continues to be supported and is actively being improved. At Shopify, we strongly recommend that new projects set up their test suite using Minitest rather than RSpec.
 
 Assuming you use one of the supported CI providers, the command can be as simple as:
 
@@ -67,4 +69,4 @@ rspec-queue --queue redis://example.com --timeout 600 --report
 
 #### Limitations
 
-Because of how `ci-queue` execute the examples, `before(:all)` and `after(:all)` hooks are not supported. `rspec-queue` will explicitly reject them.
+Because of how `ci-queue` executes the examples, `before(:all)` and `after(:all)` hooks are not supported. `rspec-queue` will explicitly reject them.
