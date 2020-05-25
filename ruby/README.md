@@ -51,7 +51,9 @@ The runner also comes with a tool to investigate leaky tests:
 minitest-queue --queue path/to/test_order.log --failing-test 'SomeTest#test_something' bisect -Itest test/**/*_test.rb
 ```
 
-### RSpec
+### RSpec [DEPRECATED]
+
+> ⛔️ The rspec-queue runner is DEPRECATED, so we can focus on the minitest-queue runner exclusively and improve it more.
 
 Assuming you use one of the supported CI providers, the command can be as simple as:
 
