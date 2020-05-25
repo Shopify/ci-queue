@@ -523,10 +523,12 @@ module Integration
           test_and_module_name: "ATest#test_bar",
           error_class: "Minitest::Assertion",
           test_name: "test_bar",
+          test_suite: "ATest",
         }
 
         assert_includes failure[:test_file], expected[:test_file]
         assert_equal failure[:test_line], expected[:test_line]
+        assert_equal failure[:test_suite], expected[:test_suite]
         assert_equal failure[:test_and_module_name], expected[:test_and_module_name]
         assert_equal failure[:test_name], expected[:test_name]
         assert_equal failure[:error_class], expected[:error_class]

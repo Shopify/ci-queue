@@ -58,6 +58,10 @@ module Minitest
         @data[:test_and_module_name]
       end
 
+      def test_suite
+        @data[:test_suite]
+      end
+
       def test_file
         @data[:test_file]
       end
