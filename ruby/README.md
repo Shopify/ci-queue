@@ -53,7 +53,7 @@ minitest-queue --queue path/to/test_order.log --failing-test 'SomeTest#test_some
 
 ### RSpec [DEPRECATED]
 
-> The rspec-queue runner is deprecated. The minitest-queue runner continues to be supported and is actively being improved. We recommend that new projects to set up their test suite using Minitest.
+The rspec-queue runner is deprecated. The minitest-queue runner continues to be supported and is actively being improved. At Shopify, we strongly recommend that new projects set up their test suite using Minitest rather than RSpec.
 
 Assuming you use one of the supported CI providers, the command can be as simple as:
 
