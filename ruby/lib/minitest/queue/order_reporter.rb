@@ -1,7 +1,8 @@
 # frozen_string_literal: true
-require 'minitest/reporters'
 
-class Minitest::Queue::OrderReporter < Minitest::Reporters::BaseReporter
+class Minitest::Queue::OrderReporter < Minitest::Reporter
+  include Minitest::Reporters::BaseReporterShim
+
   def initialize(options = {})
     @path = options.delete(:path)
     super
@@ -9,12 +10,10 @@ class Minitest::Queue::OrderReporter < Minitest::Reporters::BaseReporter
 
   def start
     @file = File.open(@path, 'w+')
-    super
   end
 
-  def before_test(test)
-    super
-    @file.puts("#{test.class.name}##{test.name}")
+  def prerecord(test_class, name)
+    @file.puts("#{test_class.name}##{name}")
     @file.flush
   end
 

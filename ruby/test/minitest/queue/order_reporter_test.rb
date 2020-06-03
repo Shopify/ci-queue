@@ -10,9 +10,9 @@ module Minitest::Queue
       @reporter.start
     end
 
-    def test_before_test
-      @reporter.before_test(runnable('a'))
-      @reporter.before_test(runnable('b'))
+    def test_prerecord
+      @reporter.prerecord(Minitest::Test, 'a')
+      @reporter.prerecord(Minitest::Test, 'b')
       @reporter.report
       assert_equal ['Minitest::Test#a', 'Minitest::Test#b'], File.readlines(log_path).map(&:chomp)
     end

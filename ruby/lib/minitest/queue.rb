@@ -2,6 +2,7 @@
 require 'shellwords'
 require 'minitest'
 require 'minitest/reporters'
+require 'minitest/reporters/base_reporter_shim'
 
 require 'minitest/queue/failure_formatter'
 require 'minitest/queue/error_report'

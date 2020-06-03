@@ -1,9 +1,9 @@
 # frozen_string_literal: true
-require 'minitest/reporters'
 
 module Minitest
   module Queue
-    class TestTimeReporter < Minitest::Reporters::BaseReporter
+    class TestTimeReporter < Minitest::Reporter
+      include Minitest::Reporters::BaseReporterShim
       include ::CI::Queue::OutputHelpers
 
       def initialize(build:, limit: nil, percentile: nil, **options)

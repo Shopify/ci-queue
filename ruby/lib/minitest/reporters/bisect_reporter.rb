@@ -1,16 +1,35 @@
 # frozen_string_literal: true
-require 'minitest/reporters'
 
 module Minitest
   module Reporters
-    class BisectReporter < BaseReporter
-      include RelativePosition
+    class BisectReporter < Minitest::Reporter
+      include Minitest::Reporters::BaseReporterShim
 
-      def record(test)
-        super
-        test_name = "#{test.klass}##{test.name}"
-        print pad_test(test_name)
-        puts pad_mark(result(test).to_s.upcase)
+      def start
+        @failure_detected = false
+      end
+
+      def record(result)
+        @failure_detected ||= !(result.passed? || result.skipped?)
+        puts format("  %-63s %s", "#{result.class_name}##{result.name}", result_label(result))
+      end
+
+      def passed?
+        !@failure_detected
+      end
+
+      private
+
+      def result_label(result)
+        if result.passed?
+          'PASS'
+        elsif result.skipped?
+          'SKIP'
+        elsif result.error?
+          'ERROR'
+        else
+          'FAIL'
+        end
       end
     end
   end
