@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 require "test_helper"
-require "minitest/reporters/junit_reporter"
 
 module Minitest::Reporters
   class JUnitReporterTest < Minitest::Test

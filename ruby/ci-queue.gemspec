@@ -35,7 +35,6 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency 'rspec', '~> 3.7.0'
   spec.add_development_dependency 'redis', '~> 3.3'
   spec.add_development_dependency 'simplecov', '~> 0.12'
-  spec.add_development_dependency 'minitest-reporters', '~> 1.1'
 
   spec.add_development_dependency 'snappy'
   spec.add_development_dependency 'msgpack'

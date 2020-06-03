@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 require 'minitest/queue'
 require 'minitest/queue/statsd'
-require 'minitest/reporters'
 
 module Minitest
   module Reporters

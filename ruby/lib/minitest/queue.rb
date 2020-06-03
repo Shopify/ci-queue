@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 require 'shellwords'
 require 'minitest'
-require 'minitest/reporters'
 require 'minitest/reporters/base_reporter_shim'
 
 require 'minitest/queue/failure_formatter'
@@ -169,18 +168,8 @@ module Minitest
       end
     end
 
-    attr_reader :queue
-
-    def queue=(queue)
-      @queue = queue
-    end
-
-    def queue_reporters=(reporters)
-      @queue_reporters ||= []
-      Reporters.use!(((Reporters.reporters || []) - @queue_reporters) + reporters)
-      Minitest.backtrace_filter.add_filter(%r{exe/minitest-queue|lib/ci/queue/})
-      @queue_reporters = reporters
-    end
+    attr_accessor :queue_reporters
+    attr_accessor :queue
 
     def loaded_tests
       Minitest::Test.runnables.flat_map do |runnable|

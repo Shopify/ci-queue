@@ -10,8 +10,6 @@ require 'ci/queue/redis'
 require 'minitest/queue'
 require 'minitest/autorun'
 
-Minitest::Reporters.use!([Minitest::Reporters::SpecReporter.new])
-
 require 'tmpdir'
 require 'thread'
 require 'stringio'
