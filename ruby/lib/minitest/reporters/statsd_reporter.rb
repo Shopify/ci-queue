@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 require 'minitest/queue'
 require 'minitest/queue/statsd'
-require 'minitest/reporters'
 
 module Minitest
   module Reporters
-    class StatsdReporter < Minitest::Reporters::BaseReporter
+    class StatsdReporter < Minitest::Reporter
+      include Minitest::Reporters::BaseReporterShim
       FAILING_INFRASTRUCTURE_THRESHOLD = 10
 
       attr_reader :statsd

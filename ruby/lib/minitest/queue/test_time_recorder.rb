@@ -1,7 +1,10 @@
 # frozen_string_literal: true
+
 module Minitest
   module Queue
-    class TestTimeRecorder < Minitest::Reporters::BaseReporter
+    class TestTimeRecorder < Minitest::Reporter
+      include Minitest::Reporters::BaseReporterShim
+
       def initialize(build:, **options)
         super(options)
         @build = build

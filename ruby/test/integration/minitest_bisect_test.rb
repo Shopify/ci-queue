@@ -95,7 +95,7 @@ module Integration
       assert_equal expected_output, normalize(out)
     end
 
-    def test_unconclusive
+    def test_inconclusive
       out, err = capture_subprocess_io do
         run_bisect('log/unconclusive_test_order.log', 'LeakyTest#test_sensible_to_leak')
       end

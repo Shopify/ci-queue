@@ -1,7 +1,9 @@
 # frozen_string_literal: true
+
 module Minitest
   module Queue
-    class GrindRecorder < Minitest::Reporters::BaseReporter
+    class GrindRecorder < Minitest::Reporter
+      include Minitest::Reporters::BaseReporterShim
 
       attr_accessor :test_count
 

@@ -1,21 +1,22 @@
 # frozen_string_literal: true
 require 'ci/queue/output_helpers'
-require 'minitest/reporters'
 
 module Minitest
   module Queue
-    class LocalRequeueReporter < Minitest::Reporters::BaseReporter
+    class LocalRequeueReporter < Minitest::StatisticsReporter
+      include Minitest::Reporters::BaseReporterShim
       include ::CI::Queue::OutputHelpers
+
       attr_accessor :requeues
 
       def initialize(*)
-        self.requeues = 0
         super
       end
 
       def report
-        self.requeues = results.count(&:requeued?)
         super
+        self.requeues = results.count { |r| r.failure.is_a?(Minitest::Requeue) }
+
         print_report
       end
 

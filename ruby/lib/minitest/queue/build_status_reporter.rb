@@ -1,7 +1,9 @@
 # frozen_string_literal: true
+
 module Minitest
   module Queue
-    class BuildStatusReporter < Minitest::Reporters::BaseReporter
+    class BuildStatusReporter < Minitest::Reporter
+      include Minitest::Reporters::BaseReporterShim
       include ::CI::Queue::OutputHelpers
 
       def initialize(build:, **options)

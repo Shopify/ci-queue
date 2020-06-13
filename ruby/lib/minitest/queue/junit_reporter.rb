@@ -1,20 +1,22 @@
 # frozen_string_literal: true
 
-require 'minitest/reporters'
 require 'rexml/document'
 require 'fileutils'
 
 module Minitest
   module Queue
-    class JUnitReporter < Minitest::Reporters::BaseReporter
+    class JUnitReporter < Minitest::Reporter
+      include Minitest::Reporters::BaseReporterShim
+
       def initialize(report_path = 'log/junit.xml', options = {})
         super({})
         @report_path = File.absolute_path(report_path)
         @base_path = options[:base_path] || Dir.pwd
+        @results = []
       end
 
       def generate_document
-        suites = tests.group_by { |test| test.klass }
+        suites = @results.group_by { |test| test.klass }
 
         doc = REXML::Document.new(nil, {
           :prologue_quote => :quote,
@@ -33,6 +35,10 @@ module Minitest
         formatter = REXML::Formatters::Pretty.new
         formatter.write(doc, io)
         io << "\n"
+      end
+
+      def record(result)
+        @results << result
       end
 
       def report
@@ -135,6 +141,18 @@ module Minitest
           result[:time] += test.time
         end
         result
+      end
+
+      def result(test)
+        if test.error?
+          :error
+        elsif test.skipped?
+          :skip
+        elsif test.failure
+          :fail
+        else
+          :pass
+        end
       end
     end
   end
