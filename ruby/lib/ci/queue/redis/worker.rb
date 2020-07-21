@@ -56,10 +56,18 @@ module CI
         rescue *CONNECTION_ERRORS
         end
 
-        def retrying?
-          redis.exists(key('worker', worker_id, 'queue'))
-        rescue *CONNECTION_ERRORS
-          false
+        if ::Redis.method_defined?(:exists?)
+          def retrying?
+            redis.exists?(key('worker', worker_id, 'queue'))
+          rescue *CONNECTION_ERRORS
+            false
+          end
+        else
+          def retrying?
+            redis.exists(key('worker', worker_id, 'queue'))
+          rescue *CONNECTION_ERRORS
+            false
+          end
         end
 
         def retry_queue
