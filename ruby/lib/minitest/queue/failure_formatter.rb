@@ -29,6 +29,7 @@ module Minitest
           test_name: test.name,
           test_suite: test.klass,
           error_class: test.failure.exception.class.name,
+          error_message: full_error_message,
           output: to_s,
         }
       end
@@ -52,15 +53,24 @@ module Minitest
       end
 
       def body
+        [yellow(message), *backtrace].join("\n")
+      end
+
+      def full_error_message
+        [message, *backtrace].join("\n")
+      end
+
+      def backtrace
+        Minitest.filter_backtrace(test.failure.backtrace).map { |line| '    ' + relativize(line) }
+      end
+
+      def message
         error = test.failure
-        message = if error.is_a?(MiniTest::UnexpectedError)
+        if error.is_a?(MiniTest::UnexpectedError)
           "#{error.exception.class}: #{error.exception.message}"
         else
           error.exception.message
         end
-
-        backtrace = Minitest.filter_backtrace(error.backtrace).map { |line| '    ' + relativize(line) }
-        [yellow(message), *backtrace].join("\n")
       end
 
       def relativize(trace_line)
