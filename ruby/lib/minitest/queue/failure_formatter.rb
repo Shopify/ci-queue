@@ -29,6 +29,7 @@ module Minitest
           test_name: test.name,
           test_suite: test.klass,
           error_class: test.failure.exception.class.name,
+          error_message: test.failure.exception.message,
           output: to_s,
         }
       end

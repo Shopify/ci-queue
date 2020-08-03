@@ -70,6 +70,10 @@ module Minitest
         @data[:test_line]
       end
 
+      def error_message
+        @data[:error_message]
+      end
+
       def to_h
         @data
       end

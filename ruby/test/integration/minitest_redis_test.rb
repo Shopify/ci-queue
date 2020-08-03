@@ -524,6 +524,7 @@ module Integration
           error_class: "Minitest::Assertion",
           test_name: "test_bar",
           test_suite: "ATest",
+          error_message: "Expected false to be truthy."
         }
 
         assert_includes failure[:test_file], expected[:test_file]
@@ -532,6 +533,7 @@ module Integration
         assert_equal failure[:test_and_module_name], expected[:test_and_module_name]
         assert_equal failure[:test_name], expected[:test_name]
         assert_equal failure[:error_class], expected[:error_class]
+        assert_equal failure[:error_message], expected[:error_message]
       end
     end
 
