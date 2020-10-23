@@ -55,6 +55,11 @@ module Minitest
       def test_file_path
         path = @test.source_location.first
         relative_path_for(path)
+      rescue ArgumentError
+        p [:relative_path_for, path]
+        p [:@test, @test]
+        p [:@basepath, @base_path]
+        raise
       end
 
       def test_file_line_number
