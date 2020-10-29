@@ -17,6 +17,7 @@ module CI
             seed: env['CIRCLE_SHA1'] || env['BUILDKITE_COMMIT'] || env['TRAVIS_COMMIT'] || env['HEROKU_TEST_RUN_COMMIT_VERSION'] || env['SEMAPHORE_GIT_SHA'],
             flaky_tests: load_flaky_tests(env['CI_QUEUE_FLAKY_TESTS']),
             statsd_endpoint: env['CI_QUEUE_STATSD_ADDR'],
+            run_flakey_tests: env['CI_QUEUE_RUN_FLAKY_TESTS']
           )
         end
 
@@ -32,7 +33,7 @@ module CI
         timeout: 30, build_id: nil, worker_id: nil, max_requeues: 0, requeue_tolerance: 0,
         namespace: nil, seed: nil, flaky_tests: [], statsd_endpoint: nil, max_consecutive_failures: nil,
         grind_count: nil, max_duration: nil, failure_file: nil, max_test_duration: nil,
-        max_test_duration_percentile: 0.5, track_test_duration: false, max_test_failed: nil
+        max_test_duration_percentile: 0.5, track_test_duration: false, max_test_failed: nil, run_flakey_tests: 'true'
       )
         @build_id = build_id
         @circuit_breakers = [CircuitBreaker::Disabled]
@@ -52,6 +53,7 @@ module CI
         @worker_id = worker_id
         self.max_consecutive_failures = max_consecutive_failures
         self.max_duration = max_duration
+        @run_flakey_tests = run_flakey_tests || 'true'
       end
 
       def max_consecutive_failures=(max)
@@ -68,6 +70,10 @@ module CI
 
       def flaky?(test)
         @flaky_tests.include?(test.id)
+      end
+
+      def run_flakey_tests?
+        %w(t true yes y 1).include?(@run_flakey_tests)
       end
 
       def seed

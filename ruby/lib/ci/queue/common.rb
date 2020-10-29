@@ -15,6 +15,10 @@ module CI
         @config.flaky?(test)
       end
 
+      def run_flakey_tests?
+        @config.run_flakey_tests?
+      end
+
       def report_failure!
         config.circuit_breakers.each(&:report_failure!)
       end

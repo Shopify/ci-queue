@@ -207,12 +207,18 @@ module Minitest
 
     def run_from_queue(reporter, *)
       queue.poll do |example|
-        result = example.run
-        failed = !(result.passed? || result.skipped?)
 
         if example.flaky?
+          if queue.run_flakey_tests?
+            result = example.run
+          else
+            result = MiniTest::Skip.new
+          end
           result.mark_as_flaked!
           failed = false
+        else
+          result = example.run
+          failed = !(result.passed? || result.skipped?)
         end
 
         if failed
