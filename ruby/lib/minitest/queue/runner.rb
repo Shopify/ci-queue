@@ -272,6 +272,7 @@ module Minitest
 
       def set_load_path
         if paths = load_paths
+          puts "LOAD PATHS: #{load_paths}"
           paths.split(':').reverse.each do |path|
             $LOAD_PATH.unshift(File.expand_path(path))
           end
@@ -280,6 +281,7 @@ module Minitest
 
       def load_tests
         argv.sort.each do |f|
+          puts "LOADED_TEST: #{f}"
           require File.expand_path(f)
         end
       end
