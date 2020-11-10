@@ -43,6 +43,49 @@ module Minitest
         run_command # aliased for backward compatibility purpose
       end
 
+      def load_tests_command
+        set_load_path
+        Minitest.queue = queue
+        load_tests
+        populate_queue
+        exit! 1 # exit! is required to avoid minitest at_exit callback
+      end
+
+      def foo_command
+        if queue.retrying?
+          reset_counters
+          retry_queue = queue.retry_queue
+          if retry_queue.exhausted?
+            puts "The retry queue does not contain any failure, we'll process the main queue instead."
+          else
+            puts "Retrying failed tests."
+            self.queue = retry_queue
+          end
+        end
+
+        Minitest.queue = queue
+        reporters = [
+          LocalRequeueReporter.new,
+          BuildStatusRecorder.new(build: queue.build),
+          JUnitReporter.new,
+          TestDataReporter.new(namespace: queue_config&.namespace),
+          OrderReporter.new(path: 'log/test_order.log'),
+        ]
+        if queue_config.statsd_endpoint
+          reporters << Minitest::Reporters::StatsdReporter.new(statsd_endpoint: queue_config.statsd_endpoint)
+        end
+        Minitest.queue_reporters = reporters
+
+        trap('TERM') { Minitest.queue.shutdown! }
+        trap('INT') { Minitest.queue.shutdown! }
+
+        if queue.rescue_connection_errors { queue.exhausted? }
+          puts green('All tests were ran already')
+        end
+
+        # Let minitest's at_exit hook trigger
+      end
+
       def run_command
         if queue.retrying?
           reset_counters
