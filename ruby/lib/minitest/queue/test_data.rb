@@ -118,6 +118,8 @@ module Minitest
         file_path = Pathname.new(path)
         base_path = Pathname.new(@base_path)
         file_path.relative_path_from(base_path)
+      rescue ArgumentError
+        path
       end
 
       def error_location(exception)

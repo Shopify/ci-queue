@@ -67,6 +67,12 @@ module Minitest
     end
   end
 
+  class TimedOut < UnexpectedError
+    def result_label
+      "TimedOut"
+    end
+  end
+
   module Requeueing
     # Make requeues acts as skips for reporters not aware of the difference.
     def skipped?
@@ -103,6 +109,8 @@ module Minitest
   end
 
   module Queue
+    TimeoutError = Class.new(StandardError)
+
     attr_writer :run_command_formatter, :project_root
 
     def run_command_formatter
@@ -159,12 +167,119 @@ module Minitest
         id <=> other.id
       end
 
+      def build_result(failures)
+        example = @runnable.new(@method_name)
+        result = Minitest::Result.new(example.name)
+        result.klass      = example.class.name
+        result.failures   = failures
+        result.time       = 30 # TODO: fix this
+
+        result.source_location = example.method(example.name).source_location rescue ["unknown", -1]
+        result
+      end
+
       def run
         Minitest.run_one_method(@runnable, @method_name)
       end
 
       def flaky?
         Minitest.queue.flaky?(self)
+      end
+    end
+
+    class Executor
+      def run(example)
+        example.run
+      end
+
+      def reset
+      end
+
+      def teardown
+      end
+    end
+
+    class PipeQueue
+      def initialize
+        @in, @out = IO.pipe
+      end
+
+      def push(object)
+        payload = Marshal.dump(object)
+        @out.write(payload)
+        @out.flush
+      end
+
+      def pop(timeout: nil)
+        buffer = ''.b
+        loop do
+          payload = @in.read_nonblock(64_000, exception: false)
+          case payload
+          when String
+            buffer << payload
+            begin
+              return Marshal.load(buffer)
+            rescue ArgumentError
+              next
+            end
+          when :wait_readable
+            unless IO.select([@in], nil, nil, timeout)
+              raise TimeoutError
+            end
+          end
+        end
+      end
+    end
+
+    class ForkingExecutor
+      def initialize
+        @child_pid = nil
+      end
+
+      def run(example, timeout:)
+        spawn_children
+        @child_queue.push(example)
+        @parent_queue.pop(timeout: timeout)
+      rescue TimeoutError => error
+        kill!
+        example.build_result([UnexpectedError.new(error)])
+      end
+
+      def reset
+        teardown
+      end
+
+      def teardown
+        @child_queue.push(:shutdown)
+      end
+
+      private
+
+      def kill!
+        Process.kill('KILL', @child_pid)
+      rescue SystemCallError
+        false
+      ensure
+        @child_pid = nil
+      end
+
+      def spawn_children
+        @child_pid ||= begin
+          @child_queue = PipeQueue.new
+          @parent_queue = PipeQueue.new
+          Process.fork do
+            loop do
+              example = @child_queue.pop
+              case example
+              when :shutdown
+                break
+              else
+                result = example.run
+                @parent_queue.push(result)
+              end
+            end
+          end
+        end
       end
     end
 
@@ -207,7 +322,7 @@ module Minitest
 
     def run_from_queue(reporter, *)
       queue.poll do |example|
-        result = example.run
+        result = executor.run(example, timeout: queue.config.timeout)
         failed = !(result.passed? || result.skipped?)
 
         if example.flaky?
@@ -236,6 +351,12 @@ module Minitest
           queue.increment_test_failed
         end
       end
+    ensure
+      executor.teardown
+    end
+
+    def executor
+      @executor ||= ForkingExecutor.new
     end
   end
 end
