@@ -489,6 +489,10 @@ module Minitest
           opts.on('--failing-test TEST_IDENTIFIER') do |identifier|
             queue_config.failing_test = identifier
           end
+
+          opts.on('--fork') do |should_fork|
+            queue_config.should_fork = should_fork
+          end
         end
       end
 

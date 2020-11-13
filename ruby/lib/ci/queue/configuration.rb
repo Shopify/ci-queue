@@ -5,7 +5,7 @@ module CI
       attr_accessor :timeout, :worker_id, :max_requeues, :grind_count, :failure_file
       attr_accessor :requeue_tolerance, :namespace, :failing_test, :statsd_endpoint
       attr_accessor :max_test_duration, :max_test_duration_percentile, :track_test_duration
-      attr_accessor :max_test_failed
+      attr_accessor :max_test_failed, :should_fork
       attr_reader :circuit_breakers
       attr_writer :seed, :build_id
 

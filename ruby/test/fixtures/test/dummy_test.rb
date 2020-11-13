@@ -10,10 +10,6 @@ class ATest < Minitest::Test
     assert false
   end
 
-  def test_timeout
-    sleep 10
-  end
-
   def test_flaky
     if defined?(@@already_ran) && @@already_ran
       assert true
