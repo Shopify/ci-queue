@@ -352,7 +352,7 @@ module Minitest
 
           help = <<~EOS
             Specify a timeout after which if a test haven't completed, it will be picked up by another worker.
-            It is very important to set this vlaue higher than the slowest test in the suite, otherwise performance will be impacted.
+            It is very important to set this value higher than the slowest test in the suite, otherwise performance will be impacted.
             Defaults to 30 seconds.
           EOS
           opts.separator ""
