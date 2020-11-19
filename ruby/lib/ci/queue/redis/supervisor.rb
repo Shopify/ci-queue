@@ -8,7 +8,7 @@ module CI
         end
 
         def total
-          wait_for_master(timeout: config.timeout)
+          wait_for_master(timeout: config.queue_init_timeout)
           redis.get(key('total')).to_i
         end
 
@@ -17,7 +17,7 @@ module CI
         end
 
         def wait_for_workers
-          return false unless wait_for_master(timeout: config.timeout)
+          wait_for_master(timeout: config.queue_init_timeout)
 
           yield if block_given?
 

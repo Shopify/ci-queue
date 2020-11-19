@@ -361,6 +361,15 @@ module Minitest
           end
 
           help = <<~EOS
+            Specify a timeout to elect the leader and populate the queue.
+            Defaults to the value set for --timeout.
+          EOS
+          opts.separator ""
+          opts.on('--queue-init-timeout TIMEOUT', Float, help) do |timeout|
+            queue_config.queue_init_timeout = timeout
+          end
+
+          help = <<~EOS
             Specify $LOAD_PATH directory, similar to Ruby's -I
           EOS
           opts.separator ""
