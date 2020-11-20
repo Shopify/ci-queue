@@ -16,7 +16,8 @@ module Minitest
       MissingParameter = Class.new(Error)
 
       def self.invoke(argv)
-        new(argv).run!
+        Benchmark.bm do |x|
+          x.report("running minitest: " ) { new(argv).run! }
       end
 
       def initialize(argv)
