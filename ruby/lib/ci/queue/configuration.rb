@@ -8,6 +8,7 @@ module CI
       attr_accessor :max_test_failed
       attr_reader :circuit_breakers
       attr_writer :seed, :build_id
+      attr_writer :queue_init_timeout
 
       class << self
         def from_env(env)
@@ -32,7 +33,8 @@ module CI
         timeout: 30, build_id: nil, worker_id: nil, max_requeues: 0, requeue_tolerance: 0,
         namespace: nil, seed: nil, flaky_tests: [], statsd_endpoint: nil, max_consecutive_failures: nil,
         grind_count: nil, max_duration: nil, failure_file: nil, max_test_duration: nil,
-        max_test_duration_percentile: 0.5, track_test_duration: false, max_test_failed: nil
+        max_test_duration_percentile: 0.5, track_test_duration: false, max_test_failed: nil,
+        queue_init_timeout: nil
       )
         @build_id = build_id
         @circuit_breakers = [CircuitBreaker::Disabled]
@@ -48,10 +50,15 @@ module CI
         @seed = seed
         @statsd_endpoint = statsd_endpoint
         @timeout = timeout
+        @queue_init_timeout = queue_init_timeout
         @track_test_duration = track_test_duration
         @worker_id = worker_id
         self.max_consecutive_failures = max_consecutive_failures
         self.max_duration = max_duration
+      end
+
+      def queue_init_timeout
+        @queue_init_timeout || timeout
       end
 
       def max_consecutive_failures=(max)

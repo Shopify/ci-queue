@@ -352,12 +352,21 @@ module Minitest
 
           help = <<~EOS
             Specify a timeout after which if a test haven't completed, it will be picked up by another worker.
-            It is very important to set this vlaue higher than the slowest test in the suite, otherwise performance will be impacted.
+            It is very important to set this value higher than the slowest test in the suite, otherwise performance will be impacted.
             Defaults to 30 seconds.
           EOS
           opts.separator ""
           opts.on('--timeout TIMEOUT', Float, help) do |timeout|
             queue_config.timeout = timeout
+          end
+
+          help = <<~EOS
+            Specify a timeout to elect the leader and populate the queue.
+            Defaults to the value set for --timeout.
+          EOS
+          opts.separator ""
+          opts.on('--queue-init-timeout TIMEOUT', Float, help) do |timeout|
+            queue_config.queue_init_timeout = timeout
           end
 
           help = <<~EOS

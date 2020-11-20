@@ -79,5 +79,26 @@ module CI::Queue
       flaky_tests = Configuration.load_flaky_tests('/tmp/does-not-exist')
       assert_empty flaky_tests
     end
+
+    def test_queue_init_timeout_unset
+      config = Configuration.from_env({})
+
+      assert_equal config.timeout, config.queue_init_timeout
+    end
+
+    def test_queue_init_timeout_unset_timeout_set
+      config = Configuration.from_env({})
+      config.timeout = 120
+
+      assert_equal config.timeout, config.queue_init_timeout
+    end
+
+    def test_queue_init_timeout_set
+      config = Configuration.from_env({})
+      config.queue_init_timeout = 45
+      config.timeout = 120
+
+      assert_equal 45, config.queue_init_timeout
+    end
   end
 end
