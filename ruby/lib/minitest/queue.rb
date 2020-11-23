@@ -206,6 +206,7 @@ module Minitest
     end
 
     def run_from_queue(reporter, *)
+      start = Time.now
       queue.poll do |example|
         result = example.run
         failed = !(result.passed? || result.skipped?)
@@ -237,6 +238,7 @@ module Minitest
         end
       end
     end
+    puts "Time taken for everything: #{Time.now - start}"
   end
 end
 
