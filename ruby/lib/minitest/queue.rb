@@ -237,8 +237,8 @@ module Minitest
           queue.increment_test_failed
         end
       end
+      puts "Time taken for everything: #{Time.now - start}"
     end
-    puts "Time taken for everything: #{Time.now - start}"
   end
 end
 
