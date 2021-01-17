@@ -147,6 +147,22 @@ module Minitest::Reporters
       XML
     end
 
+    def test_gracefully_handles_invalid_xml_files
+      capture_io do
+        reporter = Minitest::Queue::JUnitReporter.new
+        reporter.record(result("test_\bname", failure: "failure"))
+
+        assert_equal <<~XML, generate_xml(reporter)
+          <?xml version="1.1" encoding="UTF-8"?>
+          <testsuites>
+            <testsuite name="Minitest::Test" filepath="test/my_test.rb" skipped="0" failures="1" errors="0" tests="1" assertions="1" time="0.12">
+              <testcase/>
+            </testsuite>
+          </testsuites>
+        XML
+      end
+    end
+
     private
 
     def generate_xml(junitxml)

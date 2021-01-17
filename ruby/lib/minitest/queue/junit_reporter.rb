@@ -7,6 +7,8 @@ require 'fileutils'
 module Minitest
   module Queue
     class JUnitReporter < Minitest::Reporters::BaseReporter
+      include ::CI::Queue::OutputHelpers
+
       def initialize(report_path = 'log/junit.xml', options = {})
         super({})
         @report_path = File.absolute_path(report_path)
@@ -76,6 +78,8 @@ module Minitest
 
           testcase = testsuite.add_element('testcase', attributes)
           add_xml_message_for(testcase, test) unless test.passed?
+        rescue REXML::ParseException, RuntimeError => error
+          step(red("Skipping adding '#{suite}##{test.name}' to JUnit report: #{error.message}"))
         end
       end
 
