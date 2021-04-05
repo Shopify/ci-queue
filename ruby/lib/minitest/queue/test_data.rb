@@ -82,11 +82,7 @@ module Minitest
         return nil unless @test.failure
 
         path = error_location(@test.failure).first
-        begin
-          relative_path_for(path)
-        rescue ArgumentError
-          path # e.g. "(eval)" etc.
-        end
+        relative_path_for(path)
       end
 
       def error_file_number
