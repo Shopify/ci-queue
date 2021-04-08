@@ -248,7 +248,6 @@ module Integration
       assert_equal expected_report_output, normalize(out)
     end
 
-
     def test_before_suite_errors
       out, err = capture_subprocess_io do
         system(
@@ -286,7 +285,54 @@ module Integration
       EOS
 
       assert_equal expected_output, normalize(out)
-      assert_equal 0, $?.exitstatus
+      assert_equal 1, $?.exitstatus
+    end
+
+    def test_uninitialized_constant_errors
+      out, err = capture_subprocess_io do
+        system(
+          { 'BUILDKITE' => '1', 'BUILDKITE_COMMIT' => 'aaaaaaaaaaaaa' },
+          @exe,
+          '--queue', @redis_url,
+          '--seed', '123',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '--max-requeues', '1',
+          '--requeue-tolerance', '1',
+          chdir: 'test/fixtures/uninitialized_constant_suite',
+          )
+      end
+
+      assert_empty err
+      expected_output = strip_heredoc <<-EOS
+
+        An error occurred while loading ./spec/dummy_spec.rb.
+        Failure/Error:
+          RSpec.describe NonExistingObject do
+            it \"won't run\" do
+              expect(1 + 1).to be == 2
+            end
+          end
+
+        NameError:
+          uninitialized constant NonExistingObject
+        # ./spec/dummy_spec.rb:2:in `<top (required)>'
+        # ./lib/rspec/queue.rb:357:in `setup'
+        No examples found.
+
+        Randomized with seed 123
+
+
+        Finished in X.XXXXX seconds (files took X.XXXXX seconds to load)
+        0 examples, 0 failures, 1 error occurred outside of examples
+
+        Randomized with seed 123
+
+      EOS
+
+      assert_equal expected_output, normalize(out)
+      assert_equal 1, $?.exitstatus
     end
 
     def test_report
