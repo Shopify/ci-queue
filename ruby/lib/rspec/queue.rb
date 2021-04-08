@@ -398,7 +398,7 @@ module RSpec
           end
         end
 
-        return 0 if @world.non_example_failure
+        return 1 if @world.non_example_failure
         success ? 0 : @configuration.failure_exit_code
       end
 
