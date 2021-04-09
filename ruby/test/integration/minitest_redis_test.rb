@@ -616,6 +616,56 @@ module Integration
       END
     end
 
+    def test_pipe_queue
+      queue = Minitest::Queue::PipeQueue.new
+
+      queue.push('key')
+
+      assert_equal 'key', queue.pop
+    end
+
+    def test_fork_option_does_timeout
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '--max-requeues', '1',
+          '--requeue-tolerance', '1',
+          '--fork',
+          '-Itest',
+          'test/timeout_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty err
+      output = normalize(out.lines.last.strip)
+      assert_equal 'Ran 2 tests, 0 assertions, 0 failures, 1 errors, 0 skips, 1 requeues in X.XXs', output
+
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'report',
+          '--queue', @redis_url,
+          '--build', '1',
+          '--timeout', '1',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty err
+      output = normalize(out)
+      expected_output = <<~END
+        Waiting for workers to complete
+        Ran 1 tests, 0 assertions, 0 failures, 1 errors, 0 skips, 1 requeues in X.XXs (aggregated)
+
+        ERROR TimeoutTest#test_timeout
+        Minitest::UnexpectedError: Minitest::Queue::TimeoutError: Did not complete in the allocated time.
+      END
+      assert output.include?(expected_output)
+    end
+
     private
 
     def normalize_xml(output)

@@ -103,6 +103,8 @@ module Minitest
   end
 
   module Queue
+    TimeoutError = Class.new(StandardError)
+
     attr_writer :run_command_formatter, :project_root
 
     def run_command_formatter
@@ -159,12 +161,162 @@ module Minitest
         id <=> other.id
       end
 
+      def build_result(failures = [])
+        example = @runnable.new(@method_name)
+        result = Minitest::Result.new(example.name)
+        result.klass      = example.class.name
+        result.failures   = failures
+        result.time       = 30
+
+        result.source_location = example.method(example.name).source_location rescue ["unknown", -1]
+        result
+      end
+
       def run
         Minitest.run_one_method(@runnable, @method_name)
       end
 
       def flaky?
         Minitest.queue.flaky?(self)
+      end
+    end
+
+    class PipeQueue
+      def initialize
+        @read_io, @write_io = IO.pipe(Encoding::BINARY, Encoding::BINARY, binmode: true)
+        @write_io.set_encoding(Encoding::BINARY)
+      end
+
+      def push(object)
+        serialized_object = Marshal.dump(object)
+        write_io.write([serialized_object.bytesize, serialized_object].pack('NA*'), encoding: 'BINARY')
+      end
+
+      def pop(timeout: nil, max_bytes: 1)
+        Marshal.load(pop_bytes(timeout: timeout, max_bytes: payload_length(timeout: timeout)))
+      end
+
+      private
+
+      attr_reader :deliminiter, :read_io, :write_io
+
+      def payload_length(timeout:)
+        pop_bytes(timeout: timeout, max_bytes: 4).unpack('N').pop
+      end
+
+      def pop_bytes(timeout:, max_bytes:)
+        loop_with_buffer do |buffer|
+          payload = read_io.read_nonblock(max_bytes, exception: false)
+
+          if payload == :wait_readable
+            wait_with_timeout(timeout: timeout)
+          else
+            buffer << payload
+            max_bytes -= payload.bytesize
+            break buffer if max_bytes <= 0
+          end
+        end
+      end
+
+      def loop_with_buffer
+        ''.b.tap do |buffer|
+          loop do
+            yield buffer
+          end
+        end
+      end
+
+      def wait_with_timeout(timeout:)
+        return if IO.select([read_io], nil, nil, timeout)
+
+        raise TimeoutError.new("Did not complete in the allocated time.")
+      end
+    end
+
+    class Executor
+      def run(example, timeout: nil)
+        example.run
+      end
+
+      def reset; end
+
+      def teardown; end
+    end
+
+    class ForkingExecutor
+      def run(example, timeout: nil)
+        reset_sandbox_on_timeout(example) do
+          sandbox.push(example)
+          sandbox.pop(timeout: timeout)
+        end
+      end
+
+      def teardown
+        return unless sandbox
+
+        sandbox.teardown
+      end
+
+      private
+
+      attr_reader :tests_to_execute, :test_results, :pid
+
+      def sandbox
+        @sandbox ||= TestSandbox.new
+      end
+
+      def reset_sandbox_on_timeout(example)
+        yield
+      rescue TimeoutError => error
+        p "Resetting sandbox!"
+        sandbox.kill!
+        @sandbox = nil
+        error.set_backtrace([])
+        example.build_result([UnexpectedError.new(error)])
+      end
+    end
+
+    class TestSandbox
+      def initialize
+        @tests_to_execute = PipeQueue.new
+        @test_results = PipeQueue.new
+        @worker_pid = start_worker
+      end
+
+      def push(example)
+        tests_to_execute.push(example)
+      end
+
+      def pop(timeout:)
+        test_results.pop(timeout: timeout)
+      end
+
+      def kill!
+        Process.kill('KILL', worker_pid)
+      rescue SystemCallError
+        false
+      end
+
+      def teardown
+        tests_to_execute.push(:shutdown)
+      end
+
+      private
+
+      attr_reader :worker_pid, :tests_to_execute, :test_results
+
+      def start_worker
+        Process.fork do
+          loop do
+            case (example = tests_to_execute.pop)
+            when :shutdown
+              break
+            else
+              puts 'Running test'
+              test_results.push(example.run)
+            end
+          end
+        end
       end
     end
 
@@ -207,7 +359,7 @@ module Minitest
 
     def run_from_queue(reporter, *)
       queue.poll do |example|
-        result = example.run
+        result = executor.run(example, timeout: queue.config.timeout + 90)
         failed = !(result.passed? || result.skipped?)
 
         if example.flaky?
@@ -235,6 +387,16 @@ module Minitest
         if !requeued && failed
           queue.increment_test_failed
         end
+      end
+    ensure
+      executor.teardown
+    end
+
+    def executor
+      @executor ||= if queue.config.should_fork
+        ForkingExecutor.new
+      else
+        Executor.new
       end
     end
   end
