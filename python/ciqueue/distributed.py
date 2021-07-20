@@ -158,6 +158,7 @@ class Worker(Base):
                         'queue')],
                 args=[time.time(), self.timeout],
             )
+        return None
 
     def _try_to_reserve_test(self):
         return self._eval_script(

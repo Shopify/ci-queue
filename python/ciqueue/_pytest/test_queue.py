@@ -1,9 +1,12 @@
-from distutils import util  # pylint: disable=no-name-in-module, import-modules-only
+from distutils import util  # pylint: disable=no-name-in-module,import-modules-only
+
 from future.moves.urllib import parse as urlparse
-import ciqueue
-import ciqueue.distributed
+
 import redis
 import uritools
+
+import ciqueue
+import ciqueue.distributed
 
 
 class InvalidRedisUrl(Exception):
@@ -73,7 +76,7 @@ def build_queue(queue_url, tests_index=None):
         klass = ciqueue.distributed.Worker
         if tests_index is None:
             klass = ciqueue.distributed.Supervisor
-        queue = klass(tests=tests_index, redis=redis_client, **worker_args)
+        queue = klass(tests=tests_index, redis=redis_client, **worker_args)  # pylint: disable=unexpected-keyword-arg
         if retry and tests_index:
             queue = queue.retry_queue()
         return queue

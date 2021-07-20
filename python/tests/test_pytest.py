@@ -16,6 +16,7 @@ def check_output(cmd):
 
 
 class TestIntegration(object):
+
     def setup_method(self):
         strict_redis = redis.StrictRedis(host=os.getenv('REDIS_HOST'))
         strict_redis.flushdb()

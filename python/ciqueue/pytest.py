@@ -3,16 +3,17 @@ This is the pytest plugin for running distributed tests.
 Example usage (run on each node):
 py.test -p ciqueue.pytest --queue redis://<host>:6379?worker=<worker_id>&build=<build_id>&retry=<n>
 """
+# pylint: disable=too-few-public-methods
 from __future__ import absolute_import
 from __future__ import print_function
+
 import zlib
-from ciqueue._pytest import test_queue
-from ciqueue._pytest import outcomes
 import dill
 import pytest
 from _pytest import terminal
 
-# pylint: disable=too-few-public-methods
+from ciqueue._pytest import outcomes
+from ciqueue._pytest import test_queue
 
 
 def pytest_addoption(parser):

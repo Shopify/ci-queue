@@ -41,13 +41,14 @@ setuplib.setup(
         'redis>=2.10.5',
         'tblib>=1.3.2',
         'uritools>=2.0.0',
-        'future>=0.16.0'
+        'future>=0.16.0',
     ],
     extras_require={
         'test': [
-            'tox==3.13.2',
-            'shopify_python==0.4.1',
-            'pycodestyle == 2.4.0',
+            'tox==3.21.0',
+            'shopify_python @ git+https://github.com/Shopify/shopify_python.git@bump-pylint',
+            'pycodestyle==2.7.0',
+            'pylint<2',
         ]
     },
     package_data={'': get_lua_scripts()},
