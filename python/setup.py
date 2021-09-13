@@ -45,8 +45,8 @@ setuplib.setup(
     ],
     extras_require={
         'test': [
-            'tox==3.13.2',
-            'shopify_python==0.4.1',
+            'tox==3.21.0',
+            'shopify_python==0.5.3',
             'pycodestyle == 2.4.0',
         ]
     },

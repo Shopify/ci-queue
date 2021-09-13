@@ -1,0 +1,13 @@
+# This file is for Shopify employees development environment.
+# If you are an external contributor you don't have to bother with it.
+name: ci-queue
+
+vm:
+  image: /opt/dev/misc/railgun-images/default
+  ip_address: 192.168.64.245
+  memory: 1G
+  cores: 2
+volumes:
+  root: 512M
+services:
+   - redis
