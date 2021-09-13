@@ -29,7 +29,7 @@ module Minitest
         invalid_usage!('Missing queue URL') unless queue_url
 
         @queue = CI::Queue.from_uri(queue_url, queue_config)
-
+        puts "Queue: #{@queue}"
         method = "#{command}_command"
         if respond_to?(method)
           public_send(method)

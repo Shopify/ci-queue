@@ -24,7 +24,10 @@ module CI
         def populate(tests, random: Random.new)
           @index = tests.map { |t| [t.id, t] }.to_h
           tests = Queue.shuffle(tests, random)
+          puts "Index: #{@index}"
+          puts "******************************"
           push(tests.map(&:id))
+          puts "Self: #{self.index}"
           self
         end
 
@@ -48,6 +51,7 @@ module CI
           wait_for_master
           until shutdown_required? || config.circuit_breakers.any?(&:open?) || exhausted? || max_test_failed?
             if test = reserve
+              puts "fetched test: #{index}"
               yield index.fetch(test), @last_warning
             else
               sleep 0.05
