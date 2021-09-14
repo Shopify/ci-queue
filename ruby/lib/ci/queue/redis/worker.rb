@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 require 'ci/queue/static'
+require 'set'
 
 module CI
   module Queue
