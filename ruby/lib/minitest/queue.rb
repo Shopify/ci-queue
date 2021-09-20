@@ -102,6 +102,10 @@ module Minitest
     end
   end
 
+  module WithTimestamps
+    attr_accessor :start_timestamp, :finish_timestamp
+  end
+
   module Queue
     attr_writer :run_command_formatter, :project_root
 
@@ -159,12 +163,29 @@ module Minitest
         id <=> other.id
       end
 
+      def with_timestamps
+        start_timestamp = current_timestamp
+        result = yield
+        result
+      ensure
+        result.start_timestamp = start_timestamp
+        result.finish_timestamp = current_timestamp
+      end
+
       def run
-        Minitest.run_one_method(@runnable, @method_name)
+        with_timestamps do
+          Minitest.run_one_method(@runnable, @method_name)
+        end
       end
 
       def flaky?
         Minitest.queue.flaky?(self)
+      end
+
+      private
+
+      def current_timestamp
+        Time.now.to_i
       end
     end
 
@@ -244,9 +265,11 @@ MiniTest.singleton_class.prepend(MiniTest::Queue)
 if defined? MiniTest::Result
   MiniTest::Result.prepend(MiniTest::Requeueing)
   MiniTest::Result.prepend(MiniTest::Flakiness)
+  MiniTest::Result.prepend(MiniTest::WithTimestamps)
 else
   MiniTest::Test.prepend(MiniTest::Requeueing)
   MiniTest::Test.prepend(MiniTest::Flakiness)
+  MiniTest::Test.prepend(MiniTest::WithTimestamps)
 
   module MinitestBackwardCompatibility
     def source_location

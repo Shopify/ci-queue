@@ -52,6 +52,14 @@ module Minitest
         @test.time
       end
 
+      def test_start_timestamp
+        @test.start_timestamp
+      end
+
+      def test_finish_timestamp
+        @test.finish_timestamp
+      end
+
       def test_file_path
         path = @test.source_location.first
         begin
@@ -107,6 +115,8 @@ module Minitest
           test_retried: test_retried,
           test_assertions: test_assertions,
           test_duration: test_duration,
+          test_start_timestamp: test_start_timestamp,
+          test_finish_timestamp: test_finish_timestamp,
           test_file_path: test_file_path,
           test_file_line_number: test_file_line_number,
           error_class: error_class,
