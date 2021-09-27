@@ -174,7 +174,13 @@ module Minitest
 
       def run
         with_timestamps do
-          Minitest.run_one_method(@runnable, @method_name)
+          result = nil
+          forked_pid = fork(nakayoshi: false) do
+            result = Minitest.run_one_method(@runnable, @method_name)
+            Kernel.exit!(true)
+          end
+          Process.wait2(forked_pid)
+          result
         end
       end
 
