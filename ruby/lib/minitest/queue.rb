@@ -189,11 +189,7 @@ module Minitest
       end
     end
 
-    attr_reader :queue
-
-    def queue=(queue)
-      @queue = queue
-    end
+    attr_accessor :queue
 
     def queue_reporters=(reporters)
       @queue_reporters ||= []
