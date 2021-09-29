@@ -16,7 +16,6 @@ module CI
         attr_reader :total
 
         def initialize(redis, config)
-          @last_warning = nil
           @reserved_test = nil
           @shutdown_required = false
           super(redis, config)
@@ -49,7 +48,7 @@ module CI
           wait_for_master
           until shutdown_required? || config.circuit_breakers.any?(&:open?) || exhausted? || max_test_failed?
             if test = reserve
-              yield index.fetch(test), @last_warning
+              yield index.fetch(test)
             else
               sleep 0.05
             end
