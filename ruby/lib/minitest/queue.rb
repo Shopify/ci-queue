@@ -185,7 +185,7 @@ module Minitest
       private
 
       def current_timestamp
-        Time.now.to_i
+        Time.now.to_f
       end
     end
 
