@@ -168,8 +168,10 @@ module Minitest
         result = yield
         result
       ensure
-        result.start_timestamp = start_timestamp
-        result.finish_timestamp = current_timestamp
+        if result
+          result.start_timestamp = start_timestamp
+          result.finish_timestamp = current_timestamp
+        end
       end
 
       def run
