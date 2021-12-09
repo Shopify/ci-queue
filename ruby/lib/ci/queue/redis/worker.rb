@@ -46,10 +46,17 @@ module CI
 
         def poll
           wait_for_master
+          wait_count = 0
           until shutdown_required? || config.circuit_breakers.any?(&:open?) || exhausted? || max_test_failed?
             if test = reserve
+              wait_count = 0
               yield index.fetch(test)
             else
+              wait_count += 1
+              if (wait_count % 100) == 0
+                puts "waiting on:"
+                puts to_a
+              end
               sleep 0.05
             end
           end
