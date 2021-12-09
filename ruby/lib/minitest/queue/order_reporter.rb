@@ -13,9 +13,9 @@ class Minitest::Queue::OrderReporter < Minitest::Reporters::BaseReporter
   end
 
   def before_test(test)
-    super
     @file.puts("#{test.class.name}##{test.name}")
     @file.flush
+    super
   end
 
   def report
