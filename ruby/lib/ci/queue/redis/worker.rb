@@ -54,8 +54,7 @@ module CI
             else
               wait_count += 1
               if (wait_count % 100) == 0
-                puts "waiting on:"
-                puts to_a
+                puts "waiting on: #{to_a.map(&:id).join(", ")}"
               end
               sleep 0.05
             end
