@@ -92,7 +92,7 @@ module CI
           raise_on_mismatching_test(test_key)
           eval_script(
             :acknowledge,
-            keys: [key('running'), key('processed')],
+            keys: [key('running'), key('processed'), key('owners')],
             argv: [test_key],
           ) == 1
         end
@@ -104,12 +104,28 @@ module CI
 
           requeued = config.max_requeues > 0 && global_max_requeues > 0 && eval_script(
             :requeue,
-            keys: [key('processed'), key('requeues-count'), key('queue'), key('running')],
+            keys: [
+              key('processed'),
+              key('requeues-count'),
+              key('queue'),
+              key('running'),
+              key('worker', worker_id, 'queue'),
+              key('owners'),
+            ],
             argv: [config.max_requeues, global_max_requeues, test_key, offset],
           ) == 1
 
           @reserved_test = test_key unless requeued
           requeued
+        end
+
+        def release!
+          eval_script(
+            :release,
+            keys: [key('running'), key('worker', worker_id, 'queue'), key('owners')],
+            argv: [],
+          )
+          nil
         end
 
         private
@@ -144,7 +160,13 @@ module CI
         def try_to_reserve_test
           eval_script(
             :reserve,
-            keys: [key('queue'), key('running'), key('processed'), key('worker', worker_id, 'queue')],
+            keys: [
+              key('queue'),
+              key('running'),
+              key('processed'),
+              key('worker', worker_id, 'queue'),
+              key('owners'),
+            ],
             argv: [Time.now.to_f],
           )
         end
@@ -152,7 +174,12 @@ module CI
         def try_to_reserve_lost_test
           lost_test = eval_script(
             :reserve_lost,
-            keys: [key('running'), key('completed'), key('worker', worker_id, 'queue')],
+            keys: [
+              key('running'),
+              key('completed'),
+              key('worker', worker_id, 'queue'),
+              key('owners'),
+            ],
             argv: [Time.now.to_f, timeout],
           )
 

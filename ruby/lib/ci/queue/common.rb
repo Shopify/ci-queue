@@ -11,6 +11,10 @@ module CI
         false
       end
 
+      def release!
+        # noop
+      end
+
       def flaky?(test)
         @config.flaky?(test)
       end
