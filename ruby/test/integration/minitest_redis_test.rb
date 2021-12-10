@@ -622,7 +622,7 @@ module Integration
 
         ERROR BTest#test_bar
       END
-      assert output.include?(expected_output)
+      assert_includes output, expected_output
     end
 
     def test_utf8_tests_and_marshal

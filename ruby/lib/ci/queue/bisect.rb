@@ -31,6 +31,10 @@ module CI
         Static.new(first_half + [config.failing_test], config).populate(@all_tests)
       end
 
+      def release!
+        # noop
+      end
+
       def failed!
         @tests = first_half
       end

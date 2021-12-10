@@ -90,7 +90,7 @@ class Worker(Base):
     def acknowledge(self, test):
         return self._eval_script(
             'acknowledge',
-            keys=[self.key('running'), self.key('processed')],
+            keys=[self.key('running'), self.key('processed'), self.key('owners')],
             args=[test],
         ) == 1
 
@@ -104,7 +104,10 @@ class Worker(Base):
                 self.key('processed'),
                 self.key('requeues-count'),
                 self.key('queue'),
-                self.key('running')],
+                self.key('running'),
+                self.key('worker', self.worker_id, 'queue'),
+                self.key('owners'),
+            ],
             args=[self.max_requeues, self.global_max_requeues, test, offset],
         ) == 1
 
@@ -155,7 +158,9 @@ class Worker(Base):
                     self.key(
                         'worker',
                         self.worker_id,
-                        'queue')],
+                        'queue'),
+                    self.key('owners'),
+                ],
                 args=[time.time(), self.timeout],
             )
 
@@ -167,6 +172,7 @@ class Worker(Base):
                 self.key('running'),
                 self.key('processed'),
                 self.key('worker', self.worker_id, 'queue'),
+                self.key('owners'),
             ],
             args=[
                 time.time(),

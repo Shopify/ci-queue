@@ -73,6 +73,10 @@ module SharedQueueAssertions
     end
   end
 
+  def test_release
+    @queue.release!
+  end
+
   private
 
   def shuffled_test_list
