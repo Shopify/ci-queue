@@ -118,6 +118,24 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_equal [], populate(second_queue.retry_queue).to_a.sort
   end
 
+  def test_release_immediately_timeout_the_lease
+    second_queue = worker(2)
+
+    reserved_test = nil
+    poll(@queue) do |test|
+      reserved_test = test
+      break
+    end
+    refute_nil reserved_test
+
+    worker(1).release! # Use a new instance to ensure we don't depend on in-memory state
+
+    poll(second_queue) do |test|
+      assert_equal reserved_test, test
+      break
+    end
+  end
+
   def test_test_isnt_requeued_if_it_was_picked_up_by_another_worker
     second_queue = worker(2)
     acquired = false

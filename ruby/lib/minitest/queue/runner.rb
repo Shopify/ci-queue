@@ -81,6 +81,10 @@ module Minitest
         # Let minitest's at_exit hook trigger
       end
 
+      def release_command
+        queue.release!
+      end
+
       def grind_command
         invalid_usage!('No list to grind provided') if grind_list.nil?
         invalid_usage!('No grind count provided') if grind_count.nil?
