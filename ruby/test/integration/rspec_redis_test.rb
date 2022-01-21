@@ -381,18 +381,14 @@ module Integration
       assert_empty err
       expected_output = strip_heredoc <<-EOS
 
-        Randomized with seed 123
-
 
         Finished in X.XXXXX seconds (files took X.XXXXX seconds to load)
         0 examples, 0 failures
 
-        Randomized with seed 123
-
       EOS
       assert_equal expected_output, normalize(out)
 
-      assert_equal 0, $?.exitstatus
+      assert_equal 1, $?.exitstatus
 
 
       out, err = capture_subprocess_io do

@@ -19,8 +19,8 @@ module CI
         attr_reader :redis
 
         def record_test_time(test_name, duration)
-          redis.pipelined do
-            redis.lpush(
+          redis.pipelined do |pipeline|
+            pipeline.lpush(
               test_time_key(test_name),
               duration.to_s.force_encoding(Encoding::BINARY),
             )
@@ -29,8 +29,8 @@ module CI
         end
 
         def record_test_name(test_name)
-          redis.pipelined do
-            redis.lpush(
+          redis.pipelined do |pipeline|
+            pipeline.lpush(
               all_test_names_key,
               test_name.dup.force_encoding(Encoding::BINARY),
             )
@@ -39,18 +39,15 @@ module CI
         end
 
         def fetch_all_test_names
-          values = redis.pipelined do
-            redis.lrange(all_test_names_key, 0, -1)
+          values = redis.pipelined do |pipeline|
+            pipeline.lrange(all_test_names_key, 0, -1)
           end
           values.flatten.map(&:to_s)
         end
 
         def fetch_test_time(test_name)
-          values = redis.pipelined do
-            key = test_time_key(test_name)
-            redis.lrange(key, 0, -1)
-          end
-          values.flatten.map(&:to_f)
+          key = test_time_key(test_name)
+          redis.lrange(key, 0, -1).map(&:to_f)
         end
 
         def all_test_names_key

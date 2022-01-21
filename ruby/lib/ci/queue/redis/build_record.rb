@@ -22,9 +22,9 @@ module CI
         end
 
         def pop_warnings
-          warnings = redis.multi do
-            redis.lrange(key('warnings'), 0, -1)
-            redis.del(key('warnings'))
+          warnings = redis.multi do |transaction|
+            transaction.lrange(key('warnings'), 0, -1)
+            transaction.del(key('warnings'))
           end.first
 
           warnings.map { |p| Marshal.load(p) }
@@ -35,21 +35,21 @@ module CI
         end
 
         def record_error(id, payload, stats: nil)
-          redis.pipelined do
-            redis.hset(
+          redis.pipelined do |pipeline|
+            pipeline.hset(
               key('error-reports'),
               id.dup.force_encoding(Encoding::BINARY),
               payload.dup.force_encoding(Encoding::BINARY),
             )
-            record_stats(stats)
+            record_stats(stats, pipeline: pipeline)
           end
           nil
         end
 
         def record_success(id, stats: nil)
-          redis.pipelined do
-            redis.hdel(key('error-reports'), id.dup.force_encoding(Encoding::BINARY))
-            record_stats(stats)
+          redis.pipelined do |pipeline|
+            pipeline.hdel(key('error-reports'), id.dup.force_encoding(Encoding::BINARY))
+            record_stats(stats, pipeline: pipeline)
           end
           nil
         end
@@ -65,8 +65,8 @@ module CI
         end
 
         def fetch_stats(stat_names)
-          counts = redis.pipelined do
-            stat_names.each { |c| redis.hvals(key(c)) }
+          counts = redis.pipelined do |pipeline|
+            stat_names.each { |c| pipeline.hvals(key(c)) }
           end
           sum_counts = counts.map do |values|
             values.map(&:to_f).inject(:+).to_f
@@ -75,9 +75,9 @@ module CI
         end
 
         def reset_stats(stat_names)
-          redis.pipelined do
+          redis.pipelined do |pipeline|
             stat_names.each do |stat_name|
-              redis.hdel(key(stat_name), config.worker_id)
+              pipeline.hdel(key(stat_name), config.worker_id)
             end
           end
         end
@@ -86,10 +86,10 @@ module CI
 
         attr_reader :config, :redis
 
-        def record_stats(stats)
+        def record_stats(stats, pipeline: redis)
           return unless stats
           stats.each do |stat_name, stat_value|
-            redis.hset(key(stat_name), config.worker_id, stat_value)
+            pipeline.hset(key(stat_name), config.worker_id, stat_value)
           end
         end
 

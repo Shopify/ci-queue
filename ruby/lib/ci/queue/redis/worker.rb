@@ -194,10 +194,10 @@ module CI
           @total = tests.size
 
           if @master = redis.setnx(key('master-status'), 'setup')
-            redis.multi do
-              redis.lpush(key('queue'), tests) unless tests.empty?
-              redis.set(key('total'), @total)
-              redis.set(key('master-status'), 'ready')
+            redis.multi do |transaction|
+              transaction.lpush(key('queue'), tests) unless tests.empty?
+              transaction.set(key('total'), @total)
+              transaction.set(key('master-status'), 'ready')
             end
           end
           register
