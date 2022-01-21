@@ -11,12 +11,12 @@ module CI
         end
 
         def record_error(payload, stats: nil)
-          redis.pipelined do
-            redis.lpush(
+          redis.pipelined do |pipeline|
+            pipeline.lpush(
               key('error-reports'),
               payload.force_encoding(Encoding::BINARY),
             )
-            record_stats(stats)
+            record_stats(stats, pipeline: pipeline)
           end
           nil
         end
@@ -34,8 +34,8 @@ module CI
         end
 
         def fetch_stats(stat_names)
-          counts = redis.pipelined do
-            stat_names.each { |c| redis.hvals(key(c)) }
+          counts = redis.pipelined do |pipeline|
+            stat_names.each { |c| pipeline.hvals(key(c)) }
           end
           stat_names.zip(counts.map { |values| values.map(&:to_f).inject(:+).to_f }).to_h
         end
@@ -54,10 +54,10 @@ module CI
           ['build', config.build_id, *args].join(':')
         end
 
-        def record_stats(stats)
+        def record_stats(stats, pipeline: redis)
           return unless stats
           stats.each do |stat_name, stat_value|
-            redis.hset(key(stat_name), config.worker_id, stat_value)
+            pipeline.hset(key(stat_name), config.worker_id, stat_value)
           end
         end
       end

@@ -21,16 +21,16 @@ module CI
         end
 
         def size
-          redis.multi do
-            redis.llen(key('queue'))
-            redis.zcard(key('running'))
+          redis.multi do |transaction|
+            transaction.llen(key('queue'))
+            transaction.zcard(key('running'))
           end.inject(:+)
         end
 
         def to_a
-          redis.multi do
-            redis.lrange(key('queue'), 0, -1)
-            redis.zrange(key('running'), 0, -1)
+          redis.multi do |transaction|
+            transaction.lrange(key('queue'), 0, -1)
+            transaction.zrange(key('running'), 0, -1)
           end.flatten.reverse.map { |k| index.fetch(k) }
         end
 
