@@ -27,6 +27,7 @@ module ReporterTestHelper
       "#{Minitest::Queue.project_root}/app/components/app/test/junit_reporter_test.rb:65:in `test_generate_junitxml_for_errored_test'",
     ])
     Minitest::UnexpectedError.new(error)
+    exec("shopify-build pause")
   end
 
   def generate_assertion(message)
