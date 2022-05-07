@@ -194,12 +194,14 @@ module CI
           @total = tests.size
 
           if @master = redis.setnx(key('master-status'), 'setup')
-            puts "Current master, #{key('master-status')} creating queue"
+            puts "Current master creating queue, key: #{key('master-status')}"
             redis.multi do |transaction|
               transaction.lpush(key('queue'), tests) unless tests.empty?
               transaction.set(key('total'), @total)
               transaction.set(key('master-status'), 'ready')
             end
+          else
+            puts "Acting as worker, key: #{key('master-status')}"
           end
           register
         rescue *CONNECTION_ERRORS
