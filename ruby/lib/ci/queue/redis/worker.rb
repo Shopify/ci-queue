@@ -194,6 +194,7 @@ module CI
           @total = tests.size
 
           if @master = redis.setnx(key('master-status'), 'setup')
+            puts "Current master, creating queue"
             redis.multi do |transaction|
               transaction.lpush(key('queue'), tests) unless tests.empty?
               transaction.set(key('total'), @total)
