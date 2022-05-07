@@ -205,6 +205,7 @@ module CI
           end
           register
         rescue *CONNECTION_ERRORS
+          puts $!
           raise if @master
         end
 
