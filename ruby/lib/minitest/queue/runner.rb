@@ -21,6 +21,7 @@ module Minitest
 
       def initialize(argv)
         @queue_config = CI::Queue::Configuration.from_env(ENV)
+        puts "Queue Config: #{@queue_config.inspect}"
         @command, @argv = parse(argv)
       end
 
