@@ -54,6 +54,8 @@ module CI
             end
           end
         rescue *CONNECTION_ERRORS
+          puts "Connection error in poll"
+          puts $!
         end
 
         if ::Redis.method_defined?(:exists?)
