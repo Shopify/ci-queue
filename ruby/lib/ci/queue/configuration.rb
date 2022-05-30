@@ -5,7 +5,7 @@ module CI
       attr_accessor :timeout, :worker_id, :max_requeues, :grind_count, :failure_file
       attr_accessor :requeue_tolerance, :namespace, :failing_test, :statsd_endpoint
       attr_accessor :max_test_duration, :max_test_duration_percentile, :track_test_duration
-      attr_accessor :max_test_failed
+      attr_accessor :max_test_failed, :report_expires_in
       attr_reader :circuit_breakers
       attr_writer :seed, :build_id
       attr_writer :queue_init_timeout
@@ -34,7 +34,7 @@ module CI
         namespace: nil, seed: nil, flaky_tests: [], statsd_endpoint: nil, max_consecutive_failures: nil,
         grind_count: nil, max_duration: nil, failure_file: nil, max_test_duration: nil,
         max_test_duration_percentile: 0.5, track_test_duration: false, max_test_failed: nil,
-        queue_init_timeout: nil
+        queue_init_timeout: nil, report_expires_in: 8 * 60 * 60
       )
         @build_id = build_id
         @circuit_breakers = [CircuitBreaker::Disabled]
@@ -55,6 +55,7 @@ module CI
         @worker_id = worker_id
         self.max_consecutive_failures = max_consecutive_failures
         self.max_duration = max_duration
+        @report_expires_in = report_expires_in
       end
 
       def queue_init_timeout

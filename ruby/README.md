@@ -70,3 +70,9 @@ rspec-queue --queue redis://example.com --timeout 600 --report
 #### Limitations
 
 Because of how `ci-queue` executes the examples, `before(:all)` and `after(:all)` hooks are not supported. `rspec-queue` will explicitly reject them.
+
+## Custom Redis Expiry
+
+`ci-queue` expects the Redis server to have an [eviction policy](https://redis.io/docs/manual/eviction/#eviction-policies) of `allkeys-lru`.
+
+You can also use `--report-expires-in` to set a custom expiration time for all CI Queue keys, this defaults to 8 hours (28,800 seconds)
