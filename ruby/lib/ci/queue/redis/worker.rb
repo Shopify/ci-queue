@@ -54,8 +54,8 @@ module CI
             end
           end
           redis.pipelined do |pipeline|
-            pipeline.expire(key('worker', worker_id, 'queue'), config.report_expires_in)
-            pipeline.expire(key('processed'), config.report_expires_in)
+            pipeline.expire(key('worker', worker_id, 'queue'), config.redis_ttl)
+            pipeline.expire(key('processed'), config.redis_ttl)
           end
         rescue *CONNECTION_ERRORS
         end
@@ -203,13 +203,13 @@ module CI
               transaction.set(key('total'), @total)
               transaction.set(key('master-status'), 'ready')
 
-              transaction.expire(key('queue'), config.report_expires_in)
-              transaction.expire(key('total'), config.report_expires_in)
-              transaction.expire(key('master-status'), config.report_expires_in)
+              transaction.expire(key('queue'), config.redis_ttl)
+              transaction.expire(key('total'), config.redis_ttl)
+              transaction.expire(key('master-status'), config.redis_ttl)
             end
           end
           register
-          redis.expire(key('workers'), config.report_expires_in)
+          redis.expire(key('workers'), config.redis_ttl)
         rescue *CONNECTION_ERRORS
           raise if @master
         end

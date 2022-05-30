@@ -75,4 +75,4 @@ Because of how `ci-queue` executes the examples, `before(:all)` and `after(:all)
 
 `ci-queue` expects the Redis server to have an [eviction policy](https://redis.io/docs/manual/eviction/#eviction-policies) of `allkeys-lru`.
 
-You can also use `--report-expires-in` to set a custom expiration time for all CI Queue keys, this defaults to 8 hours (28,800 seconds)
+You can also use `--redis-ttl` to set a custom expiration time for all CI Queue keys, this defaults to 8 hours (28,800 seconds)

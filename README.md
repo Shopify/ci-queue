@@ -40,6 +40,7 @@ Two implementations are provided, please refer to the respective documentations:
 ## Redis Requirements
 
 `ci-queue` expects the Redis server to have an [eviction policy](https://redis.io/docs/manual/eviction/#eviction-policies) of `allkeys-lru`.
+
 ## Contributing
 
 Bug reports and pull requests are welcome on GitHub at https://github.com/Shopify/ci-queue.

@@ -41,7 +41,7 @@ module CI
               id.dup.force_encoding(Encoding::BINARY),
               payload.dup.force_encoding(Encoding::BINARY),
             )
-            pipeline.expire(key('error-reports'), config.report_expires_in)
+            pipeline.expire(key('error-reports'), config.redis_ttl)
             record_stats(stats, pipeline: pipeline)
           end
           nil
@@ -91,7 +91,7 @@ module CI
           return unless stats
           stats.each do |stat_name, stat_value|
             pipeline.hset(key(stat_name), config.worker_id, stat_value)
-            pipeline.expire(key(stat-name), config.report_expires_in)
+            pipeline.expire(key(stat-name), config.redis_ttl)
           end
         end
 

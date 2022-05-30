@@ -162,8 +162,8 @@ module RSpec
           Defaults to 28,800 (8 hours)
         EOS
         parsed.separator ""
-        parser.on("--report-expires-in SECONDS", Integer, help) do |time|
-          queue.config.report_expires_in = time
+        parser.on("--redis-ttl SECONDS", Integer, help) do |time|
+          queue.config.redis_ttl = time
         end
 
         parser
