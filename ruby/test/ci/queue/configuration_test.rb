@@ -65,6 +65,18 @@ module CI::Queue
       assert_equal 'browser:9e08ef3c-d6e6-4a86-91dd-577ce5205b8e', config.build_id
     end
 
+    def test_redis_ttl_defaults
+      config = Configuration.new
+      assert_equal(28_800, config.redis_ttl)
+    end
+
+    def test_redis_ttl_from_env
+      config = Configuration.from_env(
+        "CI_QUEUE_REDIS_TTL" => "14400"
+      )
+      assert_equal(14_400, config.redis_ttl)
+    end
+
     def test_parses_file_correctly
       Tempfile.open('flaky_test_file') do |file|
         file.write(SharedTestCases::TEST_NAMES.join("\n") + "\n")

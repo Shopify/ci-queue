@@ -18,7 +18,7 @@ module CI
             seed: env['CIRCLE_SHA1'] || env['BUILDKITE_COMMIT'] || env['TRAVIS_COMMIT'] || env['HEROKU_TEST_RUN_COMMIT_VERSION'] || env['SEMAPHORE_GIT_SHA'],
             flaky_tests: load_flaky_tests(env['CI_QUEUE_FLAKY_TESTS']),
             statsd_endpoint: env['CI_QUEUE_STATSD_ADDR'],
-            redis_ttl: env['CI_QUEUE_REDIS_TTL'],
+            redis_ttl: env['CI_QUEUE_REDIS_TTL']&.to_i ||  8 * 60 * 60,
           )
         end
 
