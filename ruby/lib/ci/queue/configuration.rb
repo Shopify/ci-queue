@@ -5,7 +5,7 @@ module CI
       attr_accessor :timeout, :worker_id, :max_requeues, :grind_count, :failure_file
       attr_accessor :requeue_tolerance, :namespace, :failing_test, :statsd_endpoint
       attr_accessor :max_test_duration, :max_test_duration_percentile, :track_test_duration
-      attr_accessor :max_test_failed
+      attr_accessor :max_test_failed, :redis_ttl
       attr_reader :circuit_breakers
       attr_writer :seed, :build_id
       attr_writer :queue_init_timeout
@@ -18,6 +18,7 @@ module CI
             seed: env['CIRCLE_SHA1'] || env['BUILDKITE_COMMIT'] || env['TRAVIS_COMMIT'] || env['HEROKU_TEST_RUN_COMMIT_VERSION'] || env['SEMAPHORE_GIT_SHA'],
             flaky_tests: load_flaky_tests(env['CI_QUEUE_FLAKY_TESTS']),
             statsd_endpoint: env['CI_QUEUE_STATSD_ADDR'],
+            redis_ttl: env['CI_QUEUE_REDIS_TTL']&.to_i ||  8 * 60 * 60,
           )
         end
 
@@ -34,7 +35,7 @@ module CI
         namespace: nil, seed: nil, flaky_tests: [], statsd_endpoint: nil, max_consecutive_failures: nil,
         grind_count: nil, max_duration: nil, failure_file: nil, max_test_duration: nil,
         max_test_duration_percentile: 0.5, track_test_duration: false, max_test_failed: nil,
-        queue_init_timeout: nil
+        queue_init_timeout: nil, redis_ttl: 8 * 60 * 60
       )
         @build_id = build_id
         @circuit_breakers = [CircuitBreaker::Disabled]
@@ -55,6 +56,7 @@ module CI
         @worker_id = worker_id
         self.max_consecutive_failures = max_consecutive_failures
         self.max_duration = max_duration
+        @redis_ttl = redis_ttl
       end
 
       def queue_init_timeout

@@ -157,6 +157,15 @@ module RSpec
           queue_config.max_consecutive_failures = Integer(max)
         end
 
+        help = <<~EOS
+          Defines how long the test report remain after the test run, in seconds.
+          Defaults to 28,800 (8 hours)
+        EOS
+        parsed.separator ""
+        parser.on("--redis-ttl SECONDS", Integer, help) do |time|
+          queue.config.redis_ttl = time
+        end
+
         parser
       end
 

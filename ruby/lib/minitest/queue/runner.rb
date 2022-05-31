@@ -487,6 +487,14 @@ module Minitest
             end
           end
 
+          help = <<~EOS
+            Defines how long the test report remain after the test run, in seconds.
+            Defaults to 28,800 (8 hours)
+          EOS
+          opts.on("--redis-ttl SECONDS", Integer, help) do |time|
+            queue.config.redis_ttl = time
+          end
+
           opts.separator ""
           opts.separator "    retry: Replays a previous run in the same order."
 

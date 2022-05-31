@@ -53,6 +53,10 @@ module CI
               sleep 0.05
             end
           end
+          redis.pipelined do |pipeline|
+            pipeline.expire(key('worker', worker_id, 'queue'), config.redis_ttl)
+            pipeline.expire(key('processed'), config.redis_ttl)
+          end
         rescue *CONNECTION_ERRORS
         end
 
@@ -198,9 +202,14 @@ module CI
               transaction.lpush(key('queue'), tests) unless tests.empty?
               transaction.set(key('total'), @total)
               transaction.set(key('master-status'), 'ready')
+
+              transaction.expire(key('queue'), config.redis_ttl)
+              transaction.expire(key('total'), config.redis_ttl)
+              transaction.expire(key('master-status'), config.redis_ttl)
             end
           end
           register
+          redis.expire(key('workers'), config.redis_ttl)
         rescue *CONNECTION_ERRORS
           raise if @master
         end

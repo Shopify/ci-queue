@@ -24,6 +24,7 @@ module CI
               test_time_key(test_name),
               duration.to_s.force_encoding(Encoding::BINARY),
             )
+            pipeline.expire(test_time_key(test_name), config.redis_ttl)
           end
           nil
         end
@@ -34,6 +35,7 @@ module CI
               all_test_names_key,
               test_name.dup.force_encoding(Encoding::BINARY),
             )
+            pipeline.expire(all_test_names_key, config.redis_ttl)
           end
           nil
         end
