@@ -91,7 +91,7 @@ module CI
           return unless stats
           stats.each do |stat_name, stat_value|
             pipeline.hset(key(stat_name), config.worker_id, stat_value)
-            pipeline.expire(key(stat-name), config.redis_ttl)
+            pipeline.expire(key(stat_name), config.redis_ttl)
           end
         end
 
