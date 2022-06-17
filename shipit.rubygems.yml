@@ -1,2 +1,6 @@
 machine:
   directory: ruby/
+
+ci:
+  hide:
+    - python-tests
