@@ -22,6 +22,9 @@ module Minitest
       def initialize(argv)
         @queue_config = CI::Queue::Configuration.from_env(ENV)
         @command, @argv = parse(argv)
+        if Minitest.respond_to?(:seed=)
+          Minitest.seed = @queue_config.seed.to_i
+        end
       end
 
       def run!
