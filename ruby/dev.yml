@@ -5,7 +5,7 @@ name: ci-queue
 up:
 - ruby: 2.6.5
 - bundler
-- railgun
+- isogun
 
 commands:
   test: REDIS_HOST=ci-queue.railgun bundle exec rake test
