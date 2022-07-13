@@ -368,6 +368,24 @@ module Minitest
           end
 
           help = <<~EOS
+            Specify a timeout after which the report command will fail if not all tests have been processed.
+            Defaults to the value set for --timeout.
+          EOS
+          opts.separator ""
+          opts.on('--report-timeout TIMEOUT', Float, help) do |timeout|
+            queue_config.report_timeout = timeout
+          end
+
+          help = <<~EOS
+            Specify a timeout after the report will fail if all workers are inactive (e.g. died).
+            Defaults to the value set for --timeout.
+          EOS
+          opts.separator ""
+          opts.on('--inactive-workers-timeout TIMEOUT', Float, help) do |timeout|
+            queue_config.inactive_workers_timeout = timeout
+          end
+
+          help = <<~EOS
             Specify a timeout to elect the leader and populate the queue.
             Defaults to the value set for --timeout.
           EOS

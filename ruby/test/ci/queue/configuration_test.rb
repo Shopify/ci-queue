@@ -112,5 +112,21 @@ module CI::Queue
 
       assert_equal 45, config.queue_init_timeout
     end
+
+    def test_report_timeout_unset_timeout_set
+      config = Configuration.from_env({})
+      config.timeout = 120
+
+      assert_equal config.timeout, config.report_timeout
+    end
+
+    def test_report_timeout_set
+      config = Configuration.from_env({})
+      config.report_timeout = 45
+      config.timeout = 120
+
+      assert_equal 45, config.report_timeout
+    end
+
   end
 end
