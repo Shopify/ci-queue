@@ -217,6 +217,50 @@ module Integration
       assert_equal 'All tests were ran already', output
     end
 
+    def test_retry_fails_when_test_run_is_expired
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '--max-requeues', '1',
+          '--requeue-tolerance', '1',
+          '-Itest',
+          'test/passing_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty err
+      output = normalize(out.lines.last.strip)
+      assert_equal 'Ran 100 tests, 100 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
+
+      one_day = 60 * 60 * 24
+      key = ['build', "1", "master-created-at"].join(':')
+      @redis.set(key, Time.now - one_day)
+
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '--max-requeues', '1',
+          '--requeue-tolerance', '1',
+          '-Itest',
+          'test/passing_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty err
+      output = normalize(out.lines.last.strip)
+      assert_equal "The test run is too old and can't be retried", output
+    end
+
     def test_retry_report
       # Run first worker, failing all tests
       out, err = capture_subprocess_io do

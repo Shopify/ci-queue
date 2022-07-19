@@ -5,6 +5,7 @@ module CI
       class Base
         include Common
 
+        TEN_MINUTES = 60 * 10
         CONNECTION_ERRORS = [
           ::Redis::BaseConnectionError,
           ::SocketError, # https://github.com/redis/redis-rb/pull/631
@@ -18,6 +19,15 @@ module CI
 
         def exhausted?
           queue_initialized? && size == 0
+        end
+
+        def expired?
+          if (created_at = redis.get(key('master-created-at')))
+            (created_at.to_f + config.redis_ttl + TEN_MINUTES) < Time.now.to_f
+          else
+            # if there is no created at set anymore we assume queue is expired
+            true
+          end
         end
 
         def size

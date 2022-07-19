@@ -202,10 +202,12 @@ module CI
               transaction.lpush(key('queue'), tests) unless tests.empty?
               transaction.set(key('total'), @total)
               transaction.set(key('master-status'), 'ready')
+              transaction.set(key('master-created-at'), Time.now.to_f)
 
               transaction.expire(key('queue'), config.redis_ttl)
               transaction.expire(key('total'), config.redis_ttl)
               transaction.expire(key('master-status'), config.redis_ttl)
+              transaction.expire(key('master-created-at'), config.redis_ttl)
             end
           end
           register
