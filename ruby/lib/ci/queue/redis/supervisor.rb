@@ -21,16 +21,32 @@ module CI
 
           yield if block_given?
 
-          time_left = config.timeout
-          until exhausted? || time_left <= 0 || max_test_failed?
-            sleep 1
+          time_left = config.report_timeout
+          time_left_with_no_workers = config.inactive_workers_timeout
+          until exhausted? || time_left <= 0 || max_test_failed? || time_left_with_no_workers <= 0
             time_left -= 1
+            sleep 1
+
+            if active_workers?
+              time_left_with_no_workers = config.inactive_workers_timeout
+            else
+              time_left_with_no_workers -= 1
+            end
 
             yield if block_given?
           end
+
+          puts "Aborting, it seems all workers died." if time_left_with_no_workers <= 0
           exhausted?
         rescue CI::Queue::Redis::LostMaster
           false
+        end
+
+        private
+
+        def active_workers?
+          # if there are running jobs we assume there are still agents active
+          redis.zrangebyscore(key('running'), Time.now.to_f - config.timeout, "+inf", limit: [0,1]).count > 0
         end
       end
     end
