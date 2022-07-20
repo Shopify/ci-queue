@@ -47,7 +47,10 @@ module Minitest
       end
 
       def run_command
-        if queue.retrying?
+        if queue.retrying? || retry?
+          if queue.expired?
+            abort! "The test run is too old and can't be retried"
+          end
           reset_counters
           retry_queue = queue.retry_queue
           if retry_queue.exhausted?
@@ -545,6 +548,11 @@ module Minitest
         reopen_previous_step
         puts red(message)
         exit! 1 # exit! is required to avoid minitest at_exit callback
+      end
+
+      def retry?
+        ENV["BUILDKITE_RETRY_COUNT"].to_i > 0 ||
+          ENV["SEMAPHORE_PIPELINE_RERUN"] == "true"
       end
     end
   end
