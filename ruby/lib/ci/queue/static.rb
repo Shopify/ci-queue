@@ -11,6 +11,8 @@ module CI
         end
       end
 
+      TEN_MINUTES = 60 * 10
+
       attr_reader :progress, :total
 
       def initialize(tests, config)
@@ -35,6 +37,14 @@ module CI
       def populate(tests, random: nil)
         @index = tests.map { |t| [t.id, t] }.to_h
         self
+      end
+
+      def created_at=(timestamp)
+        @created_at ||= timestamp
+      end
+
+      def expired?
+        (@created_at.to_f TEN_MINUTES) < Time.now.to_f
       end
 
       def populated?
