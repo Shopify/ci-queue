@@ -22,12 +22,16 @@ module CI
         end
 
         def expired?
-          if (created_at = redis.get(key('master-created-at')))
+          if (created_at = redis.get(key('created-at')))
             (created_at.to_f + config.redis_ttl + TEN_MINUTES) < Time.now.to_f
           else
             # if there is no created at set anymore we assume queue is expired
             true
           end
+        end
+
+        def created_at=(timestamp)
+          redis.setnx(key('created-at'), timestamp)
         end
 
         def size
@@ -69,6 +73,10 @@ module CI
             status = master_status
             status == 'ready' || status == 'finished'
           end
+        end
+
+        def queue_initializing?
+          master_status == 'setup'
         end
 
         def increment_test_failed

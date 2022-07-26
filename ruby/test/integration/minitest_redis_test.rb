@@ -238,7 +238,7 @@ module Integration
       assert_equal 'Ran 100 tests, 100 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
 
       one_day = 60 * 60 * 24
-      key = ['build', "1", "master-created-at"].join(':')
+      key = ['build', "1", "created-at"].join(':')
       @redis.set(key, Time.now - one_day)
 
       out, err = capture_subprocess_io do
