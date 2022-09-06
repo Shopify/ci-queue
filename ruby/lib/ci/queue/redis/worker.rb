@@ -215,7 +215,7 @@ module CI
         end
 
         def register
-          redis.sadd(key('workers'), worker_id)
+          redis.sadd(key('workers'), [worker_id])
         end
       end
     end
