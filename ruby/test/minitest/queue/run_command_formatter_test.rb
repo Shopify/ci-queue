@@ -62,5 +62,10 @@ module Minitest::Queue
       path = Minitest::Queue.relative_path('', root: '/home/willem/src/project')
       assert_equal "", path
     end
+
+    def test_relative_path_with_nil_path
+      path = Minitest::Queue.relative_path(nil, root: '/home/willem/src/project')
+      refute path
+    end
   end
 end

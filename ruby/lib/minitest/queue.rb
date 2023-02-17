@@ -144,7 +144,7 @@ module Minitest
 
     def self.relative_path(path, root: project_root)
       Pathname(path).relative_path_from(Pathname(root)).to_s
-    rescue ArgumentError
+    rescue ArgumentError, TypeError
       path
     end
 
