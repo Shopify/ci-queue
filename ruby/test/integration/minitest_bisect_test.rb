@@ -5,6 +5,11 @@ module Integration
   class MinitestBisectTest < Minitest::Test
     include OutputTestHelpers
 
+    def setup
+      skip("biesct rely on forking") unless Process.respond_to?(:fork)
+      super
+    end
+
     def test_bisect
       out, err = capture_subprocess_io do
         run_bisect('log/leaky_test_order.log', 'LeakyTest#test_sensible_to_leak')
