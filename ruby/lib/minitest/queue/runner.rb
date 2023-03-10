@@ -42,11 +42,13 @@ module Minitest
       end
 
       def retry_command
+        require_worker_id!
         STDERR.puts "Warning: the retry subcommand is deprecated."
         run_command # aliased for backward compatibility purpose
       end
 
       def run_command
+        require_worker_id!
         if queue.retrying? || retry?
           if queue.expired?
             abort! "The test run is too old and can't be retried"
@@ -90,6 +92,7 @@ module Minitest
       end
 
       def release_command
+        require_worker_id!
         queue.release!
       end
 
@@ -248,6 +251,11 @@ module Minitest
 
       attr_reader :queue_config, :options, :command, :argv
       attr_accessor :queue, :queue_url, :grind_list, :grind_count, :load_paths
+
+      def require_worker_id!
+        invalid_usage!("build-id couldn't be inferred from ENV and wasn't set via --build") unless queue_config.build_id
+        invalid_usage!("worker-id couldn't be inferred from ENV and wasn't set via --worker") unless queue_config.worker_id
+      end
 
       def display_warnings(build)
         build.pop_warnings.each do |type, attributes|
