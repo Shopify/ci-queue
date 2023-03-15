@@ -91,6 +91,7 @@ module Integration
       assert_equal 'Ran 47 tests, 47 assertions, 3 failures, 0 errors, 0 skips, 44 requeues in X.XXs', output
 
       # Run the reporter
+      exit_code = nil
       out, err = capture_subprocess_io do
         system(
           @exe, 'report',
@@ -102,12 +103,13 @@ module Integration
           chdir: 'test/fixtures/',
         )
       end
+
+      refute_predicate $?, :success?
       assert_empty err
       expected = <<~EXPECTED
         Waiting for workers to complete
         Encountered too many failed tests. Test run was ended early.
         97 tests weren't run.
-        Ran 3 tests, 47 assertions, 3 failures, 0 errors, 0 skips, 44 requeues in X.XXs (aggregated)
       EXPECTED
       assert_equal expected.strip, normalize(out.lines[0..4].join.strip)
     end
