@@ -199,7 +199,7 @@ module Minitest
             msg = "#{supervisor.size} tests weren't run."
             if supervisor.max_test_failed?
               puts('Encountered too many failed tests. Test run was ended early.')
-              puts(msg)
+              abort!(msg)
             else
               abort!(msg)
             end
