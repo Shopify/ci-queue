@@ -1,0 +1,8 @@
+---
+# This file is for Shopify employees development environment.
+# If you are an external contributor you don't have to bother with it.
+
+name: ci-queue
+
+up:
+  - snappy
