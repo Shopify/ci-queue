@@ -48,7 +48,10 @@ module CI
       attr_reader :config
 
       def slices
-        @tests.each_slice((@tests.size / 2.0).ceil).to_a
+        slice_size = (@tests.size / 2.0).ceil
+        return [[], []] if slice_size <= 0
+
+        @tests.each_slice(slice_size).to_a
       end
 
       def first_half
