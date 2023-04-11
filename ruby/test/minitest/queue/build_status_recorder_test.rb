@@ -6,7 +6,7 @@ module Minitest::Queue
     include ReporterTestHelper
 
     def setup
-      @redis_url = "redis://#{ENV.fetch('REDIS_HOST', 'localhost')}/7"
+      @redis_url = ENV.fetch('REDIS_URL', 'redis://localhost:6379/0')
       @redis = ::Redis.new(url: @redis_url)
       @redis.flushdb
       @queue = worker(1)

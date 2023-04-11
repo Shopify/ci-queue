@@ -16,7 +16,7 @@ module Integration
       @order_path = File.expand_path('../../fixtures/log/test_order.log', __FILE__)
       File.delete(@order_path) if File.exist?(@order_path)
 
-      @redis_url = "redis://#{ENV.fetch('REDIS_HOST', 'localhost')}/7"
+      @redis_url = ENV.fetch('REDIS_URL', 'redis://localhost:6379/0')
       @redis = Redis.new(url: @redis_url)
       @redis.flushdb
       @exe = File.expand_path('../../../exe/minitest-queue', __FILE__)
