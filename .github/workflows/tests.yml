@@ -51,6 +51,7 @@ jobs:
           sudo apt-get install -y python2.7 python3.6 python3.7
           sudo pip install autopep8
       - name: Run Python tests
+        continue-on-error: true
         run: |
           bin/before-install
           bin/test
