@@ -22,6 +22,10 @@ module CI
         @total = tests.size
       end
 
+      def distributed?
+        false
+      end
+
       def build
         @build ||= BuildRecord.new(self)
       end
