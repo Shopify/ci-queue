@@ -21,6 +21,10 @@ module CI
           super(redis, config)
         end
 
+        def distributed?
+          true
+        end
+
         def populate(tests, random: Random.new)
           @index = tests.map { |t| [t.id, t] }.to_h
           tests = Queue.shuffle(tests, random)
