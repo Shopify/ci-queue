@@ -7,6 +7,10 @@ module CI
       # to override in classes including this module
       CONNECTION_ERRORS = [].freeze
 
+      def distributed?
+        raise NotImplementedError
+      end
+
       def retrying?
         false
       end

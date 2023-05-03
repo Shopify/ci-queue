@@ -253,8 +253,10 @@ module Minitest
       attr_accessor :queue, :queue_url, :grind_list, :grind_count, :load_paths
 
       def require_worker_id!
-        invalid_usage!("build-id couldn't be inferred from ENV and wasn't set via --build") unless queue_config.build_id
-        invalid_usage!("worker-id couldn't be inferred from ENV and wasn't set via --worker") unless queue_config.worker_id
+        if queue.distributed?
+          invalid_usage!("build-id couldn't be inferred from ENV and wasn't set via --build") unless queue_config.build_id
+          invalid_usage!("worker-id couldn't be inferred from ENV and wasn't set via --worker") unless queue_config.worker_id
+        end
       end
 
       def display_warnings(build)
