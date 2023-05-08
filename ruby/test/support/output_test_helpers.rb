@@ -17,7 +17,7 @@ module OutputTestHelpers
   end
 
   def freeze_timing(output)
-    output.to_s.gsub(/\d+\.\d+s/, 'X.XXs').gsub(/ \d+\.\d+ seconds /, ' X.XXXXX seconds ')
+    output.to_s.gsub(/\d+\.\d+s/, 'X.XXs').gsub(/ \d+(\.\d+)? seconds /, ' X.XXXXX seconds ')
   end
 
   def freeze_seed(output)
