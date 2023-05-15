@@ -213,6 +213,11 @@ module Minitest
           File.write(queue_config.failure_file, failures)
         end
 
+        if queue_config.export_flaky_tests_file
+          failures = reporter.flaky_reports.to_json
+          File.write(queue_config.export_flaky_tests_file, failures)
+        end
+
         reporter.report
         exit! reporter.success? ? 0 : 1
       end
@@ -479,6 +484,15 @@ module Minitest
           opts.separator ""
           opts.on('--failure-file FILE', help) do |file|
             queue_config.failure_file = file
+          end
+
+          help = <<~EOS
+            Defines a file where flaky tests during the execution are written to in json format.
+            Defaults to disabled.
+          EOS
+          opts.separator ""
+          opts.on('--export-flaky-tests-file FILE', help) do |file|
+            queue_config.export_flaky_tests_file = file
           end
 
           help = <<~EOS
