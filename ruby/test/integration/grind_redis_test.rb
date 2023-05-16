@@ -97,21 +97,30 @@ module Integration
 
     def test_grind_max_time
       grind_count = 1000000
-      system(
-        { 'BUILDKITE' => '1' },
-        @exe, 'grind',
-        '--queue', @redis_url,
-        '--seed', 'foobar',
-        '--build', '1',
-        '--worker', '1',
-        '--timeout', '1',
-        '--grind-count', grind_count.to_s,
-        '--grind-list', 'grind_list.txt',
-        '--max-duration', '1',
-        '-Itest',
-        'test/dummy_test.rb',
-        chdir: 'test/fixtures/',
-      )
+      timeout = 1
+
+      start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      _, err = capture_subprocess_io do
+        system(
+          { 'BUILDKITE' => '1' },
+          @exe, 'grind',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '--grind-count', grind_count.to_s,
+          '--grind-list', 'grind_list.txt',
+          '--max-duration', timeout.to_s,
+          '-Itest',
+          'test/dummy_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      took = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+
+      # Ensure it respected the timeout.
+      assert_match(/reached its timeout of \d+ seconds/, err)
 
       out, err = capture_subprocess_io do
         system(
@@ -126,8 +135,18 @@ module Integration
         )
       end
 
-      output = normalize(out).strip
-      runs_line = output.lines[2]
+      output_lines = normalize(out).strip.lines
+      runs_line = output_lines[2]
+
+      refute_match(
+        /all tests passed/,
+        output_lines[1].to_s,
+        "Expected to find failures.  Might need to increase the timeout (was #{timeout}, took #{took})."
+      )
+
+      refute_nil(runs_line, "'Runs:' line not found in #{output_lines.inspect}")
+      assert_match(/Runs: \d+/, runs_line)
+
       run_count = runs_line.scan(/\w+/).last.to_i
 
       assert_empty err
