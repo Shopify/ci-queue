@@ -6,7 +6,9 @@ require 'ci/queue/version'
 Rake::TestTask.new(:test) do |t|
   t.libs << 'test'
   t.libs << 'lib'
-  t.test_files = FileList['test/**/*_test.rb'] - FileList['test/fixtures/**/*_test.rb']
+  selected_files = ENV["TEST_FILES"].to_s.strip.split(/\s+/)
+  selected_files = nil if selected_files.empty?
+  t.test_files = selected_files || FileList['test/**/*_test.rb'] - FileList['test/fixtures/**/*_test.rb']
 end
 
 task :default => :test
