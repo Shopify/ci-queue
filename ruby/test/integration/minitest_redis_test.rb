@@ -496,6 +496,8 @@ module Integration
       output = normalize(out.lines.last.strip)
       assert_equal 'Ran 9 tests, 6 assertions, 1 failures, 1 errors, 1 skips, 2 requeues in X.XXs', output
 
+      # NOTE: To filter the TypeError backtrace below see test/fixtures/test/backtrace_filters.rb
+
       assert_equal <<~XML, normalize_xml(File.read(@junit_path))
         <?xml version="1.1" encoding="UTF-8"?>
         <testsuites>

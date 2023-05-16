@@ -6,3 +6,8 @@ if ENV['MARSHAL']
 end
 
 require 'minitest/autorun'
+require_relative './backtrace_filters'
+
+Minitest.backtrace_filter = BacktraceFilters.new(
+  Minitest.backtrace_filter
+)
