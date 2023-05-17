@@ -48,9 +48,22 @@ module CI
         end
 
         def record_success(id, stats: nil)
-          redis.pipelined do |pipeline|
+          error_reports_deleted_count, requeued_count, _ = redis.pipelined do |pipeline|
             pipeline.hdel(key('error-reports'), id.dup.force_encoding(Encoding::BINARY))
+            pipeline.hget(key('requeues-count'), id.b)
             record_stats(stats, pipeline: pipeline)
+          end
+          record_flaky(id) if error_reports_deleted_count.to_i > 0 || requeued_count.to_i > 0
+          nil
+        end
+
+        def record_flaky(id, stats: nil)
+          redis.pipelined do |pipeline|
+            pipeline.sadd(
+              key('flaky-reports'),
+              id.b
+            )
+            pipeline.expire(key('flaky-reports'), config.redis_ttl)
           end
           nil
         end
@@ -63,6 +76,10 @@ module CI
 
         def error_reports
           redis.hgetall(key('error-reports'))
+        end
+
+        def flaky_reports
+          redis.smembers(key('flaky-reports'))
         end
 
         def fetch_stats(stat_names)

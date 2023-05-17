@@ -17,6 +17,10 @@ module Minitest
         build.error_reports.sort_by(&:first).map { |k, v| ErrorReport.load(v) }
       end
 
+      def flaky_reports
+        build.flaky_reports
+      end
+
       def report
         puts aggregates
         errors = error_reports
