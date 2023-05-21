@@ -49,6 +49,11 @@ jobs:
           sudo add-apt-repository -y ppa:deadsnakes/ppa
           sudo apt-get -qq update
           sudo apt-get install -y python2.7 python3.6 python3.7
+          # https://github.com/pypa/setuptools/issues/2988#issuecomment-1007991935
+          git clone https://github.com/pypa/setuptools.git && cd setuptools && sudo python3.10 setup.py install
+          sudo apt install python3.10-distutils
+          curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10
+          sudo apt install python3.10-venv
           sudo pip install autopep8
       - name: Run Python tests
         run: |
