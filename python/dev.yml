@@ -3,7 +3,7 @@
 name: ci-queue
 
 up:
-  - python: 2.7.11
+  - python: 3.10.11
   - custom:
       name: "link development ci-queue as a package"
       met?: "pip show ciqueue | grep -i \"Location: $(pwd)\""
