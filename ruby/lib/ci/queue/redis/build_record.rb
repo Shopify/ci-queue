@@ -59,7 +59,7 @@ module CI
 
         def record_flaky(id, stats: nil)
           redis.pipelined do |pipeline|
-            pipeline.sadd(
+            pipeline.sadd?(
               key('flaky-reports'),
               id.b
             )
