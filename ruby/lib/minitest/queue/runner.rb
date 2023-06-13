@@ -88,7 +88,34 @@ module Minitest
           load_tests
           populate_queue
         end
+
+        at_exit {
+          verify_reporters!(reporters)
+        }
         # Let minitest's at_exit hook trigger
+      end
+
+      def verify_reporters!(reporters)
+        return unless reporters.any? { |r| !Minitest::Reporters.reporters.include?(r) }
+
+        warn <<~WARNING
+          WARNING!
+
+          ci-queue requires several custom minitest reporters.
+          Please do not overwrite them.
+          If you have a statement in your test suite like this
+
+            Minitest::Reporters.use!(SomeReporter.new)
+
+          you should only run it when other reporters have not been configured
+          to avoid breaking ci-queue's functionality and getting false test summaries.
+
+          Use something like this:
+
+            if Minitest::Reporters.reporters.nil?
+              Minitest::Reporters.use!(SomeReporter.new)
+            end
+        WARNING
       end
 
       def release_command
