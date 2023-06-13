@@ -531,6 +531,10 @@ module Minitest
             queue.config.redis_ttl = time
           end
 
+          opts.on("-v", "--verbose", "Verbose. Show progress processing files.") do
+            (Minitest::Reporters.reporters ||= []) << Minitest::Reporters::DefaultReporter.new(verbose: true)
+          end
+
           opts.separator ""
           opts.separator "    retry: Replays a previous run in the same order."
 
