@@ -421,7 +421,7 @@ module Minitest
           EOS
           opts.separator ""
           opts.on('-IPATHS', help) do |paths|
-            self.load_paths = paths
+            self.load_paths = [load_paths, paths].compact.join(':')
           end
 
           help = <<~EOS
