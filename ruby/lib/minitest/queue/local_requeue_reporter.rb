@@ -4,7 +4,7 @@ require 'minitest/reporters'
 
 module Minitest
   module Queue
-    class LocalRequeueReporter < Minitest::Reporters::BaseReporter
+    class LocalRequeueReporter < Minitest::Reporters::DefaultReporter
       include ::CI::Queue::OutputHelpers
       attr_accessor :requeues
 

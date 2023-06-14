@@ -22,6 +22,30 @@ module Integration
       @exe = File.expand_path('../../../exe/minitest-queue', __FILE__)
     end
 
+    def test_default_reporter
+      out, err = capture_subprocess_io do
+        system(
+          { 'BUILDKITE' => '1' },
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '--max-requeues', '1',
+          '--requeue-tolerance', '1',
+          '-Itest',
+          'test/dummy_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      assert_empty err
+      assert_match(/Expected false to be truthy/, normalize(out)) # failure output
+      result = normalize(out.lines.last.strip)
+      assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', result
+    end
+
     def test_verbose_reporter
       out, err = capture_subprocess_io do
         system(
@@ -42,7 +66,7 @@ module Integration
       end
 
       assert_empty err
-      assert_match /ATest#test_foo \d+\.\d+ = S/, out # verbose test ouptut
+      assert_match(/ATest#test_foo \d+\.\d+ = S/, normalize(out)) # verbose test ouptut
       result = normalize(out.lines.last.strip)
       assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', result
     end
@@ -66,6 +90,7 @@ module Integration
       end
 
       assert_empty err
+      assert_match(/^\^{3} \+{3}$/m, normalize(out)) # reopen failed step
       output = normalize(out.lines.last.strip)
       assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
     end
@@ -753,7 +778,7 @@ module Integration
       end
 
       assert_empty err
-      output = normalize(out)
+      output = normalize(out.lines.last)
       assert_equal <<~END, output
         Ran 1 tests, 1 assertions, 1 failures, 0 errors, 0 skips, 0 requeues in X.XXs
       END

@@ -68,7 +68,7 @@ module Minitest
         set_load_path
         Minitest.queue = queue
         reporters = [
-          LocalRequeueReporter.new,
+          LocalRequeueReporter.new(verbose: verbose),
           BuildStatusRecorder.new(build: queue.build),
           JUnitReporter.new,
           TestDataReporter.new(namespace: queue_config&.namespace),
@@ -284,7 +284,7 @@ module Minitest
       private
 
       attr_reader :queue_config, :options, :command, :argv
-      attr_accessor :queue, :queue_url, :grind_list, :grind_count, :load_paths
+      attr_accessor :queue, :queue_url, :grind_list, :grind_count, :load_paths, :verbose
 
       def require_worker_id!
         if queue.distributed?
@@ -575,7 +575,7 @@ module Minitest
           end
 
           opts.on("-v", "--verbose", "Verbose. Show progress processing files.") do
-            (Minitest::Reporters.reporters ||= []) << Minitest::Reporters::DefaultReporter.new(verbose: true)
+            self.verbose = true
           end
 
           opts.separator ""
