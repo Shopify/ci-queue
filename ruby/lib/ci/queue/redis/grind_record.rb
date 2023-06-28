@@ -11,6 +11,7 @@ module CI
         end
 
         def record_error(payload, stats: nil)
+          puts "record_error: #{payload}"
           redis.pipelined do |pipeline|
             pipeline.lpush(
               key('error-reports'),

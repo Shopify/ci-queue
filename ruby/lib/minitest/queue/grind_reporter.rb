@@ -47,12 +47,16 @@ module Minitest
       def flaky_tests
         @flaky_tests ||= begin
           flaky_tests = {}
+          puts "build: #{build}"
+          puts "build.error_reports: #{build.error_reports}"
           build.error_reports.each do |error|
+            puts "error: #{error}"
             err = ErrorReport.load(error)
             name = err.test_and_module_name
             flaky_tests[name] ||= []
             flaky_tests[name] << err
           end
+          puts "flaky_tests: #{flaky_tests}"
           flaky_tests
         end
       end
