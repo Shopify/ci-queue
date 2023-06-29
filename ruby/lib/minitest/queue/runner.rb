@@ -593,6 +593,16 @@ module Minitest
           opts.on('--failing-test TEST_IDENTIFIER') do |identifier|
             queue_config.failing_test = identifier
           end
+
+          help = <<~EOS
+            Specifies an ordered list of tests to be executed.
+            -Itest must be still specified with all test files to be loaded.
+            The format is Class#testname and it can be obtained from the artifacts tab in the specific CI build run to be simulated.
+          EOS
+          opts.on('--ordered-tests-file FILE', help) do |file|
+            queue_config.ordered_test_file = file
+          end
+
         end
       end
 

@@ -27,9 +27,18 @@ module CI
 
         def populate(tests, random: Random.new)
           @index = tests.map { |t| [t.id, t] }.to_h
-          tests = Queue.shuffle(tests, random)
+          if config.ordered_run?
+            tests = filter_and_sort(tests, config.ordered_test_file)
+          else
+            tests = Queue.shuffle(tests, random)
+          end
           push(tests.map(&:id))
           self
+        end
+
+        def filter_and_sort(tests, file_path)
+          file_lines = ::File.readlines(file_path).map(&:chomp)
+          tests.sort_by { |test| file_lines.index(test.id) || 999999 }.first(file_lines.length)
         end
 
         def populated?

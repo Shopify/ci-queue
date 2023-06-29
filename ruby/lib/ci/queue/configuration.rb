@@ -5,6 +5,7 @@ module CI
       attr_accessor :timeout, :worker_id, :max_requeues, :grind_count, :failure_file, :export_flaky_tests_file
       attr_accessor :requeue_tolerance, :namespace, :failing_test, :statsd_endpoint
       attr_accessor :max_test_duration, :max_test_duration_percentile, :track_test_duration
+      attr_accessor :ordered_test_file
       attr_accessor :max_test_failed, :redis_ttl
       attr_reader :circuit_breakers
       attr_writer :seed, :build_id
@@ -19,6 +20,7 @@ module CI
             flaky_tests: load_flaky_tests(env['CI_QUEUE_FLAKY_TESTS']),
             statsd_endpoint: env['CI_QUEUE_STATSD_ADDR'],
             redis_ttl: env['CI_QUEUE_REDIS_TTL']&.to_i ||  8 * 60 * 60,
+            ordered_test_file: env['CI_QUEUE_ORDERED_TEST_FILE'],
           )
         end
 
@@ -36,7 +38,7 @@ module CI
         grind_count: nil, max_duration: nil, failure_file: nil, max_test_duration: nil,
         max_test_duration_percentile: 0.5, track_test_duration: false, max_test_failed: nil,
         queue_init_timeout: nil, redis_ttl: 8 * 60 * 60, report_timeout: nil, inactive_workers_timeout: nil,
-        export_flaky_tests_file: nil
+        export_flaky_tests_file: nil, ordered_test_file: nil
       )
         @build_id = build_id
         @circuit_breakers = [CircuitBreaker::Disabled]
@@ -61,6 +63,7 @@ module CI
         @report_timeout = report_timeout
         @inactive_workers_timeout = inactive_workers_timeout
         @export_flaky_tests_file = export_flaky_tests_file
+        @ordered_test_file = ordered_test_file
       end
 
       def queue_init_timeout
@@ -105,6 +108,10 @@ module CI
 
       def global_max_requeues(tests_count)
         (tests_count * Float(requeue_tolerance)).ceil
+      end
+
+      def ordered_run?
+        !!ordered_test_file
       end
     end
   end
