@@ -198,8 +198,8 @@ module Minitest
         status = if run_tests_in_fork(failing_order)
           step(yellow("The bisection was inconclusive, there might not be any leaky test here."))
           ObjectSpace.dump_all(output: file)
-          %x(tar -czvf log/heap-profile.tar.gz log/heap-profile)
-          %x(rm -rf log/heap-profile)
+          %x(tar -czvf log/heap-profiler.tar.gz log/heap-profiler)
+          %x(rm -rf log/heap-profiler)
           exit! 1
         else
           step(green('The following command should reproduce the leak on your machine:'), collapsed: false)
@@ -213,8 +213,8 @@ module Minitest
 
           File.write('log/test_order.log', failing_order.to_a.map(&:id).join("\n"))
           ObjectSpace.dump_all(output: file)
-          %x(tar -czvf log/heap-profile.tar.gz log/heap-profile)
-          %x(rm -rf log/heap-profile)
+          %x(tar -czvf log/heap-profiler.tar.gz log/heap-profiler)
+          %x(rm -rf log/heap-profiler)
           exit! 0
         end
       end
