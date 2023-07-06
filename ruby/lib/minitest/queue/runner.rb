@@ -6,6 +6,7 @@ require 'ci/queue'
 require 'digest/md5'
 require 'minitest/reporters/bisect_reporter'
 require 'minitest/reporters/statsd_reporter'
+require 'objspace'
 
 module Minitest
   module Queue
@@ -163,6 +164,7 @@ module Minitest
       end
 
       def bisect_command
+        ObjectSpace.trace_object_allocations_start
         invalid_usage! "Missing the FAILING_TEST argument." unless queue_config.failing_test
 
         @queue = CI::Queue::Bisect.new(queue_url, queue_config)
@@ -192,8 +194,12 @@ module Minitest
 
         failing_order = queue.candidates
         step("Final validation")
+        file = File.open('log/heap-profiler/file.heap', 'w+')
         status = if run_tests_in_fork(failing_order)
           step(yellow("The bisection was inconclusive, there might not be any leaky test here."))
+          ObjectSpace.dump_all(output: file)
+          %x(tar -czvf log/heap-profile.tar.gz log/heap-profile)
+          %x(rm -rf log/heap-profile)
           exit! 1
         else
           step(green('The following command should reproduce the leak on your machine:'), collapsed: false)
@@ -206,6 +212,9 @@ module Minitest
           puts
 
           File.write('log/test_order.log', failing_order.to_a.map(&:id).join("\n"))
+          ObjectSpace.dump_all(output: file)
+          %x(tar -czvf log/heap-profile.tar.gz log/heap-profile)
+          %x(rm -rf log/heap-profile)
           exit! 0
         end
       end
