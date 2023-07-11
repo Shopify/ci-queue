@@ -6,7 +6,7 @@ import redis
 
 
 def expected_messages(output):
-    assert '= 4 failed, 2 passed, 1 skipped, 1 xpassed, 6 error in' in output, output
+    assert '= 4 failed, 2 passed, 1 skipped, 1 xpassed, 6 errors in' in output, output
     assert ('integrations/pytest/test_all.py:27: skipping test message' in output
             or 'integrations/pytest/test_all.py:28: skipping test message' in output), output
 
@@ -57,15 +57,15 @@ class TestIntegration(object):
             .format(queue, xml_file, filename)
 
         output = check_output(cmd.format(queue, filename))
-        assert '= 4 failed, 2 passed, 4 skipped, 1 xpassed, 6 error in' in output, output
+        assert '= 4 failed, 2 passed, 4 skipped, 1 xpassed, 6 errors in' in output, output
         assert ('integrations/pytest/test_all.py:27: skipping test message' in output
                 or 'integrations/pytest/test_all.py:28: skipping test message' in output), output
         assert ' WILL_RETRY ' in output, output
 
         xml = open(xml_file).read()
-        assert xml.count('/failure') == 4
+        assert xml.count('/failure') == 5
         assert xml.count('/skipped') == 4
-        assert xml.count('/error') == 6
+        assert xml.count('/error') == 7
 
         expected_messages(check_output(report_cmd.format(queue, filename)))
         xml = open(xml_file).read()

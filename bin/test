@@ -9,8 +9,14 @@ end
 
 case ENV['SUITE']
 when 'python'
+  environment = { 'PYTHONPATH' => '.'}
+  python_version = ENV['PYTHON_VERSION']
+  unless python_version.nil?
+    tox_py_env = "py" + python_version.split('.')[..1].join('')
+    environment['TOX_ENV'] = tox_py_env
+  end
   Dir.chdir('python/') do
-    run({ 'PYTHONPATH' => '.' }, 'sudo', 'make', 'test')
+    run(environment, 'sudo', '--preserve-env', 'make', 'test')
   end
 when 'ruby'
   Dir.chdir('ruby/') do
