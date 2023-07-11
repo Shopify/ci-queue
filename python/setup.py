@@ -37,7 +37,7 @@ setuplib.setup(
     packages=['ciqueue', 'ciqueue._pytest'],
     install_requires=[
         'dill>=0.2.7',
-        'pytest>=2.7,<=3.5.0',
+        'pytest==7.4.0',
         'redis>=2.10.5',
         'tblib>=1.3.2',
         'uritools>=2.0.0',
@@ -45,9 +45,9 @@ setuplib.setup(
     ],
     extras_require={
         'test': [
-            'tox==3.21.0',
+            'tox==4.6.4',
             'shopify_python==0.5.3',
-            'pycodestyle == 2.4.0',
+            'pycodestyle==2.10.0',
         ]
     },
     package_data={'': get_lua_scripts()},
