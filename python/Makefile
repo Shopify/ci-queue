@@ -4,6 +4,8 @@ python_files := find . -path '*/.*' -prune -o -name '*.py' -print0
 python_version_full := $(wordlist 2,4,$(subst ., ,$(shell python --version 2>&1)))
 python_version_major := $(word 1,${python_version_full})
 
+TOX_ENV ?= py37,py38,py39,py310,py311
+
 all: test
 
 clean:
@@ -22,7 +24,7 @@ lint:
 autolint: autopep8 lint
 
 run_tests: clean
-	tox -e py27,py36,py37 -- --durations=10 -vv tests
+	tox -e ${TOX_ENV} -- --durations=10 -vv tests
 
 test: autopep8 run_tests
 
