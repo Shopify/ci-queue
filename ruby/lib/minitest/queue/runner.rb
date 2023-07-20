@@ -175,6 +175,7 @@ module Minitest
         unless run_tests_in_fork(queue.failing_test)
           puts reopen_previous_step
           puts red("The test fail when ran alone, no need to bisect.")
+          File.write('log/test_order.log', queue_config.failing_test)
           exit! 0
         end
 
@@ -194,6 +195,7 @@ module Minitest
         step("Final validation")
         status = if run_tests_in_fork(failing_order)
           step(yellow("The bisection was inconclusive, there might not be any leaky test here."))
+          File.write('log/test_order.log', "")
           exit! 1
         else
           step(green('The following command should reproduce the leak on your machine:'), collapsed: false)
