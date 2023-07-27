@@ -263,15 +263,15 @@ module Minitest
   end
 end
 
-MiniTest.singleton_class.prepend(MiniTest::Queue)
-if defined? MiniTest::Result
-  MiniTest::Result.prepend(MiniTest::Requeueing)
-  MiniTest::Result.prepend(MiniTest::Flakiness)
-  MiniTest::Result.prepend(MiniTest::WithTimestamps)
+Minitest.singleton_class.prepend(Minitest::Queue)
+if defined? Minitest::Result
+  Minitest::Result.prepend(Minitest::Requeueing)
+  Minitest::Result.prepend(Minitest::Flakiness)
+  Minitest::Result.prepend(Minitest::WithTimestamps)
 else
-  MiniTest::Test.prepend(MiniTest::Requeueing)
-  MiniTest::Test.prepend(MiniTest::Flakiness)
-  MiniTest::Test.prepend(MiniTest::WithTimestamps)
+  Minitest::Test.prepend(Minitest::Requeueing)
+  Minitest::Test.prepend(Minitest::Flakiness)
+  Minitest::Test.prepend(Minitest::WithTimestamps)
 
   module MinitestBackwardCompatibility
     def source_location
@@ -282,5 +282,5 @@ else
       self.class.name
     end
   end
-  MiniTest::Test.prepend(MinitestBackwardCompatibility)
+  Minitest::Test.prepend(MinitestBackwardCompatibility)
 end
