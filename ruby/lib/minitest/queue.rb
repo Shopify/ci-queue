@@ -234,7 +234,11 @@ module Minitest
           failed = false
         end
 
-        if failed
+        if failed && queue.config.failing_test && queue.config.failing_test != example.id
+          # When we do a bisect, we don't care about the result other than the test we're running the bisect on
+          result.mark_as_flaked!
+          failed = false
+        elsif failed
           queue.report_failure!
         else
           queue.report_success!
