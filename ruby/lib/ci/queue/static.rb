@@ -20,6 +20,11 @@ module CI
         @config = config
         @progress = 0
         @total = tests.size
+        @shutdown = false
+      end
+
+      def shutdown!
+        @shutdown = true
       end
 
       def distributed?
@@ -64,7 +69,7 @@ module CI
       end
 
       def poll
-        while config.circuit_breakers.none?(&:open?) && !max_test_failed? && test = @queue.shift
+        while !@shutdown && config.circuit_breakers.none?(&:open?) && !max_test_failed? && test = @queue.shift
           yield index.fetch(test)
         end
       end

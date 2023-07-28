@@ -77,6 +77,15 @@ module SharedQueueAssertions
     @queue.release!
   end
 
+  def test_shutdown
+    tests = []
+    @queue.poll do |test|
+      tests << test.id
+      @queue.shutdown!
+    end
+    assert_equal %w(ATest#test_foo), tests
+  end
+
   private
 
   def shuffled_test_list
