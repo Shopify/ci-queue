@@ -97,7 +97,7 @@ module Integration
 
     def test_grind_max_time
       grind_count = 1000000
-      timeout = RUBY_ENGINE == "truffleruby" ? 4 : 1
+      timeout = RUBY_ENGINE == "truffleruby" ? 10 : 1
 
       start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       _, err = capture_subprocess_io do
