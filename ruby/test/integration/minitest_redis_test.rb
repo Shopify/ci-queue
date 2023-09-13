@@ -205,6 +205,7 @@ module Integration
       end
 
       assert_empty err
+      puts out.lines
       output = normalize(out.lines.last.strip)
       assert_equal 'Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
 

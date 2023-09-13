@@ -15,17 +15,17 @@ if redis.call('hget', owners_key, test) == worker_queue_key then
 end
 
 if redis.call('sismember', processed_key, test) == 1 then
-  return false
+  return "processed"
 end
 
 local global_requeues = tonumber(redis.call('hget', requeues_count_key, '___total___'))
 if global_requeues and global_requeues >= tonumber(global_max_requeues) then
-  return false
+  return "global_max_requeues"
 end
 
 local requeues = tonumber(redis.call('hget', requeues_count_key, test))
 if requeues and requeues >= max_requeues then
-  return false
+  return "max_requeues_for_test"
 end
 
 redis.call('hincrby', requeues_count_key, '___total___', 1)
@@ -40,4 +40,4 @@ end
 
 redis.call('zrem', zset_key, test)
 
-return true
+return "success"

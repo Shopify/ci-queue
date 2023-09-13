@@ -25,7 +25,13 @@ module CI
     end
 
     def requeueable?(test_result)
-      requeueable.nil? || requeueable.call(test_result)
+      if requeueable.nil?
+        puts "!!! requeueable.nil?"
+        true
+      else
+        puts "!!! requeueable.source_location: #{requeueable.source_location}"
+        requeueable.call(test_result)
+      end
     end
 
     def shuffle(tests, random)

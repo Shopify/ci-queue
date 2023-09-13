@@ -245,7 +245,7 @@ module Minitest
         end
 
         requeued = false
-        if failed && CI::Queue.requeueable?(result) && queue.requeue(example)
+        if failed && (requeable_result = CI::Queue.requeueable?(result)) && (requeue_result = queue.requeue(example))
           requeued = true
           result.requeue!
           reporter.record(result)
@@ -253,6 +253,10 @@ module Minitest
           # If the test was already acknowledged by another worker (we timed out)
           # Then we only record it if it is successful.
           reporter.record(result)
+        end
+
+        if failed
+          puts "----- requeable_result=#{requeable_result.inspect},requeue_result=#{requeue_result.inspect}"
         end
 
         if !requeued && failed
