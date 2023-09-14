@@ -199,21 +199,23 @@ module CI
         end
 
         def push(tests)
-          @total = tests.size
+          CI::Queue.with_instrumentation("push tests: ") do
+            @total = tests.size
 
-          if @master = redis.setnx(key('master-status'), 'setup')
-            redis.multi do |transaction|
-              transaction.lpush(key('queue'), tests) unless tests.empty?
-              transaction.set(key('total'), @total)
-              transaction.set(key('master-status'), 'ready')
+            if @master = redis.setnx(key('master-status'), 'setup')
+              redis.multi do |transaction|
+                transaction.lpush(key('queue'), tests) unless tests.empty?
+                transaction.set(key('total'), @total)
+                transaction.set(key('master-status'), 'ready')
 
-              transaction.expire(key('queue'), config.redis_ttl)
-              transaction.expire(key('total'), config.redis_ttl)
-              transaction.expire(key('master-status'), config.redis_ttl)
+                transaction.expire(key('queue'), config.redis_ttl)
+                transaction.expire(key('total'), config.redis_ttl)
+                transaction.expire(key('master-status'), config.redis_ttl)
+              end
             end
+            register
+            redis.expire(key('workers'), config.redis_ttl)
           end
-          register
-          redis.expire(key('workers'), config.redis_ttl)
         rescue *CONNECTION_ERRORS
           raise if @master
         end

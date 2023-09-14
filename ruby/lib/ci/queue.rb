@@ -13,6 +13,8 @@ require 'ci/queue/static'
 require 'ci/queue/file'
 require 'ci/queue/grind'
 require 'ci/queue/bisect'
+require 'logger'
+require 'fileutils'
 
 module CI
   module Queue
@@ -26,6 +28,21 @@ module CI
 
     def requeueable?(test_result)
       requeueable.nil? || requeueable.call(test_result)
+    end
+
+    def logger
+      @logger ||= begin
+        FileUtils.mkdir_p("log")
+        Logger.new('log/ci-queue.log')
+      end
+    end
+
+    def with_instrumentation(msg)
+      start = Process.clock_gettime(Process::CLOCK_MONOTONIC, :float_millisecond)
+      result = yield
+      duration = Process.clock_gettime(Process::CLOCK_MONOTONIC, :float_millisecond) - start
+      CI::Queue.logger.info("#{msg} #{duration}ms")
+      result
     end
 
     def shuffle(tests, random)

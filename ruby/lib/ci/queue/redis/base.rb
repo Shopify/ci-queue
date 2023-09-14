@@ -11,9 +11,23 @@ module CI
           ::SocketError, # https://github.com/redis/redis-rb/pull/631
         ].freeze
 
+        module RedisInstrumentation
+          def connect(redis_config)
+            CI::Queue.with_instrumentation("redis connect: ") { super }
+          end
+
+          def call(command, redis_config)
+            CI::Queue.with_instrumentation("redis call #{command}: ") { super }
+          end
+
+          def call_pipelined(commands, redis_config)
+            CI::Queue.with_instrumentation("redis pipeline #{commands}: ") { super }
+          end
+        end
+
         def initialize(redis_url, config)
           @redis_url = redis_url
-          @redis = ::Redis.new(url: redis_url)
+          @redis = ::Redis.new(url: redis_url, middlewares: [RedisInstrumentation])
           @config = config
         end
 
