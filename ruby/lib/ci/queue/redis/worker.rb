@@ -110,7 +110,7 @@ module CI
           raise_on_mismatching_test(test_key)
           global_max_requeues = config.global_max_requeues(total)
 
-          requeued = config.max_requeues > 0 && global_max_requeues > 0 && eval_script(
+          result = eval_script(
             :requeue,
             keys: [
               key('processed'),
@@ -121,7 +121,11 @@ module CI
               key('owners'),
             ],
             argv: [config.max_requeues, global_max_requeues, test_key, offset],
-          ) == 1
+          )
+
+          CI::Queue.logger.info("requeue lua script: #{test_key.inspect} => #{result.inspect}")
+
+          requeued = config.max_requeues > 0 && global_max_requeues > 0 && result == "success"
 
           @reserved_test = test_key unless requeued
           requeued

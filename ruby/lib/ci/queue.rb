@@ -27,7 +27,16 @@ module CI
     end
 
     def requeueable?(test_result)
-      requeueable.nil? || requeueable.call(test_result)
+      result = requeueable.nil? || requeueable.call(test_result)
+
+      test_result.failures.each do |failure|
+        CI::Queue.logger.info("requeueable failure: #{failure} - #{failure.error} - #{failure.class}}")
+      end
+
+      CI::Queue.logger.info("requeueable?(#{test_result.inspect}) => #{result}")
+      CI::Queue.logger.info("requeueable: #{requeueable&.source_location}}")
+
+      result
     end
 
     def logger
