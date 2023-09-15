@@ -221,6 +221,8 @@ module Minitest
 
         step("Waiting for workers to complete")
 
+        abort! "No master was elected. Did all workers crash?", 40
+
         unless supervisor.wait_for_workers { display_warnings(supervisor.build) }
           unless supervisor.queue_initialized?
             abort! "No master was elected. Did all workers crash?", 40
