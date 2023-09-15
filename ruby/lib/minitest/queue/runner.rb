@@ -220,11 +220,11 @@ module Minitest
         end
 
         step("Waiting for workers to complete")
-        abort! "No master was elected. Did all workers crash?"
+
+        abort! "No master was elected. Did all workers crash?", 15
 
         unless supervisor.wait_for_workers { display_warnings(supervisor.build) }
           unless supervisor.queue_initialized?
-
             abort! "No master was elected. Did all workers crash?"
           end
 
@@ -625,10 +625,10 @@ module Minitest
         super
       end
 
-      def abort!(message)
+      def abort!(message, exit_status=1)
         reopen_previous_step
         puts red(message)
-        exit! 15 # exit! is required to avoid minitest at_exit callback
+        exit! exit_status # exit! is required to avoid minitest at_exit callback
       end
 
       def retry?
