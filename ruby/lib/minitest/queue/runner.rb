@@ -85,8 +85,8 @@ module Minitest
         if queue.rescue_connection_errors { queue.exhausted? }
           puts green('All tests were ran already')
         else
-          load_tests
-          populate_queue
+          CI::Queue.with_instrumentation("load tests: ") { load_tests }
+          CI::Queue.with_instrumentation("populate queue: ") { populate_queue }
         end
 
         at_exit {
