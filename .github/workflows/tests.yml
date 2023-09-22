@@ -6,15 +6,12 @@ jobs:
   ruby-tests:
     runs-on: ubuntu-latest
 
-    services:
-      redis:
-        image: redis
-        ports:
-          - 6379:6379
-
     strategy:
       fail-fast: false
       matrix:
+        redis:
+          - 'with-tls'
+          - 'without-tls'
         ruby:
           - '2.7'
           - '3.0'
@@ -30,13 +27,23 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}
+      - name: Start Redis without TLS
+        if: ${{ matrix.redis == 'without-tls' }}
+        run: |
+          docker run -d -e ALLOW_EMPTY_PASSWORD=yes -p 6379:6379 bitnami/redis
+      - name: Start Redis with TLS
+        if: ${{ matrix.redis == 'with-tls' }}
+        run: |
+          wget https://raw.githubusercontent.com/redis/redis/2aad03fa399f520febb8b7db972459bc97484104/utils/gen-test-certs.sh
+          sh gen-test-certs.sh
+          docker run -d --user="$UID" -e ALLOW_EMPTY_PASSWORD=yes -e REDIS_TLS_CERT_FILE=/tls/redis.crt -e REDIS_TLS_KEY_FILE=/tls/redis.key -e REDIS_TLS_CA_FILE=/tls/ca.crt -e REDIS_TLS_ENABLED=yes -e REDIS_TLS_PORT=6379 -v ./tests/tls:/tls -p 6379:6379 bitnami/redis
       - name: Run Ruby tests
         run: |
           bin/before-install
           bin/test
         env:
           SUITE: ruby
-          REDIS_URL: redis://localhost:6379/0
+          REDIS_URL: "${{ matrix.redis == 'with-tls' && 'rediss://localhost:6379/0' || 'redis://localhost:6379/0' }}"
 
   python-tests:
     runs-on: ubuntu-latest
@@ -44,13 +51,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        redis:
+          - 'with-tls'
+          - 'without-tls'
         python: [ '3.7', '3.8', '3.9', '3.10', '3.11' ]
-
-    services:
-      redis:
-        image: redis
-        ports:
-          - 6379:6379
 
     steps:
       - uses: actions/checkout@v2
@@ -60,6 +64,16 @@ jobs:
           sudo apt-get -qq update
           sudo apt-get install -y python${{ matrix.python }} python${{ matrix.python }}-distutils
           sudo pip install autopep8
+      - name: Start Redis without TLS
+        if: ${{ matrix.redis == 'without-tls' }}
+        run: |
+          docker run -d -e ALLOW_EMPTY_PASSWORD=yes -p 6379:6379 bitnami/redis
+      - name: Start Redis with TLS
+        if: ${{ matrix.redis == 'with-tls' }}
+        run: |
+          wget https://raw.githubusercontent.com/redis/redis/2aad03fa399f520febb8b7db972459bc97484104/utils/gen-test-certs.sh
+          sh gen-test-certs.sh
+          docker run -d --user="$UID" -e ALLOW_EMPTY_PASSWORD=yes -e REDIS_TLS_CERT_FILE=/tls/redis.crt -e REDIS_TLS_KEY_FILE=/tls/redis.key -e REDIS_TLS_CA_FILE=/tls/ca.crt -e REDIS_TLS_ENABLED=yes -e REDIS_TLS_PORT=6379 -v ./tests/tls:/tls -p 6379:6379 bitnami/redis
       - name: Run Python tests
         run: |
           bin/before-install
@@ -67,4 +81,4 @@ jobs:
         env:
           SUITE: python
           PYTHON_VERSION: ${{ matrix.python }}
-          REDIS_URL: redis://localhost:6379/0
+          REDIS_URL: "${{ matrix.redis == 'with-tls' && 'rediss://localhost:6379/0' || 'redis://localhost:6379/0' }}"
