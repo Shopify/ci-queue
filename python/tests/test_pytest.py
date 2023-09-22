@@ -17,7 +17,8 @@ def check_output(cmd):
 
 class TestIntegration(object):
     def setup_method(self):
-        strict_redis = redis.StrictRedis(host=os.getenv('REDIS_HOST'))
+        self.redis_url = os.getenv('REDIS_URL', default='redis://localhost:6379/0')
+        strict_redis = redis.StrictRedis.from_url(self.redis_url)
         strict_redis.flushdb()
         self.redis = strict_redis  # pylint: disable=attribute-defined-outside-init
 
@@ -25,7 +26,7 @@ class TestIntegration(object):
         # happy paths
         expected_messages(check_output('py.test -v -r a integrations/pytest/test_all.py; exit 0'))
 
-        queue = "redis://localhost:6379/0?worker=0&build=foo&retry=0&timeout=5"
+        queue = f"{self.redis_url}?worker=0&build=foo&retry=0&timeout=5"
         filename = 'test_all.py'
         cmd = "py.test -v -r a -p ciqueue.pytest --queue '{}' integrations/pytest/{}; exit 0"\
             .format(queue, filename)
@@ -37,16 +38,14 @@ class TestIntegration(object):
 
         # test that pytest_report only reports what's on the redis queue
         self.redis.delete('build:foo:error-reports')
-        queue = "redis://localhost:6379/0?build=foo&retry=0"
+        queue = f"{self.redis_url}?build=foo&retry=0"
         output = check_output(report_cmd)
         assert '= 11 passed, 1 xpassed in' in output, output
         assert ('integrations/pytest/test_all.py:27: message' not in output
                 and 'integrations/pytest/test_all.py:28: message' not in output), output
 
     def test_retries_and_junit_xml(self, tmpdir):
-        queue = ('redis://localhost:6379/0?worker=0&build=bar&retry=0&timeout=5'
-                 '&max_requeues=1&requeue_tolerance=0.2'
-                 '&socket_timeout=5&socket_connect_timeout=5&retry_on_timeout=true')
+        queue = (f"{self.redis_url}?worker=0&build=bar&retry=0&timeout=5&max_requeues=1&requeue_tolerance=0.2&socket_timeout=5&socket_connect_timeout=5&retry_on_timeout=true")
         filename = 'test_all.py'
 
         xml_file = os.path.join(tmpdir.strpath, 'test.xml')
@@ -74,7 +73,7 @@ class TestIntegration(object):
         assert xml.count('/error') == 6
 
     def test_flakey(self):
-        queue = "redis://localhost:6379/0?worker=0&build=bar&timeout=5&max_requeues=1&requeue_tolerance=0.2"
+        queue = f"{self.redis_url}?worker=0&build=bar&timeout=5&max_requeues=1&requeue_tolerance=0.2"
         filename = 'test_flakey.py'
         cmd = "py.test -v -r a -p ciqueue.pytest --queue '{}' integrations/pytest/{}".format(queue, filename)
         report_cmd = "py.test -v -r a -p ciqueue.pytest_report --queue '{}' integrations/pytest/{}"\

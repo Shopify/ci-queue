@@ -36,7 +36,7 @@ jobs:
           bin/test
         env:
           SUITE: ruby
-          REDIS_HOST: localhost
+          REDIS_URL: redis://localhost:6379/0
 
   python-tests:
     runs-on: ubuntu-latest
@@ -67,5 +67,4 @@ jobs:
         env:
           SUITE: python
           PYTHON_VERSION: ${{ matrix.python }}
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
+          REDIS_URL: redis://localhost:6379/0

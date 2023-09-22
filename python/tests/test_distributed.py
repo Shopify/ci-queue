@@ -9,8 +9,8 @@ class TestDistributed(shared.QueueImplementation):
     _redis = None
 
     def setup_method(self, _):
-        self._redis = redis.StrictRedis(
-            host=os.getenv('REDIS_HOST')
+        self._redis = redis.StrictRedis.from_url(
+            os.getenv('REDIS_URL', default='redis://localhost:6379/0')
         )
         self._redis.flushdb()
 
