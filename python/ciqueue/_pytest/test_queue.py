@@ -38,7 +38,7 @@ def parse_worker_args(query_string, tests_index):
     return result
 
 
-def parse_redis_args(spec):
+def parse_redis_args(spec, config):
     query = urlparse.parse_qs(spec.query)
 
     result = {'host': spec.authority.split(':')[0],
@@ -53,17 +53,37 @@ def parse_redis_args(spec):
     if 'retry_on_timeout' in query:
         result['retry_on_timeout'] = bool(util.strtobool(query['retry_on_timeout'][0] or 'false'))
 
+    if config.getoption('--queue').startswith("rediss://"):
+        result['ssl'] = True
+
+    redis_ca_file_path = config.getoption('--redis-ca-file-path', default=None)
+    if redis_ca_file_path is not None:
+        result['ssl_ca_certs'] = redis_ca_file_path
+
+    redis_client_certificate_path = config.getoption('--redis-client-certificate-path', default=None)
+    if redis_client_certificate_path is not None:
+        result['ssl_certfile'] = redis_client_certificate_path
+
+    redis_client_certificate_key_path = config.getoption('--redis-client-certificate-key-path', default=None)
+    if redis_client_certificate_key_path is not None:
+        result['ssl_keyfile'] = redis_client_certificate_key_path
+
+    if redis_client_certificate_path is not None or redis_client_certificate_key_path is not None:
+        result['ssl_cert_reqs'] = "required"
+    else:
+        result['ssl_cert_reqs'] = "none"
+
     return result
 
 
-def build_queue(queue_url, tests_index=None):
-    spec = uritools.urisplit(queue_url)
+def build_queue(config, tests_index=None):
+    spec = uritools.urisplit(config.getoption('--queue'))
     if spec.scheme == 'list':
         return ciqueue.Static(spec.path.split(':'))
     elif spec.scheme == 'file':
         return ciqueue.File(spec.path)
-    elif spec.scheme == 'redis':
-        redis_args = parse_redis_args(spec)
+    elif spec.scheme == 'redis' or spec.scheme == 'rediss':
+        redis_args = parse_redis_args(spec, config)
         redis_client = redis.StrictRedis(**redis_args)
 
         worker_args = parse_worker_args(spec.query, tests_index)

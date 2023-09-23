@@ -9,9 +9,28 @@ class TestDistributed(shared.QueueImplementation):
     _redis = None
 
     def setup_method(self, _):
-        self._redis = redis.StrictRedis.from_url(
-            os.getenv('REDIS_URL', default='redis://localhost:6379/0')
-        )
+        redis_url = os.getenv('REDIS_URL', default='redis://localhost:6379/0')
+        if redis_url.startswith("rediss://"):
+            tls_test_directory = os.path.abspath(
+                os.path.join(
+                    os.path.dirname(
+                        os.path.abspath(__file__)),
+                    "..",
+                    "..",
+                    "tests",
+                    "tls"))
+
+            self._redis = redis.StrictRedis.from_url(
+                redis_url,
+                ssl_ca_certs=f"{tls_test_directory}/ca.crt",
+                ssl_certfile=f"{tls_test_directory}/client.crt",
+                ssl_keyfile=f"{tls_test_directory}/client.key",
+                ssl_cert_reqs="required"
+            )
+        else:
+            self._redis = redis.StrictRedis.from_url(
+                redis_url
+            )
         self._redis.flushdb()
 
     def build_queue(self, worker_id=1, **kwargs):  # pylint: disable=arguments-differ

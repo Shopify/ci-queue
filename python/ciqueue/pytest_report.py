@@ -20,6 +20,15 @@ def pytest_addoption(parser):
                      type=str, help='The queue url',
                      required=True)
 
+    parser.addoption('--redis-ca-file-path', metavar='redis_ca_file_path',
+                     type=str, help='Path to the CA certificate of Redis')
+
+    parser.addoption('--redis-client-certificate-path', metavar='redis_client_certificate_path',
+                     type=str, help='Path to the client certificate to authenticate against Redis')
+
+    parser.addoption('--redis-client-certificate-key-path', metavar='redis_client_certificate_key_path',
+                     type=str, help='Path to the client certificate key to authenticate against Redis')
+
 
 def noop():
     pass
@@ -30,7 +39,7 @@ def pytest_collection_modifyitems(session, config, items):  # pylint: disable=un
     """this function hooks into pytest's list of tests to run, converts all of them into
     noop's, and downloads the result of each test run from the redis queue. Test errors are
     attached to each test's `error_reports` field."""
-    session.queue = test_queue.build_queue(session.config.getoption('queue'))
+    session.queue = test_queue.build_queue(session.config)
     session.queue.wait_for_workers(master_timeout=300)
     error_reports = {k.decode(): v
                      for k, v
