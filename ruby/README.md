@@ -67,6 +67,14 @@ If you'd like to centralize the error reporting you can do so with:
 rspec-queue --queue redis://example.com --timeout 600 --report
 ```
 
+### Redis with TLS
+
+Both the minitest and RSpec runner  will automatically use TLS if you start your queue URL with `rediss://`. Depending on your setup, you need to configure one or more of the following options:
+
+* `--redis-ca-file-path`: Path to the certificate authority certificale file. Required if you run Redis with a self-signed certificate.
+* `--redis-client-certificate-path` and `--redis-client-certificate-key-path`: If you use certificate-based authentication on your Redis instance, these two parameters are needed.
+* `--redis-disable-certificate-verification`: When connecting using TLS to Redis, the server's certificate will be checked automatically. This can be disabled by providing this option.
+
 #### Limitations
 
 Because of how `ci-queue` executes the examples, `before(:all)` and `after(:all)` hooks are not supported. `rspec-queue` will explicitly reject them.

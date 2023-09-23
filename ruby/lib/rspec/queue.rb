@@ -168,7 +168,7 @@ module RSpec
 
         help = <<~EOS
             Path to the CA certificate file.
-            Required if running Redis with a self-hosted certificate.
+            Required if running Redis with a self-signed certificate.
           EOS
         parser.separator ""
         parser.on("--redis-ca-file-path FILE_PATH", help) do |path|

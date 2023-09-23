@@ -578,7 +578,7 @@ module Minitest
 
           help = <<~EOS
             Path to the CA certificate file.
-            Required if running Redis with a self-hosted certificate.
+            Required if running Redis with a self-signed certificate.
           EOS
           opts.on("--redis-ca-file-path FILE_PATH", help) do |path|
             queue_config.redis_ca_file_path = path

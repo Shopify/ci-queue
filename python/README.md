@@ -24,6 +24,13 @@ Then, to then get a summary report of all the tests, run the following on anothe
 py.test -p ciqueue.pytest_report --queue redis://<host>:6379?build=<build_id>&retry=<n>
 ```
 
+### Redis with TLS
+
+The pytest plugin will automatically use TLS if you start your queue URL with `rediss://`. Depending on your setup, you need to configure one or more of the following options:
+
+* `--redis-ca-file-path`: Path to the certificate authority certificale file. Required if you run Redis with a self-signed certificate.
+* `--redis-client-certificate-path` and `--redis-client-certificate-key-path`: If you use certificate-based authentication on your Redis instance, these two parameters are needed.
+
 ## Implementing a new integration
 
 The reference implementation is the minitest one (Ruby).
