@@ -13,7 +13,7 @@ module CI
 
         def initialize(redis_url, config)
           @redis_url = redis_url
-          @redis = ::Redis.new(url: redis_url)
+          @redis = initialise_redis_client(redis_url, config)
           @config = config
         end
 
@@ -70,9 +70,9 @@ module CI
 
         def queue_initialized?
           @queue_initialized ||= begin
-            status = master_status
-            status == 'ready' || status == 'finished'
-          end
+                                   status = master_status
+                                   status == 'ready' || status == 'finished'
+                                 end
         end
 
         def queue_initializing?
@@ -91,6 +91,37 @@ module CI
           return false if config.max_test_failed.nil?
 
           test_failed >= config.max_test_failed
+        end
+
+        def initialise_redis_client(redis_url, config)
+          if redis_url.start_with? "rediss://"
+            ssl_params = {
+              ca_file: config.redis_ca_file_path
+            }
+
+            unless config.redis_client_certificate_path.nil?
+              ssl_params[:cert] = OpenSSL::X509::Certificate.new(
+                ::File.read(config.redis_client_certificate_path)
+              )
+            end
+
+            unless config.redis_client_certificate_key_path.nil?
+              ssl_params[:key] = OpenSSL::PKey::RSA.new(
+                ::File.read(config.redis_client_certificate_key_path)
+              )
+            end
+
+            if config.redis_disable_certificate_verification
+              ssl_params[:verify_mode] = OpenSSL::SSL::VERIFY_NONE
+            end
+
+            ::Redis.new(
+              url: redis_url,
+              ssl_params: ssl_params
+            )
+          else
+            ::Redis.new(url: redis_url)
+          end
         end
 
         private

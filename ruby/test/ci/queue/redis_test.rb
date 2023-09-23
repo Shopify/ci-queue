@@ -6,7 +6,7 @@ class CI::Queue::RedisTest < Minitest::Test
 
   def setup
     @redis_url = ENV.fetch('REDIS_URL', 'redis://localhost:6379/0')
-    @redis = ::Redis.new(url: @redis_url)
+    @redis = get_redis_instance(@redis_url)
     @redis.flushdb
     super
     @config = @queue.send(:config) # hack
@@ -217,7 +217,7 @@ class CI::Queue::RedisTest < Minitest::Test
       threads.each { |t| refute_predicate t, :alive? }
 
       queue = worker(12, build_id: '24')
-      assert_equal [[:RESERVED_LOST_TEST, {test: 'ATest#test_foo', timeout: 0.2}]], queue.build.pop_warnings
+      assert_equal [[:RESERVED_LOST_TEST, { test: 'ATest#test_foo', timeout: 0.2 }]], queue.build.pop_warnings
     ensure
       threads.each(&:kill)
     end
@@ -269,10 +269,12 @@ class CI::Queue::RedisTest < Minitest::Test
     queue = CI::Queue::Redis.new(
       @redis_url,
       CI::Queue::Configuration.new(
-        build_id: '42',
-        worker_id: id.to_s,
-        timeout: 0.2,
-        **args,
+        **amend_ci_queue_configuration(@redis_url, {
+          build_id: '42',
+          worker_id: id.to_s,
+          timeout: 0.2
+        }.merge(args)
+        )
       )
     )
     if skip_populate

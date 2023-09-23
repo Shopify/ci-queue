@@ -7,7 +7,7 @@ module Minitest::Queue
 
     def setup
       @redis_url = ENV.fetch('REDIS_URL', 'redis://localhost:6379/0')
-      @redis = ::Redis.new(url: @redis_url)
+      @redis = get_redis_instance(@redis_url)
       @redis.flushdb
       @queue = worker(1)
       @reporter = BuildStatusRecorder.new(build: @queue.build)
@@ -54,10 +54,13 @@ module Minitest::Queue
       CI::Queue::Redis.new(
         @redis_url,
         CI::Queue::Configuration.new(
-          build_id: '42',
-          worker_id: id.to_s,
-          timeout: 0.2,
-        ),
+          **amend_ci_queue_configuration(@redis_url, {
+            build_id: '42',
+            worker_id: id.to_s,
+            timeout: 0.2,
+          }
+          ),
+        )
       ).populate([])
     end
 

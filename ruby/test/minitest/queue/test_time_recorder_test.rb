@@ -5,16 +5,19 @@ module Minitest::Queue
   class TestTimeRecorderTest < Minitest::Test
     def setup
       redis_url = ENV.fetch('REDIS_URL', 'redis://localhost:6379/0')
-      redis = Redis.new(url: redis_url)
+      redis = get_redis_instance(redis_url)
       redis.flushdb
 
       config ||= CI::Queue::Configuration.new(
-        timeout: 0.2,
-        build_id: '42',
-        worker_id: '1',
-        max_requeues: 1,
-        requeue_tolerance: 0.1,
-        max_consecutive_failures: 10,
+        **amend_ci_queue_configuration(redis_url, {
+          timeout: 0.2,
+          build_id: '42',
+          worker_id: '1',
+          max_requeues: 1,
+          requeue_tolerance: 0.1,
+          max_consecutive_failures: 10,
+        }
+        )
       )
       @test_time_record = CI::Queue::Redis::TestTimeRecord.new(redis_url, config)
       @test_time_recorder = TestTimeRecorder.new(build: @test_time_record)

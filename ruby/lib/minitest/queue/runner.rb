@@ -573,7 +573,39 @@ module Minitest
             Defaults to 28,800 (8 hours)
           EOS
           opts.on("--redis-ttl SECONDS", Integer, help) do |time|
-            queue.config.redis_ttl = time
+            queue_config.redis_ttl = time
+          end
+
+          help = <<~EOS
+            Path to the CA certificate file.
+            Required if running Redis with a self-hosted certificate.
+          EOS
+          opts.on("--redis-ca-file-path FILE_PATH", help) do |path|
+            queue_config.redis_ca_file_path = path
+          end
+
+          help = <<~EOS
+            Path to the client certificate file.
+            Required if running Redis with client certificate authentication.
+          EOS
+          opts.on("--redis-client-certificate-path FILE_PATH", help) do |path|
+            queue_config.redis_client_certificate_path = path
+          end
+
+          help = <<~EOS
+            Path to the client certificate key.
+            Required if running Redis with client certificate authentication.
+          EOS
+          opts.on("--redis-client-certificate-key-path FILE_PATH", help) do |path|
+            queue_config.redis_client_certificate_key_path = path
+          end
+
+          help = <<~EOS
+            Disables certificate validation.
+            Might be required if running Redis with a self-signed certificate, but generally not recommended.
+          EOS
+          opts.on("--redis-disable-certificate-verification", help) do
+            queue_config.redis_disable_certificate_verification = true
           end
 
           opts.on("-v", "--verbose", "Verbose. Show progress processing files.") do

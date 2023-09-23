@@ -6,6 +6,7 @@ module CI
       attr_accessor :requeue_tolerance, :namespace, :failing_test, :statsd_endpoint
       attr_accessor :max_test_duration, :max_test_duration_percentile, :track_test_duration
       attr_accessor :max_test_failed, :redis_ttl
+      attr_accessor :redis_ca_file_path, :redis_client_certificate_path, :redis_client_certificate_key_path, :redis_disable_certificate_verification
       attr_reader :circuit_breakers
       attr_writer :seed, :build_id
       attr_writer :queue_init_timeout, :report_timeout, :inactive_workers_timeout
@@ -36,7 +37,8 @@ module CI
         grind_count: nil, max_duration: nil, failure_file: nil, max_test_duration: nil,
         max_test_duration_percentile: 0.5, track_test_duration: false, max_test_failed: nil,
         queue_init_timeout: nil, redis_ttl: 8 * 60 * 60, report_timeout: nil, inactive_workers_timeout: nil,
-        export_flaky_tests_file: nil
+        export_flaky_tests_file: nil, redis_ca_file_path: nil, redis_client_certificate_path: nil, redis_client_certificate_key_path: nil,
+        redis_disable_certificate_verification: false
       )
         @build_id = build_id
         @circuit_breakers = [CircuitBreaker::Disabled]
@@ -61,6 +63,10 @@ module CI
         @report_timeout = report_timeout
         @inactive_workers_timeout = inactive_workers_timeout
         @export_flaky_tests_file = export_flaky_tests_file
+        @redis_ca_file_path = redis_ca_file_path
+        @redis_client_certificate_path = redis_client_certificate_path
+        @redis_client_certificate_key_path = redis_client_certificate_key_path
+        @redis_disable_certificate_verification = redis_disable_certificate_verification
       end
 
       def queue_init_timeout

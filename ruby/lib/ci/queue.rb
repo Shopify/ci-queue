@@ -43,7 +43,7 @@ module CI
         Static
       when 'file', nil
         File
-      when 'redis'
+      when 'redis', 'rediss'
         require 'ci/queue/redis'
         Redis
       else

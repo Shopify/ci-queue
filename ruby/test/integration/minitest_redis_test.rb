@@ -17,7 +17,7 @@ module Integration
       File.delete(@order_path) if File.exist?(@order_path)
 
       @redis_url = ENV.fetch('REDIS_URL', 'redis://localhost:6379/0')
-      @redis = Redis.new(url: @redis_url)
+      @redis = get_redis_instance(@redis_url)
       @redis.flushdb
       @exe = File.expand_path('../../../exe/minitest-queue', __FILE__)
     end
@@ -28,6 +28,7 @@ module Integration
           { 'BUILDKITE' => '1' },
           @exe, 'run',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -52,6 +53,7 @@ module Integration
           { 'BUILDKITE' => '1' },
           @exe, 'run',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -77,6 +79,7 @@ module Integration
           { 'BUILDKITE' => '1' },
           @exe, 'run',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -101,6 +104,7 @@ module Integration
           { 'BUILDKITE' => '1' },
           @exe, 'run',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -123,6 +127,7 @@ module Integration
         system(
           @exe, 'run',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -146,6 +151,7 @@ module Integration
         system(
           @exe, 'report',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--build', '1',
           '--timeout', '1',
@@ -169,6 +175,7 @@ module Integration
         system(
           @exe, 'run',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -192,6 +199,7 @@ module Integration
         system(
           @exe, 'run',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -212,6 +220,7 @@ module Integration
         system(
           @exe, 'run',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -234,6 +243,7 @@ module Integration
         system(
           @exe, 'run',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -253,6 +263,7 @@ module Integration
         system(
           @exe, 'run',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -274,6 +285,7 @@ module Integration
         system(
           @exe, 'run',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -297,6 +309,7 @@ module Integration
         system(
           @exe, 'run',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -319,6 +332,7 @@ module Integration
         system(
           @exe, 'run',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -337,6 +351,7 @@ module Integration
         system(
           @exe, 'report',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--build', '1',
           '--timeout', '1',
@@ -349,9 +364,12 @@ module Integration
 
       # Simulate another worker successfuly retrying all errors (very hard to reproduce properly)
       queue_config = CI::Queue::Configuration.new(
-        timeout: 1,
-        build_id: '1',
-        worker_id: '2',
+        **amend_ci_queue_configuration(@redis_url, {
+          timeout: 1,
+          build_id: '1',
+          worker_id: '2',
+        }
+        )
       )
       queue = CI::Queue.from_uri(@redis_url, queue_config)
       error_reports = queue.build.error_reports
@@ -373,6 +391,7 @@ module Integration
         system(
           @exe, 'run',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -391,6 +410,7 @@ module Integration
         system(
           @exe, 'report',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--build', '1',
           '--timeout', '1',
@@ -426,9 +446,10 @@ module Integration
     def test_test_data_reporter
       out, err = capture_subprocess_io do
         system(
-          {'CI_QUEUE_FLAKY_TESTS' => 'test/ci_queue_flaky_tests_list.txt'},
+          { 'CI_QUEUE_FLAKY_TESTS' => 'test/ci_queue_flaky_tests_list.txt' },
           @exe, 'run',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--namespace', 'foo',
           '--build', '1',
@@ -502,6 +523,7 @@ module Integration
           system(
             @exe, 'run',
             '--queue', @redis_url,
+            *amend_system_command_for_ssl(@redis_url),
             '--seed', 'foobar',
             '--namespace', 'foo',
             '--build', '1',
@@ -529,9 +551,10 @@ module Integration
     def test_junit_reporter
       out, err = capture_subprocess_io do
         system(
-          {'CI_QUEUE_FLAKY_TESTS' => 'test/ci_queue_flaky_tests_list.txt'},
+          { 'CI_QUEUE_FLAKY_TESTS' => 'test/ci_queue_flaky_tests_list.txt' },
           @exe, 'run',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -618,6 +641,7 @@ module Integration
             { 'BUILDKITE' => '1' },
             @exe, 'run',
             '--queue', @redis_url,
+            *amend_system_command_for_ssl(@redis_url),
             '--seed', 'foobar',
             '--build', '1',
             '--worker', '1',
@@ -634,6 +658,7 @@ module Integration
           system(
             @exe, 'report',
             '--queue', @redis_url,
+            *amend_system_command_for_ssl(@redis_url),
             '--build', '1',
             '--timeout', '1',
             '--failure-file', failure_file,
@@ -645,7 +670,6 @@ module Integration
         failure = JSON.parse(content, symbolize_names: true)
                       .sort_by { |failure_report| failure_report[:test_line] }
                       .first
-
 
         ## output and test_file
         expected = {
@@ -675,6 +699,7 @@ module Integration
             { 'BUILDKITE' => '1' },
             @exe, 'run',
             '--queue', @redis_url,
+            *amend_system_command_for_ssl(@redis_url),
             '--seed', 'foobar',
             '--build', '1',
             '--worker', '1',
@@ -691,6 +716,7 @@ module Integration
           system(
             @exe, 'report',
             '--queue', @redis_url,
+            *amend_system_command_for_ssl(@redis_url),
             '--build', '1',
             '--timeout', '1',
             '--export-flaky-tests-file', flaky_tests_file,
@@ -706,14 +732,20 @@ module Integration
 
     def test_redis_reporter
       # HACK: Simulate a timeout
-      config = CI::Queue::Configuration.new(build_id: '1', worker_id: '1', timeout: '1')
-      build_record = CI::Queue::Redis::BuildRecord.new(self, ::Redis.new(url: @redis_url), config)
+      config = CI::Queue::Configuration.new(
+        **amend_ci_queue_configuration(@redis_url, {
+          build_id: '1', worker_id: '1', timeout: '1'
+        }
+        )
+      )
+      build_record = CI::Queue::Redis::BuildRecord.new(self, get_redis_instance(@redis_url), config)
       build_record.record_warning(CI::Queue::Warnings::RESERVED_LOST_TEST, test: 'Atest#test_bar', timeout: 2)
 
       out, err = capture_subprocess_io do
         system(
           @exe, 'run',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',
@@ -733,6 +765,7 @@ module Integration
         system(
           @exe, 'report',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--build', '1',
           '--timeout', '1',
           chdir: 'test/fixtures/',
@@ -768,6 +801,7 @@ module Integration
           { 'MARSHAL' => '1' },
           @exe, 'run',
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', 'foobar',
           '--build', '1',
           '--worker', '1',

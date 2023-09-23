@@ -7,7 +7,7 @@ module Integration
 
     def setup
       @redis_url = ENV.fetch('REDIS_URL', 'redis://localhost:6379/0')
-      @redis = Redis.new(url: @redis_url)
+      @redis = get_redis_instance(@redis_url)
       @redis.flushdb
       @exe = File.expand_path('../../../exe/rspec-queue', __FILE__)
 
@@ -21,6 +21,7 @@ module Integration
           { 'BUILDKITE' => '1', 'BUILDKITE_COMMIT' => 'aaaaaaaaaaaaa' },
           @exe,
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', '123',
           '--build', '1',
           '--worker', '1',
@@ -76,6 +77,7 @@ module Integration
           { 'BUILDKITE' => '1', 'BUILDKITE_COMMIT' => 'aaaaaaaaaaaaa' },
           @exe,
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', '123',
           '--build', '1',
           '--worker', '1',
@@ -118,6 +120,7 @@ module Integration
           { 'BUILDKITE' => '1', 'BUILDKITE_COMMIT' => 'aaaaaaaaaaaaa' },
           @exe,
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', '123',
           '--build', '1',
           '--worker', '1',
@@ -152,6 +155,7 @@ module Integration
         system(
           @exe,
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', '123',
           '--build', '1',
           '--worker', '1',
@@ -171,6 +175,7 @@ module Integration
         system(
           @exe,
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--build', '1',
           '--report',
           '--timeout', '5',
@@ -202,6 +207,7 @@ module Integration
           { 'RETRIED' => '1' },
           @exe,
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', '123',
           '--build', '1',
           '--timeout', '1',
@@ -232,6 +238,7 @@ module Integration
         system(
           @exe,
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--build', '1',
           '--report',
           '--timeout', '5',
@@ -255,6 +262,7 @@ module Integration
           { 'BUILDKITE' => '1', 'BUILDKITE_COMMIT' => 'aaaaaaaaaaaaa' },
           @exe,
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', '123',
           '--build', '1',
           '--worker', '1',
@@ -295,6 +303,7 @@ module Integration
           { 'BUILDKITE' => '1', 'BUILDKITE_COMMIT' => 'aaaaaaaaaaaaa' },
           @exe,
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', '123',
           '--build', '1',
           '--worker', '1',
@@ -339,6 +348,7 @@ module Integration
           { 'BUILDKITE' => '1', 'BUILDKITE_COMMIT' => 'aaaaaaaaaaaaa' },
           @exe,
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--build', '1',
           '--report',
           '--timeout', '5',
@@ -370,6 +380,7 @@ module Integration
           { 'EARLY_EXIT' => '1' },
           @exe,
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', '123',
           '--build', '1',
           '--worker', '1',
@@ -395,6 +406,7 @@ module Integration
         system(
           @exe,
           '--queue', @redis_url,
+          *amend_system_command_for_ssl(@redis_url),
           '--seed', '123',
           '--build', '1',
           '--worker', '2',

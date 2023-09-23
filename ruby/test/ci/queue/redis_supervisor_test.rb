@@ -6,7 +6,7 @@ class CI::Queue::Redis::SupervisorTest < Minitest::Test
 
   def setup
     @redis_url = ENV.fetch('REDIS_URL', 'redis://localhost:6379/0')
-    @redis = ::Redis.new(url: @redis_url)
+    @redis = get_redis_instance(@redis_url)
     @redis.flushdb
     @supervisor = supervisor
   end
@@ -63,10 +63,13 @@ class CI::Queue::Redis::SupervisorTest < Minitest::Test
     CI::Queue::Redis.new(
       @redis_url,
       CI::Queue::Configuration.new(
-        build_id: '42',
-        worker_id: id.to_s,
-        timeout: 0.2,
-      ),
+        **amend_ci_queue_configuration(@redis_url, {
+          build_id: '42',
+          worker_id: id.to_s,
+          timeout: 0.2,
+        }
+        ),
+      )
     ).populate(SharedQueueAssertions::TEST_LIST)
   end
 
@@ -74,10 +77,13 @@ class CI::Queue::Redis::SupervisorTest < Minitest::Test
     CI::Queue::Redis::Supervisor.new(
       @redis_url,
       CI::Queue::Configuration.new(
-        build_id: '42',
-        timeout: timeout,
-        queue_init_timeout: queue_init_timeout
-      ),
+        **amend_ci_queue_configuration(@redis_url, {
+          build_id: '42',
+          timeout: timeout,
+          queue_init_timeout: queue_init_timeout
+        }
+        )
+      )
     )
   end
 end
