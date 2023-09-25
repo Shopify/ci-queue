@@ -249,6 +249,16 @@ class CI::Queue::RedisTest < Minitest::Test
     end
   end
 
+  def test_initialise_from_redis_uri
+    queue = CI::Queue.from_uri('redis://localhost:6379/0', config)
+    assert_instance_of CI::Queue::Redis::Worker, queue
+  end
+
+  def test_initialise_from_rediss_uri
+    queue = CI::Queue.from_uri('rediss://localhost:6379/0', config)
+    assert_instance_of CI::Queue::Redis::Worker, queue
+  end
+
   private
 
   def shuffled_test_list

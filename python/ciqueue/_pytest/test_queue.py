@@ -52,6 +52,8 @@ def parse_redis_args(spec):
         result['socket_connect_timeout'] = int(query['socket_connect_timeout'][0])
     if 'retry_on_timeout' in query:
         result['retry_on_timeout'] = bool(util.strtobool(query['retry_on_timeout'][0] or 'false'))
+    if spec.scheme == "rediss":
+        result['ssl'] = True
 
     return result
 
@@ -62,7 +64,7 @@ def build_queue(queue_url, tests_index=None):
         return ciqueue.Static(spec.path.split(':'))
     elif spec.scheme == 'file':
         return ciqueue.File(spec.path)
-    elif spec.scheme == 'redis':
+    elif spec.scheme == 'redis' or spec.scheme == 'rediss':
         redis_args = parse_redis_args(spec)
         redis_client = redis.StrictRedis(**redis_args)
 
