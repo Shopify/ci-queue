@@ -229,6 +229,17 @@ module Minitest
           unless supervisor.exhausted?
             msg = "#{supervisor.size} tests weren't run."
             if supervisor.max_test_failed?
+              puts("Encountered #{supervisor.test_failed} failures")
+
+              if queue_config.failure_file
+                reporter = BuildStatusReporter.new(build: supervisor.build)
+                failures = reporter.error_reports.map(&:to_h).to_json
+                puts "----"
+                puts failures
+                puts "----"
+                File.write(queue_config.failure_file, failures)
+              end
+
               puts('Encountered too many failed tests. Test run was ended early.')
               abort!(msg)
             else

@@ -292,17 +292,6 @@ module RSpec
           end
 
           unless supervisor.exhausted?
-            errors = supervisor.build.error_reports.sort_by(&:first).map(&:last)
-            if errors.empty?
-              step(green('No errors found'))
-              0
-            else
-              message = errors.size == 1 ? "1 error found" : "#{errors.size} errors found"
-              step(red(message), collapsed: false)
-              puts errors
-              1
-            end
-
             abort! "#{supervisor.size} tests weren't run."
           end
         end
