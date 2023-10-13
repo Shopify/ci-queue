@@ -47,13 +47,13 @@ module CI
           nil
         end
 
-        def record_success(id, stats: nil)
+        def record_success(id, stats: nil, skip_flaky_record: false)
           error_reports_deleted_count, requeued_count, _ = redis.pipelined do |pipeline|
             pipeline.hdel(key('error-reports'), id.dup.force_encoding(Encoding::BINARY))
             pipeline.hget(key('requeues-count'), id.b)
             record_stats(stats, pipeline: pipeline)
           end
-          record_flaky(id) if error_reports_deleted_count.to_i > 0 || requeued_count.to_i > 0
+          record_flaky(id) if !skip_flaky_record && (error_reports_deleted_count.to_i > 0 || requeued_count.to_i > 0)
           nil
         end
 
