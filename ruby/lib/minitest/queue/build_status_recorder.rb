@@ -43,13 +43,16 @@ module Minitest
         elsif test.skipped?
           self.skips += 1
         elsif test.error?
+          puts "--- increment error in record"
           self.errors += 1
         elsif test.failure
+          puts "--- increment failure in record"
           self.failures += 1
         end
 
         stats = COUNTERS.zip(COUNTERS.map { |c| send(c) }).to_h
         if (test.failure || test.error?) && !test.skipped?
+          puts "--- recording error in record"
           build.record_error("#{test.klass}##{test.name}", dump(test), stats: stats)
         else
           build.record_success("#{test.klass}##{test.name}", stats: stats, skip_flaky_record: test.skipped?)

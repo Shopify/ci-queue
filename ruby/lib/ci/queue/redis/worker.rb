@@ -98,11 +98,13 @@ module CI
         def acknowledge(test)
           test_key = test.id
           raise_on_mismatching_test(test_key)
-          eval_script(
+          result = eval_script(
             :acknowledge,
             keys: [key('running'), key('processed'), key('owners')],
             argv: [test_key],
-          ) == 1
+          )
+          puts "result = #{result}" unless result == 1
+          result == 1
         end
 
         def requeue(test, offset: Redis.requeue_offset)

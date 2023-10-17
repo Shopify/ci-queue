@@ -80,6 +80,7 @@ module CI
         end
 
         def increment_test_failed
+          puts "---- incrementing cache test failed"
           redis.incr(key('test_failed_count'))
         end
 

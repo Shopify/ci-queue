@@ -245,17 +245,29 @@ module Minitest
         end
 
         requeued = false
+
         if failed && CI::Queue.requeueable?(result) && queue.requeue(example)
           requeued = true
           result.requeue!
+          puts "---- requeable recording!"
           reporter.record(result)
-        elsif queue.acknowledge(example) || !failed
-          # If the test was already acknowledged by another worker (we timed out)
-          # Then we only record it if it is successful.
-          reporter.record(result)
+        else
+          ack_result = queue.acknowledge(example)
+          puts "no ack" unless ack_result
+          if ack_result
+            # If the test was already acknowledged by another worker (we timed out)
+            # Then we only record it if it is successful.
+            puts "---- ACK recording!"
+            reporter.record(result)
+          elsif !failed
+            puts "---- not failed recording!"
+            reporter.record(result)
+          end
         end
 
         if !requeued && failed
+          puts "---- id = #{example.id}"
+          puts "---- incrementing test failed in poll"
           queue.increment_test_failed
         end
       end
