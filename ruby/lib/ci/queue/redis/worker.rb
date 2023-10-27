@@ -123,6 +123,9 @@ module CI
             argv: [config.max_requeues, global_max_requeues, test_key, offset],
           ) == 1
 
+          CI::Queue.logger.info("global_max_requeues #{global_max_requeues}")
+          CI::Queue.logger.info("Requeued #{test_key} - #{requeued}")
+
           @reserved_test = test_key unless requeued
           requeued
         end

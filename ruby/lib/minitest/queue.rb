@@ -246,6 +246,7 @@ module Minitest
 
         requeued = false
         if failed && CI::Queue.requeueable?(result) && queue.requeue(example)
+          CI::Queue.logger.info("Requesting requeue for #{example.id}")
           requeued = true
           result.requeue!
           reporter.record(result)
@@ -256,6 +257,7 @@ module Minitest
         end
 
         if !requeued && failed
+          CI::Queue.logger.info("Test failed: #{example.id}")
           queue.increment_test_failed
         end
       end
