@@ -13,7 +13,12 @@ module CI
 
         def initialize(redis_url, config)
           @redis_url = redis_url
-          @redis = ::Redis.new(url: redis_url)
+          @redis = ::Redis.new(
+            url: redis_url,
+            # Booting a CI worker is costly, so in case of a Redis blip,
+            # it makes sense to retry for a while before giving up.
+            reconnect_attempts: [0, 0, 0.1, 0.5, 1, 3, 5],
+          )
           @config = config
         end
 
