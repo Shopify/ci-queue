@@ -149,7 +149,6 @@ module Minitest
     end
 
     class SingleExample
-
       def initialize(runnable, method_name)
         @runnable = runnable
         @method_name = method_name
@@ -161,6 +160,10 @@ module Minitest
 
       def <=>(other)
         id <=> other.id
+      end
+
+      def file_path
+        @runnable.source_location[0]
       end
 
       def with_timestamps

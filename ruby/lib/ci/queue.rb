@@ -29,6 +29,8 @@ module CI
     end
 
     def shuffle(tests, random)
+      puts "[Shuffler] #{shuffler.inspect}"
+      puts "[Tests] #{tests.first.inspect}"
       if shuffler
         shuffler.call(tests, random)
       else
