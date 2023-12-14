@@ -163,7 +163,7 @@ module Minitest
       end
 
       def file_path
-        @runnable.source_location[0]
+        @runnable.method(:run).source_location.first
       end
 
       def with_timestamps
