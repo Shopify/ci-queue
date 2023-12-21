@@ -3,7 +3,7 @@
 name: ci-queue
 
 up:
-- ruby: 2.6.5
+- ruby: 3.2.0
 - bundler
 - redis
 

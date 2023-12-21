@@ -21,10 +21,20 @@ module Minitest
         build.flaky_reports
       end
 
+      def requeued_tests
+        build.requeued_tests
+      end
+
       def report
         puts aggregates
         errors = error_reports
         puts errors
+
+        requeued_tests.to_a.sort.each do |test_id, count|
+          puts yellow("REQUEUE")
+          puts "#{test_id} (requeued #{count} times)"
+          puts ""
+        end
 
         errors.empty?
       end
