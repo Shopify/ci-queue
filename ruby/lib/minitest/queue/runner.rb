@@ -298,17 +298,17 @@ module Minitest
       end
 
       def display_warnings(build)
-        build.pop_warnings.each do |type, attributes|
+        return unless queue_config.warnings_file
+
+        warnings = build.pop_warnings.map do |type, attributes|
           case type
           when CI::Queue::Warnings::RESERVED_LOST_TEST
-            puts reopen_previous_step
-            puts yellow(
-              "[WARNING] #{attributes[:test]} was picked up by another worker because it didn't complete in the allocated #{attributes[:timeout]} seconds.\n" \
-              "You may want to either optimize this test or bump ci-queue timeout.\n" \
-              "It's also possible that the worker that was processing it was terminated without being able to report back.\n"
-            )
+            "[WARNING] #{attributes[:test]} was picked up by another worker because it didn't complete in the allocated #{attributes[:timeout]} seconds.\n" \
+            "You may want to either optimize this test or bump ci-queue timeout.\n" \
+            "It's also possible that the worker that was processing it was terminated without being able to report back.\n"
           end
-        end
+        end.compact
+        File.write(queue_config.warnings_file, warnings.join("\n"))
       end
 
       def run_tests_in_fork(queue)
@@ -526,6 +526,15 @@ module Minitest
           opts.separator ""
           opts.on('--export-flaky-tests-file FILE', help) do |file|
             queue_config.export_flaky_tests_file = file
+          end
+
+          help = <<~EOS
+            Defines a file where warnings during the execution are written to.
+            Defaults to disabled.
+          EOS
+          opts.separator ""
+          opts.on('--warnings-file FILE', help) do |file|
+            queue_config.warnings_file = file
           end
 
           help = <<~EOS

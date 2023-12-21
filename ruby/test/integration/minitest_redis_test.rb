@@ -731,37 +731,60 @@ module Integration
       output = normalize(out.lines.last.strip)
       assert_equal 'Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
 
-      out, err = capture_subprocess_io do
-        system(
-          @exe, 'report',
-          '--queue', @redis_url,
-          '--build', '1',
-          '--timeout', '1',
-          chdir: 'test/fixtures/',
-        )
+      Tempfile.open('warnings') do |warnings_file|
+        out, err = capture_subprocess_io do
+          system(
+            @exe, 'report',
+            '--queue', @redis_url,
+            '--build', '1',
+            '--timeout', '1',
+            '--warnings-file', warnings_file.path,
+            chdir: 'test/fixtures/',
+          )
+        end
+
+        warning = <<~END
+          [WARNING] Atest#test_bar was picked up by another worker because it didn't complete in the allocated 2 seconds.
+          You may want to either optimize this test or bump ci-queue timeout.
+          It's also possible that the worker that was processing it was terminated without being able to report back.
+        END
+
+        warnings_file.rewind
+        assert_equal warning, warnings_file.read
+
+        assert_empty err
+        output = normalize(out)
+        expected_output = <<~END
+          Waiting for workers to complete
+          Ran 7 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs (aggregated)
+
+          FAIL ATest#test_bar
+          Expected false to be truthy.
+              test/dummy_test.rb:10:in `test_bar'
+
+          FAIL ATest#test_flaky_fails_retry
+          Expected false to be truthy.
+              test/dummy_test.rb:23:in `test_flaky_fails_retry'
+
+          ERROR BTest#test_bar
+        END
+        assert_includes output, expected_output
+
+        expected_output = <<~END
+          REQUEUE
+          ATest#test_bar (requeued 1 times)
+
+          REQUEUE
+          ATest#test_flaky (requeued 1 times)
+
+          REQUEUE
+          ATest#test_flaky_fails_retry (requeued 1 times)
+
+          REQUEUE
+          BTest#test_bar (requeued 1 times)
+        END
+        assert_includes output, expected_output
       end
-      assert_empty err
-      output = normalize(out)
-      expected_output = <<~END
-        Waiting for workers to complete
-
-        [WARNING] Atest#test_bar was picked up by another worker because it didn't complete in the allocated 2 seconds.
-        You may want to either optimize this test or bump ci-queue timeout.
-        It's also possible that the worker that was processing it was terminated without being able to report back.
-
-        Ran 7 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs (aggregated)
-
-        FAIL ATest#test_bar
-        Expected false to be truthy.
-            test/dummy_test.rb:10:in `test_bar'
-
-        FAIL ATest#test_flaky_fails_retry
-        Expected false to be truthy.
-            test/dummy_test.rb:23:in `test_flaky_fails_retry'
-
-        ERROR BTest#test_bar
-      END
-      assert_includes output, expected_output
     end
 
     def test_utf8_tests_and_marshal

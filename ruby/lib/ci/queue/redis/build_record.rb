@@ -21,6 +21,7 @@ module CI
           redis.hkeys(key('error-reports'))
         end
 
+        TOTAL_KEY = "___total___"
         def requeued_tests
           requeues = redis.hgetall(key('requeues-count'))
           requeues.delete(TOTAL_KEY)
