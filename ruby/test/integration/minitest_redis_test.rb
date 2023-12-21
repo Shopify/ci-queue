@@ -160,9 +160,10 @@ module Integration
       expected = <<~EXPECTED
         Waiting for workers to complete
         Encountered too many failed tests. Test run was ended early.
-        97 tests weren't run.
+        Ran 3 tests, 47 assertions, 3 failures, 0 errors, 0 skips, 44 requeues in X.XXs (aggregated)
       EXPECTED
-      assert_equal expected.strip, normalize(out.lines[0..4].join.strip)
+      assert_equal expected.strip, normalize(out.lines[0..3].join.strip)
+      assert_equal "97 tests weren't run.", normalize(out.lines.last.strip)
     end
 
     def test_circuit_breaker
