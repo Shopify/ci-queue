@@ -21,6 +21,12 @@ module CI
           redis.hkeys(key('error-reports'))
         end
 
+        def requeued_tests
+          requeues = redis.hgetall(key('requeues-count'))
+          requeues.delete(TOTAL_KEY)
+          requeues
+        end
+
         def pop_warnings
           warnings = redis.multi do |transaction|
             transaction.lrange(key('warnings'), 0, -1)
