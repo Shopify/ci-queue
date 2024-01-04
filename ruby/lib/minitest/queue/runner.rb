@@ -301,14 +301,9 @@ module Minitest
         return unless queue_config.warnings_file
 
         warnings = build.pop_warnings.map do |type, attributes|
-          case type
-          when CI::Queue::Warnings::RESERVED_LOST_TEST
-            "[WARNING] #{attributes[:test]} was picked up by another worker because it didn't complete in the allocated #{attributes[:timeout]} seconds.\n" \
-            "You may want to either optimize this test or bump ci-queue timeout.\n" \
-            "It's also possible that the worker that was processing it was terminated without being able to report back.\n"
-          end
+          attributes.merge(type: type)
         end.compact
-        File.write(queue_config.warnings_file, warnings.join("\n"))
+        File.write(queue_config.warnings_file, warnings.to_json)
       end
 
       def run_tests_in_fork(queue)

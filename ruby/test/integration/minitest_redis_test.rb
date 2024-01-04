@@ -750,7 +750,11 @@ module Integration
         END
 
         warnings_file.rewind
-        assert_equal warning, warnings_file.read
+        content = JSON.parse(warnings_file.read)
+        assert_equal 1, content.size
+        assert_equal "RESERVED_LOST_TEST", content[0]["type"]
+        assert_equal "Atest#test_bar", content[0]["test"]
+        assert_equal 2, content[0]["timeout"]
 
         assert_empty err
         output = normalize(out)
