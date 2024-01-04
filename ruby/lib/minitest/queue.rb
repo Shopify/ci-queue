@@ -244,19 +244,16 @@ module Minitest
           queue.report_success!
         end
 
-        requeued = false
         if failed && CI::Queue.requeueable?(result) && queue.requeue(example)
-          requeued = true
           result.requeue!
           reporter.record(result)
-        elsif queue.acknowledge(example) || !failed
+        elsif queue.acknowledge(example)
+          reporter.record(result)
+          queue.increment_test_failed if failed
+        elsif !failed
           # If the test was already acknowledged by another worker (we timed out)
           # Then we only record it if it is successful.
           reporter.record(result)
-        end
-
-        if !requeued && failed
-          queue.increment_test_failed
         end
       end
     end
