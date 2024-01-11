@@ -72,6 +72,33 @@ module Integration
       assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', result
     end
 
+    def test_debug_log
+      Tempfile.open('debug_log') do |log_file|
+        out, err = capture_subprocess_io do
+          system(
+            { 'BUILDKITE' => '1' },
+            @exe, 'run',
+            '--queue', @redis_url,
+            '--seed', 'foobar',
+            '--build', '1',
+            '--worker', '1',
+            '--timeout', '1',
+            '--max-requeues', '1',
+            '--requeue-tolerance', '1',
+            '-Itest',
+            'test/dummy_test.rb',
+            '--debug-log', log_file.path,
+            chdir: 'test/fixtures/',
+          )
+        end
+
+      assert_includes File.read(log_file.path), 'INFO -- : ["exists", "build:1:worker:1:queue"]: 0'
+      assert_empty err
+      result = normalize(out.lines.last.strip)
+      assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', result
+      end
+    end
+
     def test_buildkite_output
       out, err = capture_subprocess_io do
         system(

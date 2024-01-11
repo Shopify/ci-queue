@@ -11,19 +11,50 @@ module CI
           ::SocketError, # https://github.com/redis/redis-rb/pull/631
         ].freeze
 
+        module RedisInstrumentation
+          def call(command, redis_config)
+            result = super
+            logger = redis_config.custom[:debug_log]
+            logger.info("#{command}: #{result}")
+            result
+          end
+
+          def call_pipelined(commands, redis_config)
+            result = super
+            logger = redis_config.custom[:debug_log]
+            logger.info("#{commands}: #{result}")
+            result
+          end
+        end
+
         def initialize(redis_url, config)
           @redis_url = redis_url
+          @config = config
           if ::Redis::VERSION > "5.0.0"
             @redis = ::Redis.new(
               url: redis_url,
               # Booting a CI worker is costly, so in case of a Redis blip,
               # it makes sense to retry for a while before giving up.
               reconnect_attempts: [0, 0, 0.1, 0.5, 1, 3, 5],
+              middlewares: custom_middlewares,
+              custom: custom_config,
             )
           else
             @redis = ::Redis.new(url: redis_url)
           end
-          @config = config
+        end
+
+        def custom_config
+          return unless config.debug_log
+
+          require 'logger'
+          { debug_log: Logger.new(config.debug_log) }
+        end
+
+        def custom_middlewares
+          return unless config.debug_log
+
+          [RedisInstrumentation]
         end
 
         def exhausted?
