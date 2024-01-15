@@ -46,7 +46,7 @@ module CI
 
         def active_workers?
           # if there are running jobs we assume there are still agents active
-          redis.zrangebyscore(key('running'), Time.now.to_f - config.timeout, "+inf", limit: [0,1]).count > 0
+          redis.zrangebyscore(key('running'), CI::Queue.time_now.to_f - config.timeout, "+inf", limit: [0,1]).count > 0
         end
       end
     end

@@ -63,7 +63,7 @@ module Minitest
           end
         end
 
-        queue.rescue_connection_errors { queue.created_at = Time.now.to_f }
+        queue.rescue_connection_errors { queue.created_at = CI::Queue.time_now.to_f }
 
         set_load_path
         Minitest.queue = queue

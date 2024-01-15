@@ -175,7 +175,7 @@ module CI
               key('worker', worker_id, 'queue'),
               key('owners'),
             ],
-            argv: [Time.now.to_f],
+            argv: [CI::Queue.time_now.to_f],
           )
         end
 
@@ -188,7 +188,7 @@ module CI
               key('worker', worker_id, 'queue'),
               key('owners'),
             ],
-            argv: [Time.now.to_f, timeout],
+            argv: [CI::Queue.time_now.to_f, timeout],
           )
 
           if lost_test

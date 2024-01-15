@@ -32,7 +32,7 @@ module CI
 
         def expired?
           if (created_at = redis.get(key('created-at')))
-            (created_at.to_f + config.redis_ttl + TEN_MINUTES) < Time.now.to_f
+            (created_at.to_f + config.redis_ttl + TEN_MINUTES) < CI::Queue.time_now.to_f
           else
             # if there is no created at set anymore we assume queue is expired
             true
