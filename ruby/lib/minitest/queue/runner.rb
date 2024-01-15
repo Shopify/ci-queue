@@ -586,6 +586,10 @@ module Minitest
             self.verbose = true
           end
 
+          opts.on("--debug-log FILE", "Path to debug log file for e.g. Redis instrumentation") do |path|
+            queue_config.debug_log = path
+          end
+
           opts.separator ""
           opts.separator "    retry: Replays a previous run in the same order."
 
