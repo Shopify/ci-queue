@@ -24,6 +24,15 @@ module CI
       RESERVED_LOST_TEST = :RESERVED_LOST_TEST
     end
 
+    GET_NOW = ::Time.method(:now)
+    private_constant :GET_NOW
+    def time_now
+      # Mocks like freeze_time should be cleaned when ci-queue runs, however,
+      # we experienced cases when tests were enqueued with wrong timestamps, so we
+      # safeguard Time.now here.
+      GET_NOW.call
+    end
+
     def requeueable?(test_result)
       requeueable.nil? || requeueable.call(test_result)
     end

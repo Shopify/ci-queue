@@ -46,7 +46,7 @@ module CI
         private
 
         def current_timestamp
-          Time.now.to_i
+          CI::Queue.time_now.to_i
         end
       end
 
