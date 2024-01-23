@@ -144,10 +144,6 @@ module CI
           config.worker_id
         end
 
-        def timeout
-          config.timeout
-        end
-
         def raise_on_mismatching_test(test)
           if @reserved_test == test
             @reserved_test = nil
@@ -180,6 +176,8 @@ module CI
         end
 
         def try_to_reserve_lost_test
+          timeout = config.max_missed_heartbeat_seconds ? config.max_missed_heartbeat_seconds : config.timeout
+
           lost_test = eval_script(
             :reserve_lost,
             keys: [
@@ -192,7 +190,7 @@ module CI
           )
 
           if lost_test
-            build.record_warning(Warnings::RESERVED_LOST_TEST, test: lost_test, timeout: timeout)
+            build.record_warning(Warnings::RESERVED_LOST_TEST, test: lost_test, timeout: config.timeout)
           end
 
           lost_test

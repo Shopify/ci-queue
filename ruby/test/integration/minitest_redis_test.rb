@@ -47,6 +47,53 @@ module Integration
       assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', result
     end
 
+    def test_lost_test_with_heartbeat_monitor
+      _, err = capture_subprocess_io do
+        2.times.map do |i|
+          Thread.start  do
+            system(
+              { 'BUILDKITE' => '1' },
+              @exe, 'run',
+              '--queue', @redis_url,
+              '--seed', 'foobar',
+              '--build', '1',
+              '--worker', i.to_s,
+              '--timeout', '1',
+              '--max-requeues', '1',
+              '--requeue-tolerance', '1',
+              '--heartbeat', '1',
+              '-Itest',
+              'test/lost_test.rb',
+              chdir: 'test/fixtures/',
+            )
+          end
+        end.each(&:join)
+      end
+
+      assert_empty err
+
+      Tempfile.open('warnings') do |warnings_file|
+        out, err = capture_subprocess_io do
+          system(
+            @exe, 'report',
+            '--queue', @redis_url,
+            '--build', '1',
+            '--timeout', '1',
+            '--warnings-file', warnings_file.path,
+            '--heartbeat',
+            chdir: 'test/fixtures/',
+            )
+        end
+
+
+        assert_empty err
+        result = normalize(out.lines[1].strip)
+        assert_equal "Ran 1 tests, 0 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)", result
+        warnings = JSON.parse(warnings_file.read)
+        assert_equal 1, warnings.size
+      end
+    end
+
     def test_verbose_reporter
       out, err = capture_subprocess_io do
         system(
@@ -155,6 +202,7 @@ module Integration
           '--build', '1',
           '--worker', '1',
           '--timeout', '1',
+          '--heartbeat', '1',
           '--max-requeues', '1',
           '--requeue-tolerance', '1',
           '--max-test-failed', '3',

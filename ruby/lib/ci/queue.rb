@@ -2,6 +2,7 @@
 
 require 'uri'
 require 'cgi'
+require 'json'
 
 require 'ci/queue/version'
 require 'ci/queue/output_helpers'
