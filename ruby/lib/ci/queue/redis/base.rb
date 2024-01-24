@@ -35,13 +35,19 @@ module CI
               url: redis_url,
               # Booting a CI worker is costly, so in case of a Redis blip,
               # it makes sense to retry for a while before giving up.
-              reconnect_attempts: [0, 0, 0.1, 0.5, 1, 3, 5],
+              reconnect_attempts: reconnect_attempts,
               middlewares: custom_middlewares,
               custom: custom_config,
             )
           else
             @redis = ::Redis.new(url: redis_url)
           end
+        end
+
+        def reconnect_attempts
+          return [] if ENV["CI_QUEUE_DISABLE_RECONNECT_ATTEMPTS"]
+
+          [0, 0, 0.1, 0.5, 1, 3, 5]
         end
 
         def custom_config
