@@ -437,6 +437,7 @@ module Integration
     def test_down_redis
       out, err = capture_subprocess_io do
         system(
+          { "CI_QUEUE_DISABLE_RECONNECT_ATTEMPTS" => "1" },
           @exe, 'run',
           '--queue', 'redis://localhost:1337',
           '--seed', 'foobar',
