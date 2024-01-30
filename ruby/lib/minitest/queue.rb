@@ -107,6 +107,7 @@ module Minitest
   end
 
   module Queue
+    include ::CI::Queue::OutputHelpers
     attr_writer :run_command_formatter, :project_root
 
     def run_command_formatter
@@ -260,6 +261,11 @@ module Minitest
         end
       end
       queue.stop_heartbeat!
+    rescue Errno::EPIPE
+      # This happens when the heartbeat process dies
+      reopen_previous_step
+      puts red("The heartbeat process died. This worker is exiting early.")
+      exit!(41)
     end
   end
 end
