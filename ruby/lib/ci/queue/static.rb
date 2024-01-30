@@ -48,6 +48,16 @@ module CI
         self
       end
 
+      def with_heartbeat(id)
+        yield
+      end
+
+      def ensure_heartbeat_thread_alive!; end
+
+      def boot_heartbeat_process!; end
+
+      def stop_heartbeat!; end
+
       def created_at=(timestamp)
         @created_at ||= timestamp
       end

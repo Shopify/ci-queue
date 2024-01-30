@@ -89,6 +89,17 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_predicate second_worker, :exhausted?
   end
 
+  def test_monitor_boot_and_shutdown
+    @queue.config.max_missed_heartbeat_seconds = 1
+    @queue.boot_heartbeat_process!
+
+    status = @queue.stop_heartbeat!
+
+    assert_predicate status, :success?
+  ensure
+    @queue.config.max_missed_heartbeat_seconds = nil
+  end
+
   def test_timed_out_test_are_picked_up_by_other_workers
     second_queue = worker(2)
     acquired = false

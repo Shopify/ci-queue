@@ -226,7 +226,10 @@ module Minitest
 
     def run_from_queue(reporter, *)
       queue.poll do |example|
-        result = example.run
+        result = queue.with_heartbeat(example.id) do
+          example.run
+        end
+
         failed = !(result.passed? || result.skipped?)
 
         if example.flaky?
@@ -256,6 +259,7 @@ module Minitest
           reporter.record(result)
         end
       end
+      queue.stop_heartbeat!
     end
   end
 end

@@ -64,6 +64,7 @@ module Minitest
         end
 
         queue.rescue_connection_errors { queue.created_at = CI::Queue.time_now.to_f }
+        queue.boot_heartbeat_process!
 
         set_load_path
         Minitest.queue = queue
@@ -581,6 +582,16 @@ module Minitest
           opts.on("--redis-ttl SECONDS", Integer, help) do |time|
             queue.config.redis_ttl = time
           end
+
+          help = <<~EOS
+            If heartbeat is enabled, a background process will periodically signal it's still processing
+            the current test. If the heartbeat stops for the specified amount of seconds,
+            the test will be requeued to another worker.
+          EOS
+          opts.on("--heartbeat [SECONDS]", Integer, help) do |time|
+            queue_config.max_missed_heartbeat_seconds = time || 30
+          end
+
 
           opts.on("-v", "--verbose", "Verbose. Show progress processing files.") do
             self.verbose = true
