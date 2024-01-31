@@ -1,0 +1,4 @@
+shard_1:
+  - test/flaky_test.rb
+shard_2:
+  - test/passing_test.rb

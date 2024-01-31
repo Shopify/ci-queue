@@ -335,8 +335,12 @@ module Minitest
       end
 
       def load_tests
-        argv.sort.each do |f|
-          require File.expand_path(f)
+        if queue_config.multi_queue_config
+          queue.current_queue.load_tests!
+        else
+          argv.sort.each do |f|
+            require File.expand_path(f)
+          end
         end
       end
 
@@ -592,6 +596,13 @@ module Minitest
             queue_config.max_missed_heartbeat_seconds = time || 30
           end
 
+          help = <<~EOS
+            Config for mult-queue configuration
+          EOS
+          opts.on("--multi-queue-config PATH", String, help) do |path|
+            require 'yaml'
+            queue_config.multi_queue_config = YAML.load(File.read(path))
+          end
 
           opts.on("-v", "--verbose", "Verbose. Show progress processing files.") do
             self.verbose = true

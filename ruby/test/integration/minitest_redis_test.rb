@@ -23,6 +23,49 @@ module Integration
       @exe = File.expand_path('../../../exe/minitest-queue', __FILE__)
     end
 
+    def test_multi_queue
+      out, err = capture_subprocess_io do
+        2.times.map do |i|
+          Thread.start  do
+          system(
+            { 'BUILDKITE' => '1' },
+            @exe, 'run',
+            '--queue', @redis_url,
+            '--seed', 'foobar',
+            '--build', '1',
+            '--worker', i.to_s,
+            '--timeout', '1',
+            '--max-requeues', '1',
+            '--requeue-tolerance', '1',
+            '-Itest',
+            '--multi-queue-config', 'test/config.yaml',
+            chdir: 'test/fixtures/',
+          )
+          end
+        end.each(&:join)
+      end
+
+      assert_match(/Processing queue shard_1 \(2 tests\)/, normalize(out))
+      assert_match(/Processing queue shard_2 \(100 tests\)/, normalize(out))
+
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'report',
+          '--queue', @redis_url,
+          '--build', '1',
+          '--timeout', '1',
+          '--heartbeat',
+          '--multi-queue-config', 'test/config.yaml',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      assert_empty err
+      result = normalize(out.lines[1].strip)
+      expected = 'Ran 102 tests, 103 assertions, 1 failures, 0 errors, 0 skips, 1 requeues in X.XXs (aggregated)'
+      assert_equal expected, result
+    end
+
     def test_default_reporter
       out, err = capture_subprocess_io do
         system(

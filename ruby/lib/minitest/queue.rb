@@ -164,6 +164,19 @@ module Minitest
         id <=> other.id
       end
 
+      def ==(other)
+        self.eql?(other)
+      end
+
+      def eql?(other)
+        self.class == other.class &&
+          id == other.id
+      end
+
+      def hash
+        id.hash
+      end
+
       def with_timestamps
         start_timestamp = current_timestamp
         result = yield

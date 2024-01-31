@@ -16,12 +16,12 @@ module CI
           @build ||= CI::Queue::Redis::BuildRecord.new(self, redis, config)
         end
 
-        def wait_for_workers
-          wait_for_master(timeout: config.queue_init_timeout)
+        def wait_for_workers(report_timeout: config.report_timeout, queue_init_timeout: config.queue_init_timeout)
+          wait_for_master(timeout: queue_init_timeout)
 
           yield if block_given?
 
-          time_left = config.report_timeout
+          time_left = report_timeout
           time_left_with_no_workers = config.inactive_workers_timeout
           until exhausted? || time_left <= 0 || max_test_failed? || time_left_with_no_workers <= 0
             time_left -= 1
