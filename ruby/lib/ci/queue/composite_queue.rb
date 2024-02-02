@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'benchmark'
+
 module CI
   module Queue
     class CompositeQueue
@@ -7,17 +9,35 @@ module CI
 
       class << self
         def from_uri(uri, config)
-          new(uri.to_s, config)
+          redis = if ::Redis::VERSION > "5.0.0"
+            ::Redis.new(
+              url: uri.to_s,
+              # Booting a CI worker is costly, so in case of a Redis blip,
+              # it makes sense to retry for a while before giving up.
+              # reconnect_attempts: reconnect_attempts,
+            )
+          else
+            ::Redis.new(url: uri.to_s)
+          end
+
+          new(redis, uri.to_s, config)
         end
       end
 
       attr_reader :redis_url, :config, :redis
 
-      def initialize(redis_url, config)
+      def initialize(redis, redis_url, config)
+        @redis = redis
         @redis_url = redis_url
         @config = config
-        @redis = ::Redis.new(url: redis_url)
       end
+
+      def reconnect_attempts
+        return [] if ENV["CI_QUEUE_DISABLE_RECONNECT_ATTEMPTS"]
+
+        [0, 0, 0.1, 0.5, 1, 3, 5]
+      end
+
 
       attr_reader :current_queue
 
@@ -60,6 +80,8 @@ module CI
         yield
       end
 
+      def ensure_heartbeat_thread_alive!; end
+
       def stop_heartbeat!; end
 
       def acknowledge(test)
@@ -93,7 +115,8 @@ module CI
           tests_to_run = Minitest.loaded_tests - prev_loaded_tests
 
           worker.populate(tests_to_run, random: ordering_seed, &:id) unless worker.populated?
-          puts "# Processing queue #{worker.name} (#{worker.size} tests)"
+
+          puts "# Processing #{worker.size} tests in #{worker.name}..."
 
           worker.poll do |test|
             yield test
@@ -117,8 +140,6 @@ module CI
         end
 
         def wait_for_workers
-          require 'benchmark'
-
           report_timeout = config.report_timeout
           queue_init_timeout = config.queue_init_timeout
 
@@ -159,9 +180,13 @@ module CI
         end
 
         def load_tests!
-          files.each do |file|
-            require ::File.expand_path(file)
+          duration = Benchmark.measure do
+            files.each do |file|
+              require ::File.expand_path(file)
+            end
           end
+
+          puts "# Loaded #{files.size} test files in #{name} in #{duration.real.round(2)}s."
         end
 
         attr_reader :name
@@ -176,7 +201,7 @@ module CI
           sub_queue_config = @config.dup.tap do |config|
             config.namespace = name
           end
-          SubQueueWorker.new(CI::Queue::Redis::Worker.new(@redis_url, sub_queue_config), name, files)
+          SubQueueWorker.new(CI::Queue::Redis::Worker.new(redis, redis_url, sub_queue_config), name, files)
         end.shuffle(random: Random.new(Digest::MD5.hexdigest(config.worker_id.to_s).to_i(16)))
         @current_queue ||= @queues.first
         @queues

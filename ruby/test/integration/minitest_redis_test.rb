@@ -45,8 +45,8 @@ module Integration
         end.each(&:join)
       end
 
-      assert_match(/Processing queue shard_1 \(2 tests\)/, normalize(out))
-      assert_match(/Processing queue shard_2 \(100 tests\)/, normalize(out))
+      assert_match(/Loaded 2 tests in shard_1/, normalize(out))
+      assert_match(/Loaded 100 tests in shard_2/, normalize(out))
 
       out, err = capture_subprocess_io do
         system(

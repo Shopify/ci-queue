@@ -27,21 +27,10 @@ module CI
           end
         end
 
-        def initialize(redis_url, config)
+        def initialize(redis, redis_url, config)
+          @redis = redis
           @redis_url = redis_url
           @config = config
-          if ::Redis::VERSION > "5.0.0"
-            @redis = ::Redis.new(
-              url: redis_url,
-              # Booting a CI worker is costly, so in case of a Redis blip,
-              # it makes sense to retry for a while before giving up.
-              reconnect_attempts: reconnect_attempts,
-              middlewares: custom_middlewares,
-              custom: custom_config,
-            )
-          else
-            @redis = ::Redis.new(url: redis_url)
-          end
         end
 
         def reconnect_attempts
