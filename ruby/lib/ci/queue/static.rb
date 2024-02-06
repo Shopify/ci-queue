@@ -83,13 +83,14 @@ module CI
       end
 
       def running
-        1
+        @reserved_test ? 1 : 0
       end
 
       def poll
-        while !@shutdown && config.circuit_breakers.none?(&:open?) && !max_test_failed? && test = @queue.shift
-          yield index.fetch(test)
+        while !@shutdown && config.circuit_breakers.none?(&:open?) && !max_test_failed? && @reserved_test = @queue.shift
+          yield index.fetch(@reserved_test)
         end
+        @reserved_test = nil
       end
 
       def exhausted?
