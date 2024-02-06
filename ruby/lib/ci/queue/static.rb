@@ -63,7 +63,7 @@ module CI
       end
 
       def expired?
-        (@created_at.to_f TEN_MINUTES) < CI::Queue.time_now.to_f
+        (@created_at.to_f + TEN_MINUTES) < CI::Queue.time_now.to_f
       end
 
       def populated?

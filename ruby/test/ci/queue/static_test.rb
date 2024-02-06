@@ -4,6 +4,14 @@ require 'test_helper'
 class CI::Queue::StaticTest < Minitest::Test
   include SharedQueueAssertions
 
+  def test_expired
+    queue = CI::Queue.from_uri('list:foo:bar:plop%3Ffizz', config)
+    assert queue.expired?
+
+    queue.created_at = Time.now
+    refute queue.expired?
+  end
+
   private
 
   def build_queue
