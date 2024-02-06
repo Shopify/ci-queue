@@ -118,6 +118,14 @@ module CI
           end.inject(:+)
         end
 
+        def remaining
+          redis.llen(key('queue'))
+        end
+
+        def running
+          redis.zcard(key('running'))
+        end
+
         def to_a
           redis.multi do |transaction|
             transaction.lrange(key('queue'), 0, -1)

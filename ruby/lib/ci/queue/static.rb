@@ -78,6 +78,14 @@ module CI
         @queue.size
       end
 
+      def remaining
+        @queue.size
+      end
+
+      def running
+        1
+      end
+
       def poll
         while !@shutdown && config.circuit_breakers.none?(&:open?) && !max_test_failed? && test = @queue.shift
           yield index.fetch(test)

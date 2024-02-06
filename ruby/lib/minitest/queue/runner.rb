@@ -86,8 +86,23 @@ module Minitest
         if queue.rescue_connection_errors { queue.exhausted? }
           puts green('All tests were ran already')
         else
-          load_tests
-          populate_queue
+          # If the job gets (automatically) retried and there are still workers running but not many tests left
+          # in the queue, we assume by the time the application is booted the queue is empty and it's faster to no-op.
+          if retry?
+            remaining = queue.rescue_connection_errors { queue.remaining }.to_i
+            running = queue.rescue_connection_errors { queue.running }.to_i
+
+            puts "#{remaining} tests left and #{running} workers running."
+            if remaining <= running
+              puts green("Queue almost empty, exiting early...")
+            else
+              load_tests
+              populate_queue
+            end
+          else
+            load_tests
+            populate_queue
+          end
         end
 
         at_exit {
