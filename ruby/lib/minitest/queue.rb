@@ -157,7 +157,7 @@ module Minitest
       end
 
       def id
-        @id ||= "#{@runnable}##{@method_name}"
+        @id ||= "#{@runnable}##{@method_name}".freeze
       end
 
       def <=>(other)
