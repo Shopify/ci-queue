@@ -112,10 +112,16 @@ module CI
         end
 
         def size
-          redis.multi do |transaction|
+          result = redis.multi do |transaction|
             transaction.llen(key('queue'))
             transaction.zcard(key('running'))
           end.inject(:+)
+
+          if result < 10
+            puts redis.zrangebyscore(key('running'), "-inf", "+inf").inspect
+          end
+
+          result
         end
 
         def remaining

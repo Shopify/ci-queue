@@ -190,6 +190,7 @@ module CI
           )
 
           if lost_test
+            puts "Reserved lost test: #{lost_test}"
             build.record_warning(Warnings::RESERVED_LOST_TEST, test: lost_test, timeout: config.timeout)
           end
 
