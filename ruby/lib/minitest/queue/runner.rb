@@ -350,8 +350,13 @@ module Minitest
       end
 
       def load_tests
-        argv.sort.each do |f|
-          require File.expand_path(f)
+        if queue_config.multi_queue_config
+          queue.current_queue.preload_files!
+          queue.current_queue.load_tests!
+        else
+          argv.sort.each do |f|
+            require File.expand_path(f)
+          end
         end
       end
 
@@ -630,6 +635,15 @@ module Minitest
           opts.separator ""
           opts.on('--failing-test TEST_IDENTIFIER') do |identifier|
             queue_config.failing_test = identifier
+          end
+
+          help = <<~EOS
+            The file path for multi-queue configuration. It should be a valid YAML file.
+            The file should map queue names to a list of their test files.
+          EOS
+          opts.on('--multi-queue-config PATH', help) do |path|
+            require 'yaml'
+            queue_config.multi_queue_config = YAML.load(File.read(path))
           end
         end
       end
