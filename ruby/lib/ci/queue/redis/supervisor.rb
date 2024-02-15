@@ -39,6 +39,7 @@ module CI
             yield if block_given?
           end
 
+          puts "Supervisor#wait_for_workers, exhausted?: #{exhausted?}, time_left: #{time_left}, max_test_failed?: #{max_test_failed?}, time_left_with_no_workers: #{time_left_with_no_workers}"
           puts "Aborting, it seems all workers died." if time_left_with_no_workers <= 0
           exhausted?
         rescue CI::Queue::Redis::LostMaster
