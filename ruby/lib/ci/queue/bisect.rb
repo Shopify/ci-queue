@@ -5,6 +5,7 @@ module CI
       def initialize(path, config)
         @tests = ::File.readlines(path).map(&:strip).reject(&:empty?).take_while { |t| t != config.failing_test }
         @config = config
+        @iterator = 0
       end
 
       def size
@@ -20,7 +21,7 @@ module CI
       end
 
       def suspects_left
-        @tests.size
+        @tests.size - @iterator
       end
 
       def failing_test
@@ -28,7 +29,9 @@ module CI
       end
 
       def candidates
-        Static.new(first_half + [config.failing_test], config).populate(@all_tests)
+        # Static.new(first_half + [config.failing_test], config).populate(@all_tests)
+        @iterator += 1
+        Static.new(@tests.first(@iterator) + [config.failing_test], config).populate(@all_tests)
       end
 
       def release!
@@ -36,11 +39,11 @@ module CI
       end
 
       def failed!
-        @tests = first_half
+        @tests = @tests.first(@iterator)
       end
 
       def succeeded!
-        @tests = second_half
+        # @tests = second_half
       end
 
       private
