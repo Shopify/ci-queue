@@ -68,10 +68,11 @@ module Minitest
 
         set_load_path
         Minitest.queue = queue
+        junit_reporter = JUnitReporter.new
         reporters = [
           LocalRequeueReporter.new(verbose: verbose),
           BuildStatusRecorder.new(build: queue.build),
-          JUnitReporter.new,
+          junit_reporter,
           TestDataReporter.new(namespace: queue_config&.namespace),
           OrderReporter.new(path: 'log/test_order.log'),
         ]
@@ -107,6 +108,7 @@ module Minitest
 
         at_exit {
           verify_reporters!(reporters)
+          junit_reporter.report
         }
         # Let minitest's at_exit hook trigger
       end
