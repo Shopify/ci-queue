@@ -81,8 +81,20 @@ module Minitest
         end
         Minitest.queue_reporters = reporters
 
-        trap('TERM') { Minitest.queue.shutdown! }
-        trap('INT') { Minitest.queue.shutdown! }
+        trap('TERM') do
+          puts "calling junit reporter1"
+          Minitest.queue.shutdown!
+          puts "calling junit reporter2"
+          puts "start time: #{junit_reporter.start_time}"
+          junit_reporter.report if junit_reporter.start_time
+        end
+        trap('INT') do
+          puts "calling junit reporter1"
+          Minitest.queue.shutdown!
+          puts "calling junit reporter2"
+          puts "start time: #{junit_reporter.start_time}"
+          junit_reporter.report if junit_reporter.start_time
+        end
 
         if queue.rescue_connection_errors { queue.exhausted? }
           puts green('All tests were ran already')
@@ -108,7 +120,6 @@ module Minitest
 
         at_exit {
           verify_reporters!(reporters)
-          junit_reporter.report
         }
         # Let minitest's at_exit hook trigger
       end
