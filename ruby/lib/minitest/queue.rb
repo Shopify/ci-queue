@@ -266,6 +266,8 @@ module Minitest
       reopen_previous_step
       puts red("The heartbeat process died. This worker is exiting early.")
       exit!(41)
+    ensure
+      puts "Inside queue poll ensure"
     end
   end
 end
