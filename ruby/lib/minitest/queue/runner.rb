@@ -82,11 +82,16 @@ module Minitest
         Minitest.queue_reporters = reporters
 
         trap('TERM') do
+          raise "inside trap TERM"
           puts "calling junit reporter1"
           Minitest.queue.shutdown!
           puts "calling junit reporter2"
           puts "start time: #{junit_reporter.start_time}"
           junit_reporter.report if junit_reporter.start_time
+        end
+
+        Signal.trap("TERM") do
+          raise "inside signal trap term"
         end
         trap('INT') do
           puts "calling junit reporter1"
