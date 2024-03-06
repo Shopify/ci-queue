@@ -49,6 +49,9 @@ module CI
         end
 
         def poll
+          Signal.trap("TERM") do
+            raise "inside signal trap term"
+          end
           wait_for_master
           until shutdown_required? || config.circuit_breakers.any?(&:open?) || exhausted? || max_test_failed?
             if test = reserve
