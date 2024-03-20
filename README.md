@@ -3,7 +3,7 @@
 [![Gem Version](https://badge.fury.io/rb/ci-queue.svg)](https://rubygems.org/gems/ci-queue)
 [![Tests](https://github.com/Shopify/ci-queue/workflows/Tests/badge.svg?branch=master)](https://github.com/Shopify/ci-queue/actions?query=workflow%3ATests)
 
-Distribute tests over many workers using a queue. 
+Distribute tests over many workers using a queue.
 
 ## Why a queue?
 
@@ -24,7 +24,7 @@ Additionally, a separate process can be started to centralize the error reportin
 ## What are requeues?
 
 When working on big test suites, it's not uncommon for a few tests to fail intermittently, either because they are inherently flaky,
-or because they are sensible to other tests modifying some global state (leaky tests).
+or because they are sensitive to other tests modifying some global state (leaky tests).
 
 In this context, it is useful to have mitigation measures so that these intermittent failures don't cause unrelated builds to fail until the root cause is addressed.
 
