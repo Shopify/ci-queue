@@ -45,6 +45,10 @@ module CI
 
       def populate(tests, random: nil)
         @index = tests.map { |t| [t.id, t] }.to_h
+        puts "Loaded tests:"
+        @index.each do |key, value|
+          puts "#{key}: #{value.inspect}"
+        end
         self
       end
 
