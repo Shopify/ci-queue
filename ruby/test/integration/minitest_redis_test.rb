@@ -85,7 +85,6 @@ module Integration
             )
         end
 
-
         assert_empty err
         result = normalize(out.lines[1].strip)
         assert_equal "Ran 1 tests, 0 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)", result
@@ -341,6 +340,47 @@ module Integration
           '--requeue-tolerance', '1',
           '-Itest',
           'test/passing_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty err
+      output = normalize(out.lines.last.strip)
+      assert_equal 'All tests were ran already', output
+    end
+
+    def test_automatic_retry
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '--max-requeues', '1',
+          '--requeue-tolerance', '1',
+          '-Itest',
+          'test/failing_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty err
+      output = normalize(out.lines.last.strip)
+      assert_equal 'Ran 200 tests, 200 assertions, 100 failures, 0 errors, 0 skips, 100 requeues in X.XXs', output
+
+      out, err = capture_subprocess_io do
+        system(
+          { "BUILDKITE_RETRY_TYPE" => "automatic" },
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '--max-requeues', '1',
+          '--requeue-tolerance', '1',
+          '-Itest',
+          'test/failing_test.rb',
           chdir: 'test/fixtures/',
         )
       end

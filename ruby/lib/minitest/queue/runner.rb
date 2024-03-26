@@ -49,7 +49,8 @@ module Minitest
 
       def run_command
         require_worker_id!
-        if queue.retrying? || retry?
+        # if it's an automatic job retry we should process the main queue
+        if manual_retry?
           if queue.expired?
             abort! "The test run is too old and can't be retried"
           end
@@ -669,6 +670,12 @@ module Minitest
         reopen_previous_step
         puts red(message)
         exit! exit_status # exit! is required to avoid minitest at_exit callback
+      end
+
+      def manual_retry?
+        # this env variable only exists on Buildkite so we should default to manual for backward compatibility
+        (retry? || queue.retrying?) &&
+          ENV.fetch("BUILDKITE_RETRY_TYPE", "manual") == "manual"
       end
 
       def retry?
