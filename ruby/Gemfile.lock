@@ -1,0 +1,111 @@
+PATH
+  remote: .
+  specs:
+    ci-queue (0.47.0)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    activesupport (7.1.3.2)
+      base64
+      bigdecimal
+      concurrent-ruby (~> 1.0, >= 1.0.2)
+      connection_pool (>= 2.2.5)
+      drb
+      i18n (>= 1.6, < 2)
+      minitest (>= 5.1)
+      mutex_m
+      tzinfo (~> 2.0)
+    ansi (1.5.0)
+    ast (2.4.2)
+    base64 (0.2.0)
+    bigdecimal (3.1.7)
+    builder (3.2.4)
+    concurrent-ruby (1.2.3)
+    connection_pool (2.4.1)
+    diff-lcs (1.5.1)
+    docile (1.4.0)
+    drb (2.2.1)
+    i18n (1.14.4)
+      concurrent-ruby (~> 1.0)
+    json (2.7.1)
+    language_server-protocol (3.17.0.3)
+    minitest (5.22.3)
+    minitest-reporters (1.6.1)
+      ansi
+      builder
+      minitest (>= 5.0)
+      ruby-progressbar
+    msgpack (1.7.2)
+    mutex_m (0.2.0)
+    parallel (1.24.0)
+    parser (3.3.0.5)
+      ast (~> 2.4.1)
+      racc
+    racc (1.7.3)
+    rainbow (3.1.1)
+    rake (13.1.0)
+    redis (5.1.0)
+      redis-client (>= 0.17.0)
+    redis-client (0.21.1)
+      connection_pool
+    regexp_parser (2.9.0)
+    rexml (3.2.6)
+    rspec (3.13.0)
+      rspec-core (~> 3.13.0)
+      rspec-expectations (~> 3.13.0)
+      rspec-mocks (~> 3.13.0)
+    rspec-core (3.13.0)
+      rspec-support (~> 3.13.0)
+    rspec-expectations (3.13.0)
+      diff-lcs (>= 1.2.0, < 2.0)
+      rspec-support (~> 3.13.0)
+    rspec-mocks (3.13.0)
+      diff-lcs (>= 1.2.0, < 2.0)
+      rspec-support (~> 3.13.0)
+    rspec-support (3.13.1)
+    rubocop (1.62.1)
+      json (~> 2.3)
+      language_server-protocol (>= 3.17.0)
+      parallel (~> 1.10)
+      parser (>= 3.3.0.2)
+      rainbow (>= 2.2.2, < 4.0)
+      regexp_parser (>= 1.8, < 3.0)
+      rexml (>= 3.2.5, < 4.0)
+      rubocop-ast (>= 1.31.1, < 2.0)
+      ruby-progressbar (~> 1.7)
+      unicode-display_width (>= 2.4.0, < 3.0)
+    rubocop-ast (1.31.2)
+      parser (>= 3.3.0.4)
+    ruby-progressbar (1.13.0)
+    simplecov (0.22.0)
+      docile (~> 1.1)
+      simplecov-html (~> 0.11)
+      simplecov_json_formatter (~> 0.1)
+    simplecov-html (0.12.3)
+    simplecov_json_formatter (0.1.4)
+    snappy (0.4.0)
+    tzinfo (2.0.6)
+      concurrent-ruby (~> 1.0)
+    unicode-display_width (2.5.0)
+
+PLATFORMS
+  arm64-darwin-23
+  ruby
+
+DEPENDENCIES
+  activesupport
+  bundler
+  ci-queue!
+  minitest (~> 5.11)
+  minitest-reporters (~> 1.1)
+  msgpack
+  rake
+  redis
+  rspec (~> 3.10)
+  rubocop
+  simplecov (~> 0.12)
+  snappy
+
+BUNDLED WITH
+   2.5.3
