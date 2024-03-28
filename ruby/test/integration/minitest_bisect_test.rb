@@ -89,7 +89,7 @@ module Integration
           LeakyTest#test_sensible_to_leak                                 FAIL
         +++ The following command should reproduce the leak on your machine:
 
-        cat <<EOF |
+        cat <<'EOF' |
         LeakyTest#test_introduce_leak
         LeakyTest#test_sensible_to_leak
         EOF
