@@ -220,7 +220,7 @@ module Minitest
           command += argv
 
           puts
-          puts "cat <<EOF |\n#{failing_order.to_a.map(&:id).join("\n")}\nEOF\n#{command.join(' ')}"
+          puts "cat <<'EOF' |\n#{failing_order.to_a.map(&:id).join("\n")}\nEOF\n#{command.join(' ')}"
           puts
 
           File.write('log/test_order.log', failing_order.to_a.map(&:id).join("\n"))
