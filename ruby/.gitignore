@@ -4,7 +4,6 @@ test/fixtures/log/test_data.json
 /.byebug_history
 /.bundle/
 /.yardoc
-/Gemfile.lock
 /_yardoc/
 /coverage/
 /doc/
