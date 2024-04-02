@@ -8,4 +8,4 @@ up:
 - redis
 
 commands:
-  test: REDIS_URL=${REDIS_URL:-redis://ci-queue.railgun/0} bundle exec rake test TEST_FILES="$*"
+  test: REDIS_URL=${REDIS_URL} bundle exec rake test TEST_FILES="$*"
