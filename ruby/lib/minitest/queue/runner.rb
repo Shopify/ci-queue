@@ -207,6 +207,12 @@ module Minitest
           puts
         end
 
+        if run_index == 0
+          step(yellow("The failing test was the first test in the test order so there is nothing to bisect."))
+          File.write('log/test_order.log', "")
+          exit! 1
+        end
+
         failing_order = queue.candidates
         step("Final validation")
         status = if run_tests_in_fork(failing_order)
