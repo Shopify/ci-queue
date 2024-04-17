@@ -6,6 +6,7 @@ module CI
         @tests = ::File.readlines(path).map(&:strip).reject(&:empty?).take_while { |t| t != config.failing_test }
         @config = config
         @iterator = 0
+        @leaky_index = nil
       end
 
       def size
@@ -21,6 +22,7 @@ module CI
       end
 
       def suspects_left
+        return 0 if @leaky_index != nil and @leaky_index >= 0
         @tests.size - @iterator
       end
 
@@ -30,8 +32,11 @@ module CI
 
       def candidates
         # Static.new(first_half + [config.failing_test], config).populate(@all_tests)
+        if @leaky_index != nil and @leaky_index >= 0
+          return Static.new([@tests[@leaky_index]] + [config.failing_test], config).populate(@all_tests)
+        end
         @iterator += 1
-        Static.new(@tests.first(@iterator) + [config.failing_test], config).populate(@all_tests)
+        Static.new([@tests[@iterator]] + [config.failing_test], config).populate(@all_tests)
       end
 
       def release!
@@ -40,7 +45,7 @@ module CI
 
       def failed!
         # @tests = first_half
-        @tests = @tests.first(@iterator)
+        @leaky_index = @iterator
       end
 
       def succeeded!
