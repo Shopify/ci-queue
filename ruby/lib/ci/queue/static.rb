@@ -71,7 +71,12 @@ module CI
       end
 
       def to_a
-        @queue.map { |i| index.fetch(i) }
+        @queue.map do |i|
+          index.fetch(i)
+        rescue KeyError
+          puts "Test not found: #{i}"
+          nil
+        end.compact
       end
 
       def size
@@ -88,7 +93,11 @@ module CI
 
       def poll
         while !@shutdown && config.circuit_breakers.none?(&:open?) && !max_test_failed? && @reserved_test = @queue.shift
-          yield index.fetch(@reserved_test)
+          begin
+            yield index.fetch(@reserved_test)
+          rescue KeyError
+            puts "Test not found: #{@reserved_test}"
+          end
         end
         @reserved_test = nil
       end
