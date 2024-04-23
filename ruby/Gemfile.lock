@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    ci-queue (0.49.0)
+    ci-queue (0.50.0)
 
 GEM
   remote: https://rubygems.org/
