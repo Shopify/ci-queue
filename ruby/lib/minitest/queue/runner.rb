@@ -182,10 +182,10 @@ module Minitest
       def bisect_command
         invalid_usage! "Missing the FAILING_TEST argument." unless queue_config.failing_test
 
-        @queue = CI::Queue::Bisect.new(queue_url, queue_config)
-        Minitest.queue = queue
         set_load_path
         load_tests
+        @queue = CI::Queue::Bisect.new(queue_url, queue_config)
+        Minitest.queue = queue
         populate_queue
 
         step("Testing the failing test in isolation")
