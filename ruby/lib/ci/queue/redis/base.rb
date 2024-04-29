@@ -139,6 +139,8 @@ module CI
 
         def wait_for_master(timeout: 30)
           return true if master?
+          return true if queue_initialized?
+
           (timeout * 10 + 1).to_i.times do
             if queue_initialized?
               return true
@@ -146,6 +148,7 @@ module CI
               sleep 0.1
             end
           end
+
           raise LostMaster, "The master worker is still `#{master_status}` after #{timeout} seconds waiting."
         end
 
