@@ -208,7 +208,7 @@ module Minitest
           puts
         end
 
-        if run_index == 0
+        if queue.suspects_left == 0
           step(yellow("The failing test was the first test in the test order so there is nothing to bisect."))
           File.write('log/test_order.log', "")
           exit! 1
