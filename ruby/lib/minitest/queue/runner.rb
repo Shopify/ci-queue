@@ -186,6 +186,10 @@ module Minitest
         load_tests
         @queue = CI::Queue::Bisect.new(queue_url, queue_config)
         Minitest.queue = queue
+        reporters = [
+          TestDataReporter.new(namespace: queue_config&.namespace),
+        ]
+        Minitest.queue_reporters = reporters
         populate_queue
 
         step("Testing the failing test in isolation")
