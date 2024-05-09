@@ -933,6 +933,27 @@ module Integration
       END
     end
 
+    def test_framework_error
+      capture_subprocess_io do
+        system(
+          { 'BUILDKITE' => '1' },
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '--max-requeues', '1',
+          '--requeue-tolerance', '1',
+          '-Itest',
+          'test/bad_framework_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      assert_equal 42, $?.exitstatus
+    end
+
     private
 
     def normalize_xml(output)

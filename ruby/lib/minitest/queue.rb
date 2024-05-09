@@ -266,6 +266,11 @@ module Minitest
       reopen_previous_step
       puts red("The heartbeat process died. This worker is exiting early.")
       exit!(41)
+    rescue StandardError => e
+      reopen_previous_step
+      puts red("This worker died because of a queue or framework error:")
+      puts red("#{e.class}: #{e.message}")
+      exit!(42)
     end
   end
 end
