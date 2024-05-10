@@ -75,6 +75,14 @@ module Minitest
         build.progress
       end
 
+      def write_failure_file(file)
+        File.write(file, error_reports.map(&:to_h).to_json)
+      end
+
+      def write_flaky_tests_file(file)
+        File.write(file, flaky_reports.to_json)
+      end
+
       private
 
       attr_reader :build
