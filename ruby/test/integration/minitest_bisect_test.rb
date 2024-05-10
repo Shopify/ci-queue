@@ -286,6 +286,22 @@ module Integration
       assert_equal expected_output, normalize(out)
     end
 
+    def test_failing_test_is_not_present
+      out, err = capture_subprocess_io do
+        run_bisect('log/leaky_test_order.log', 'LeakyTestDoesNotExist#test_sensible_to_leak')
+      end
+
+      assert_empty err
+      expected_output = strip_heredoc <<-EOS
+        --- Testing the failing test in isolation
+        ^^^ +++
+
+        The failing test does not exist.
+      EOS
+
+      assert_equal expected_output, normalize(out)
+    end
+
     private
 
     def normalize(output)

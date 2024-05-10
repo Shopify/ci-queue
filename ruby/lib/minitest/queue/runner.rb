@@ -189,6 +189,13 @@ module Minitest
         populate_queue
 
         step("Testing the failing test in isolation")
+        unless queue.failing_test_present?
+          puts reopen_previous_step
+          puts red("The failing test does not exist.")
+          File.write('log/test_order.log', "")
+          exit! 1
+        end
+
         unless run_tests_in_fork(queue.failing_test)
           puts reopen_previous_step
           puts red("The test fail when ran alone, no need to bisect.")

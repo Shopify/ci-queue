@@ -27,6 +27,10 @@ module CI
         Static.new([config.failing_test], config).populate(@all_tests)
       end
 
+      def failing_test_present?
+        @all_tests.find { |t| t.id == config.failing_test }
+      end
+
       def candidates
         Static.new(first_half + [config.failing_test], config).populate(@all_tests)
       end
