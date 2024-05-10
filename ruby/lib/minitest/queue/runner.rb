@@ -252,7 +252,11 @@ module Minitest
           unless supervisor.exhausted?
             reporter = BuildStatusReporter.new(build: supervisor.build)
             reporter.report
+            reporter.write_failure_file(queue_config.failure_file) if queue_config.failure_file
+            reporter.write_flaky_tests_file(queue_config.export_flaky_tests_file) if queue_config.export_flaky_tests_file
+
             msg = "#{supervisor.size} tests weren't run."
+
             if supervisor.max_test_failed?
               puts('Encountered too many failed tests. Test run was ended early.')
               abort!(msg)
@@ -263,18 +267,10 @@ module Minitest
         end
 
         reporter = BuildStatusReporter.new(build: supervisor.build)
-
-        if queue_config.failure_file
-          failures = reporter.error_reports.map(&:to_h).to_json
-          File.write(queue_config.failure_file, failures)
-        end
-
-        if queue_config.export_flaky_tests_file
-          failures = reporter.flaky_reports.to_json
-          File.write(queue_config.export_flaky_tests_file, failures)
-        end
-
+        reporter.write_failure_file(queue_config.failure_file) if queue_config.failure_file
+        reporter.write_flaky_tests_file(queue_config.export_flaky_tests_file) if queue_config.export_flaky_tests_file
         reporter.report
+
         exit! reporter.success? ? 0 : 1
       end
 
