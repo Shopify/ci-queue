@@ -933,7 +933,7 @@ module Integration
       END
     end
 
-    def test_framework_error
+    def test_application_error
       capture_subprocess_io do
         system(
           { 'BUILDKITE' => '1' },
