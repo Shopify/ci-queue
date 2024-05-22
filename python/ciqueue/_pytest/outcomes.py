@@ -42,6 +42,14 @@ DESERIALIZE_TYPES = {Skipped: outcomes.Skipped,
                      Failed: outcomes.Failed}
 
 
+try:
+    from_exc_info = code.ExceptionInfo.from_exc_info
+except AttributeError:
+    # pytest < 7.4
+    def from_exc_info(tup):
+        return code.ExceptionInfo(tup)
+
+
 def swap_in_serializable(excinfo):
     def pickles(excinfo):
         try:
@@ -52,14 +60,14 @@ def swap_in_serializable(excinfo):
     if excinfo.type in SERIALIZE_TYPES:
         cls = SERIALIZE_TYPES[excinfo.type]
         tup = (cls, cls(*excinfo.value.args), excinfo.tb)
-        excinfo = code.ExceptionInfo(tup)
+        excinfo = from_exc_info(tup)
     elif not pickles(excinfo):
         tup = (UnserializableException,
                UnserializableException(
                    "Actual Exception thrown on test node was %r" %
                    excinfo.value),
                excinfo.tb)
-        excinfo = code.ExceptionInfo(tup)
+        excinfo = from_exc_info(tup)
     return excinfo
 
 
@@ -67,7 +75,7 @@ def swap_back_original(excinfo):
     if excinfo.type in DESERIALIZE_TYPES:
         tipe = DESERIALIZE_TYPES[excinfo.type]
         tup = (tipe, tipe(*excinfo.value.args), excinfo.tb)
-        return code.ExceptionInfo(tup)
+        return from_exc_info(tup)
     return excinfo
 
 
@@ -84,4 +92,4 @@ def failed(item):
 def skipped_excinfo(item, msg):
     traceback = list(item.error_reports.values())[0]['excinfo'].tb
     tup = (outcomes.Skipped, outcomes.Skipped(msg), traceback)
-    return code.ExceptionInfo(tup)
+    return from_exc_info(tup)
