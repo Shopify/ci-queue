@@ -1,14 +1,21 @@
 import os
+import re
 import subprocess
 import redis
+import pytest
 
 # pylint: disable=no-self-use
 
 
+@pytest.fixture(autouse=True)
+def change_test_dir(request, monkeypatch):
+    monkeypatch.chdir(request.fspath.dirname + "/..")
+
+
 def expected_messages(output):
     assert '= 4 failed, 2 passed, 1 skipped, 1 xpassed, 6 errors in' in output, output
-    assert ('integrations/pytest/test_all.py:27: skipping test message' in output
-            or 'integrations/pytest/test_all.py:28: skipping test message' in output), output
+    assert re.search(r':\d+: skipping test message', output) is not None, \
+        "did not find 'skipping test message' in output"
 
 
 def check_output(cmd):
