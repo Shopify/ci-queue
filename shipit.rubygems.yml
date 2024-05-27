@@ -4,3 +4,4 @@ machine:
 ci:
   hide:
     - python-tests
+    - Dependabot
