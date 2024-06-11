@@ -65,11 +65,11 @@ module CI
         end
 
         def reopen_previous_step
-          puts '^^^ +++'
+          puts '\n^^^ +++'
         end
 
         def close_previous_step
-          puts '^^^ ---'
+          puts '\n^^^ ---'
         end
       end
     end
