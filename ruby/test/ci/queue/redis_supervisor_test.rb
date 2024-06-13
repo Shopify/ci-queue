@@ -48,7 +48,7 @@ class CI::Queue::Redis::SupervisorTest < Minitest::Test
     thread.wakeup
     worker(1)
     thread.join
-    assert_includes io, "Aborting, it seems all workers died.\n"
+    assert_includes io.join, "Aborting, it seems all workers died.\n"
   end
 
   def test_num_workers

@@ -204,15 +204,22 @@ module CI
           @total = tests.size
 
           if @master = redis.setnx(key('master-status'), 'setup')
-            redis.multi do |transaction|
-              transaction.lpush(key('queue'), tests) unless tests.empty?
-              transaction.set(key('total'), @total)
-              transaction.set(key('master-status'), 'ready')
+            puts "Worker electected as leader, pushing #{@total} tests to the queue."
+            puts
 
-              transaction.expire(key('queue'), config.redis_ttl)
-              transaction.expire(key('total'), config.redis_ttl)
-              transaction.expire(key('master-status'), config.redis_ttl)
+            duration = measure do
+              redis.multi do |transaction|
+                transaction.lpush(key('queue'), tests) unless tests.empty?
+                transaction.set(key('total'), @total)
+                transaction.set(key('master-status'), 'ready')
+
+                transaction.expire(key('queue'), config.redis_ttl)
+                transaction.expire(key('total'), config.redis_ttl)
+                transaction.expire(key('master-status'), config.redis_ttl)
+              end
             end
+
+            puts "Finished pushing #{@total} tests to the queue in #{duration.round(2)}s."
           end
           register
           redis.expire(key('workers'), config.redis_ttl)

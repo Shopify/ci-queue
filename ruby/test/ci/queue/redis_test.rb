@@ -281,7 +281,8 @@ class CI::Queue::RedisTest < Minitest::Test
   end
 
   def populate(worker, tests: TEST_LIST.dup)
-    worker.populate(tests, random: Random.new(0))
+    capture_io { worker.populate(tests, random: Random.new(0)) }
+    worker
   end
 
   def worker(id, **args)

@@ -6,7 +6,7 @@ module SharedQueueAssertions
   include QueueHelper
 
   def setup
-    @queue = populate(build_queue)
+    capture_io { @queue = populate(build_queue) }
   end
 
   def test_progess
