@@ -47,12 +47,6 @@ module CI
 
         private
 
-        def measure
-          starting = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-          yield
-          Process.clock_gettime(Process::CLOCK_MONOTONIC) - starting
-        end
-
         def active_workers?
           # if there are running jobs we assume there are still agents active
           redis.zrangebyscore(key('running'), CI::Queue.time_now.to_f - config.timeout, "+inf", limit: [0,1]).count > 0
