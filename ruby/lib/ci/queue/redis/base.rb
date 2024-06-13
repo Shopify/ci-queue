@@ -185,6 +185,12 @@ module CI
 
         attr_reader :redis, :redis_url
 
+        def measure
+          starting = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          yield
+          Process.clock_gettime(Process::CLOCK_MONOTONIC) - starting
+        end
+
         def key(*args)
           ['build', build_id, *args].join(':')
         end
