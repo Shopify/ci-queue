@@ -6,6 +6,7 @@ require 'ci/queue'
 require 'digest/md5'
 require 'minitest/reporters/bisect_reporter'
 require 'minitest/reporters/statsd_reporter'
+require 'open3'
 
 module Minitest
   module Queue
@@ -211,6 +212,14 @@ module Minitest
             queue.succeeded!
           else
             queue.failed!
+          end
+
+          # Run cleanup / reset command
+          begin
+            puts "Cleaning environment with '#{queue_config.bisect_cleanup}'..."
+            _, _, status = Open3.capture3(queue_config.bisect_cleanup) if queue_config.bisect_cleanup
+          rescue => e
+            puts "Bisect cleanup failed: #{e}"
           end
           puts
         end
@@ -640,6 +649,14 @@ module Minitest
           opts.separator ""
           opts.on('--failing-test TEST_IDENTIFIER') do |identifier|
             queue_config.failing_test = identifier
+          end
+
+          opts.separator ""
+          help = <<~EOS
+            Optional extra cleanup command thats run between bisect groups
+          EOS
+          opts.on("--bisect-cleanup CLEANUP_COMMAND", String, help) do |cleanup_command|
+            queue_config.bisect_cleanup = cleanup_command
           end
         end
       end
