@@ -1,0 +1,9 @@
+version: 2
+updates:
+  - package-ecosystem: bundler
+    directory: "/ruby/"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10
+    insecure-external-code-execution: allow
+    registries: "*"
