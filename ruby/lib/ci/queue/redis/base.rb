@@ -27,11 +27,12 @@ module CI
           end
         end
 
-        def initialize(redis_url, config)
+        def initialize(redis_url, config, redis = nil)
           @redis_url = redis_url
           @config = config
-          if ::Redis::VERSION > "5.0.0"
-            @redis = ::Redis.new(
+          @redis = redis
+          @redis ||= if ::Redis::VERSION > "5.0.0"
+            ::Redis.new(
               url: redis_url,
               # Booting a CI worker is costly, so in case of a Redis blip,
               # it makes sense to retry for a while before giving up.
@@ -40,7 +41,7 @@ module CI
               custom: custom_config,
             )
           else
-            @redis = ::Redis.new(url: redis_url)
+            ::Redis.new(url: redis_url)
           end
         end
 
@@ -124,6 +125,10 @@ module CI
 
         def running
           redis.zcard(key('running'))
+        end
+
+        def total
+          redis.get(key('total')).to_i
         end
 
         def to_a
