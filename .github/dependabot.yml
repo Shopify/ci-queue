@@ -3,7 +3,15 @@ updates:
   - package-ecosystem: bundler
     directory: "/ruby/"
     schedule:
-      interval: daily
-    open-pull-requests-limit: 10
+      interval: weekly
+      time: "14:00"
+    open-pull-requests-limit: 100
     insecure-external-code-execution: allow
     registries: "*"
+    groups:
+      minor-gem-update:
+        update-types:
+          - "minor"
+      patch-gem-update:
+        update-types:
+          - "patch"
