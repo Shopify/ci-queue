@@ -345,6 +345,7 @@ module Minitest
 
       def reset_counters
         queue.build.reset_stats(BuildStatusRecorder::COUNTERS)
+        queue.build.reset_worker_error
       end
 
       def populate_queue

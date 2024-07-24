@@ -952,6 +952,22 @@ module Integration
       end
 
       assert_equal 42, $?.exitstatus
+
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'report',
+          '--queue', @redis_url,
+          '--build', '1',
+          '--timeout', '1',
+          '--heartbeat',
+          chdir: 'test/fixtures/',
+          )
+      end
+
+      assert_includes out, "Worker 1 crashed"
+      assert_includes out, "Some error in the test framework"
+
+      assert_equal 1, $?.exitstatus
     end
 
     private
