@@ -271,6 +271,9 @@ module Minitest
       queue.report_worker_error(error)
       puts red("This worker exited because of an uncaught application error:")
       puts red("#{error.class}: #{error.message}")
+      error.backtrace.each do |frame|
+        puts red(frame)
+      end
       exit!(42)
     end
   end
