@@ -36,6 +36,14 @@ module CI
         stat_names.each { |s| stats.delete(s) }
       end
 
+      def report_worker_error(_); end
+
+      def reset_worker_error; end
+
+      def worker_errors
+        {}
+      end
+
       private
 
       attr_reader :stats

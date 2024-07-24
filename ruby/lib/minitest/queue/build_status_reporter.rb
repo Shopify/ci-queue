@@ -36,11 +36,18 @@ module Minitest
           puts ""
         end
 
+        build.worker_errors.to_a.sort.each do |worker_id, error|
+          puts yellow("Worker #{worker_id } crashed")
+          puts error
+          puts ""
+        end
+
         errors.empty?
       end
 
       def success?
-        build.error_reports.empty?
+        build.error_reports.empty? &&
+          build.worker_errors.empty?
       end
 
       def record(*)

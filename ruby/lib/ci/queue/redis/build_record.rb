@@ -17,6 +17,21 @@ module CI
           @queue.exhausted?
         end
 
+        def report_worker_error(error)
+          redis.pipelined do |pipeline|
+            pipeline.hset(key('worker-errors'), config.worker_id, error.message)
+            pipeline.expire(key('worker-errors'), config.redis_ttl)
+          end
+        end
+
+        def worker_errors
+          redis.hgetall(key('worker-errors'))
+        end
+
+        def reset_worker_error
+          redis.hdel(key('worker-errors'), config.worker_id)
+        end
+
         def failed_tests
           redis.hkeys(key('error-reports'))
         end

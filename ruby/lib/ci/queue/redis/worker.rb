@@ -95,6 +95,10 @@ module CI
           @build ||= CI::Queue::Redis::BuildRecord.new(self, redis, config)
         end
 
+        def report_worker_error(error)
+          build.report_worker_error(error)
+        end
+
         def acknowledge(test)
           test_key = test.id
           raise_on_mismatching_test(test_key)
