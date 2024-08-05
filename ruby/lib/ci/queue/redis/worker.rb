@@ -15,10 +15,10 @@ module CI
       class Worker < Base
         attr_reader :total
 
-        def initialize(redis, config)
+        def initialize(redis_url, config, redis = nil)
           @reserved_test = nil
           @shutdown_required = false
-          super(redis, config)
+          super(redis_url, config, redis)
         end
 
         def distributed?
