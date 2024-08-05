@@ -58,6 +58,8 @@ module CI
 
       def stop_heartbeat!; end
 
+      def report_worker_error(error); end
+
       def created_at=(timestamp)
         @created_at ||= timestamp
       end
