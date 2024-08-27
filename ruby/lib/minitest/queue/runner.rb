@@ -223,7 +223,7 @@ module Minitest
 
         failing_order = queue.candidates
         step("Final validation")
-        status = if run_tests_in_fork(failing_order)
+        if run_tests_in_fork(failing_order)
           step(yellow("The bisection was inconclusive, there might not be any leaky test here."))
           File.write('log/test_order.log', "")
           exit! 1
@@ -314,7 +314,8 @@ module Minitest
       private
 
       attr_reader :queue_config, :options, :command, :argv
-      attr_accessor :queue, :queue_url, :grind_list, :grind_count, :load_paths, :verbose
+      attr_writer :queue_url
+      attr_accessor :queue, :grind_list, :grind_count, :load_paths, :verbose
 
       def require_worker_id!
         if queue.distributed?
