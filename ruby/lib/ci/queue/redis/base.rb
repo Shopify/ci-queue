@@ -133,8 +133,12 @@ module CI
           end.flatten.reverse.map { |k| index.fetch(k) }
         end
 
+        ImplausibleProgress = Class.new(StandardError)
+
         def progress
-          total - size
+          result = total - size
+          raise ImplausibleProgress, "Progress cannot be negative (#{result} (#{total} - #{size}))" if result < 0
+          result
         end
 
         def wait_for_master(timeout: 30)
