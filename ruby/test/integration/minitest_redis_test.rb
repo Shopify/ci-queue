@@ -216,7 +216,6 @@ module Integration
       assert_equal 'Ran 47 tests, 47 assertions, 3 failures, 0 errors, 0 skips, 44 requeues in X.XXs', output
 
       # Run the reporter
-      exit_code = nil
       out, err = capture_subprocess_io do
         system(
           @exe, 'report',
@@ -862,12 +861,6 @@ module Integration
           )
         end
 
-        warning = <<~END
-          [WARNING] Atest#test_bar was picked up by another worker because it didn't complete in the allocated 2 seconds.
-          You may want to either optimize this test or bump ci-queue timeout.
-          It's also possible that the worker that was processing it was terminated without being able to report back.
-        END
-
         warnings_file.rewind
         content = JSON.parse(warnings_file.read)
         assert_equal 1, content.size
@@ -953,7 +946,7 @@ module Integration
 
       assert_equal 42, $?.exitstatus
 
-      out, err = capture_subprocess_io do
+      out, _ = capture_subprocess_io do
         system(
           @exe, 'report',
           '--queue', @redis_url,

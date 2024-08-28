@@ -34,6 +34,9 @@ module Integration
 
       assert_empty err
       expected_output = strip_heredoc <<-EOS
+        Worker electected as leader, pushing 3 tests to the queue.
+
+        Finished pushing 3 tests to the queue in X.XXs.
 
         Randomized with seed 123
         ..*.
@@ -88,6 +91,9 @@ module Integration
 
       assert_empty err
       expected_output = strip_heredoc <<-EOS
+        Worker electected as leader, pushing 3 tests to the queue.
+
+        Finished pushing 3 tests to the queue in X.XXs.
 
         Randomized with seed 123
         ..*.
@@ -267,6 +273,9 @@ module Integration
 
       assert_empty err
       expected_output = strip_heredoc <<-EOS
+        Worker electected as leader, pushing 2 tests to the queue.
+
+        Finished pushing 2 tests to the queue in X.XXs.
 
         Randomized with seed 123
 
@@ -308,6 +317,9 @@ module Integration
 
       assert_empty err
       expected_output = strip_heredoc <<-EOS
+        Worker electected as leader, pushing 3 tests to the queue.
+
+        Finished pushing 3 tests to the queue in X.XXs.
 
         Randomized with seed 123
         ..F
@@ -379,11 +391,12 @@ module Integration
       end
 
       assert_empty err
+
       expected_output = strip_heredoc <<-EOS
 
 
-        Finished in X.XXXXX seconds (files took X.XXXXX seconds to load)
-        0 examples, 0 failures
+      Finished in X.XXXXX seconds (files took X.XXXXX seconds to load)
+      0 examples, 0 failures
 
       EOS
       assert_equal expected_output, normalize(out)
@@ -405,6 +418,9 @@ module Integration
 
       assert_empty err
       expected_output = strip_heredoc <<-EOS
+        Worker electected as leader, pushing 1 tests to the queue.
+
+        Finished pushing 1 tests to the queue in X.XXs.
 
         Randomized with seed 123
         F
