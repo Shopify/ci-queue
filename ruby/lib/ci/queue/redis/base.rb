@@ -13,16 +13,18 @@ module CI
 
         module RedisInstrumentation
           def call(command, redis_config)
-            result = super
             logger = redis_config.custom[:debug_log]
-            logger.info("#{command}: #{result}")
+            logger.info("Running '#{command}'")
+            result = super
+            logger.info("Finished '#{command}': #{result}")
             result
           end
 
           def call_pipelined(commands, redis_config)
-            result = super
             logger = redis_config.custom[:debug_log]
-            logger.info("#{commands}: #{result}")
+            logger.info("Running '#{commands}'")
+            result = super
+            logger.info("Finished '#{commands}': #{result}")
             result
           end
         end
