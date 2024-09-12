@@ -207,15 +207,26 @@ module CI
             puts "Worker electected as leader, pushing #{@total} tests to the queue."
             puts
 
+            attempts = 0
             duration = measure do
-              redis.multi do |transaction|
-                transaction.lpush(key('queue'), tests) unless tests.empty?
-                transaction.set(key('total'), @total)
-                transaction.set(key('master-status'), 'ready')
+              redis.without_reconnect do
+                redis.multi do |transaction|
+                  transaction.lpush(key('queue'), tests) unless tests.empty?
+                  transaction.set(key('total'), @total)
+                  transaction.set(key('master-status'), 'ready')
 
-                transaction.expire(key('queue'), config.redis_ttl)
-                transaction.expire(key('total'), config.redis_ttl)
-                transaction.expire(key('master-status'), config.redis_ttl)
+                  transaction.expire(key('queue'), config.redis_ttl)
+                  transaction.expire(key('total'), config.redis_ttl)
+                  transaction.expire(key('master-status'), config.redis_ttl)
+                end
+              rescue ::Redis::BaseError => error
+                if !queue_initialized? && attempts < 3
+                  puts "Retrying pushing #{@total} tests to the queue... (#{error})"
+                  attempts += 1
+                  retry
+                end
+
+                raise if !queue_initialized?
               end
             end
 
