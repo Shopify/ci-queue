@@ -185,6 +185,14 @@ module CI
 
         attr_reader :redis, :redis_url
 
+        def with_redis_timeout(timeout)
+          prev = redis._client.timeout
+          redis._client.timeout = timeout
+          yield
+        ensure
+          redis._client.timeout = prev
+        end
+
         def measure
           starting = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           yield
