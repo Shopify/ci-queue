@@ -33,6 +33,7 @@ module CI
           if ::Redis::VERSION > "5.0.0"
             @redis = ::Redis.new(
               url: redis_url,
+              ssl_params: { verify_mode: OpenSSL::SSL::VERIFY_NONE },
               # Booting a CI worker is costly, so in case of a Redis blip,
               # it makes sense to retry for a while before giving up.
               reconnect_attempts: reconnect_attempts,
@@ -40,7 +41,7 @@ module CI
               custom: custom_config,
             )
           else
-            @redis = ::Redis.new(url: redis_url)
+            @redis = ::Redis.new(url: redis_url, ssl_params: { verify_mode: OpenSSL::SSL::VERIFY_NONE })
           end
         end
 
