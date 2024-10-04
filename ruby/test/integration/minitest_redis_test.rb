@@ -138,7 +138,7 @@ module Integration
           )
         end
 
-      assert_includes File.read(log_file.path), 'INFO -- : ["exists", "build:1:worker:1:queue"]: 0'
+      assert_includes File.read(log_file.path), 'INFO -- : Finished \'["exists", "build:1:worker:1:queue"]\': 0'
       assert_empty err
       result = normalize(out.lines.last.strip)
       assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', result
