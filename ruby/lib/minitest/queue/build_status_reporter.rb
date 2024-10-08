@@ -84,6 +84,12 @@ module Minitest
 
       def write_failure_file(file)
         File.write(file, error_reports.map(&:to_h).to_json)
+      rescue JSON::GeneratorError
+        error_reports.each do |report|
+          report.to_h.to_json
+        rescue JSON::GeneratorError
+          pp report
+        end
       end
 
       def write_flaky_tests_file(file)
