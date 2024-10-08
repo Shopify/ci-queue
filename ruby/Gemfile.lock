@@ -2,6 +2,7 @@ PATH
   remote: .
   specs:
     ci-queue (0.58.0)
+      logger
 
 GEM
   remote: https://rubygems.org/
@@ -30,6 +31,7 @@ GEM
       concurrent-ruby (~> 1.0)
     json (2.7.1)
     language_server-protocol (3.17.0.3)
+    logger (1.6.1)
     minitest (5.22.3)
     minitest-reporters (1.6.1)
       ansi
