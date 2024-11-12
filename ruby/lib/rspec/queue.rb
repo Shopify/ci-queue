@@ -77,6 +77,15 @@ module RSpec
         end
 
         help = <<~EOS
+          Force strict SSL checks on the Redis connection.
+          The default connection behavior is to set SSL verification to `OpenSSL::SSL::VERIFY_NONE` because hosted Redis services may use self-signed certificates.
+          When this flag is activated, the full TLS check will be performed.
+        EOS
+        parser.on('--strict-ssl', *help) do
+          queue_config.strict_ssl = true
+        end
+
+        help = <<~EOS
           Wait for all workers to complete and summarize the test failures.
         EOS
         parser.on('--report', *help) do |url|
