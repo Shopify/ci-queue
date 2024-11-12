@@ -41,6 +41,11 @@ module CI
               middlewares: custom_middlewares,
               custom: custom_config,
             }
+
+            if !config.strict_ssl
+              connection_options[:ssl_params] = { verify_mode: OpenSSL::SSL::VERIFY_NONE }
+            end
+
             @redis = ::Redis.new(**connection_options)
           else
             @redis = ::Redis.new(url: redis_url)
