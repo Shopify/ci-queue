@@ -89,7 +89,7 @@ module Minitest
         else
           # If the job gets (automatically) retried and there are still workers running but not many tests left
           # in the queue, we assume by the time the application is booted the queue is empty and it's faster to no-op.
-          if retry?
+          if retry? && queue.rescue_connection_errors { queue.queue_initialized? }
             remaining = queue.rescue_connection_errors { queue.remaining }.to_i
             running = queue.rescue_connection_errors { queue.running }.to_i
 
