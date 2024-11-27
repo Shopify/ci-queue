@@ -350,7 +350,7 @@ module Minitest
       end
 
       def populate_queue
-        Minitest.queue.populate(Minitest.loaded_tests, random: ordering_seed, &:id)
+        Minitest.queue.populate(Minitest.loaded_tests, random: ordering_seed)
       end
 
       def set_load_path
