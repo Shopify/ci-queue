@@ -39,6 +39,7 @@ module CI
               # it makes sense to retry for a while before giving up.
               reconnect_attempts: reconnect_attempts,
               middlewares: custom_middlewares,
+              ssl_params: { verify_mode: OpenSSL::SSL::VERIFY_NONE },
               custom: custom_config,
             )
           else
