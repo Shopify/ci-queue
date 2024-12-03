@@ -39,6 +39,10 @@ module CI
               # it makes sense to retry for a while before giving up.
               reconnect_attempts: reconnect_attempts,
               middlewares: custom_middlewares,
+              # Hosted Redis servers use self signed certificates
+              # (because they do not own the domain they're running on such as compute-1.amazonaws.com)
+              # therefore a full SSL connection verification will fail.
+              # ci-queue should not contain any sensitive data, so we can just disable the verification.
               ssl_params: { verify_mode: OpenSSL::SSL::VERIFY_NONE },
               custom: custom_config,
             )
