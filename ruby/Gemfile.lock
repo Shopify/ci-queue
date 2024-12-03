@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    ci-queue (0.58.0)
+    ci-queue (0.59.0)
       logger
 
 GEM
