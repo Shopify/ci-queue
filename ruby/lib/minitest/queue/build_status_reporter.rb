@@ -37,7 +37,7 @@ module Minitest
         end
 
         build.worker_errors.to_a.sort.each do |worker_id, error|
-          puts yellow("Worker #{worker_id } crashed")
+          puts red("Worker #{worker_id } crashed")
           puts error
           puts ""
         end
