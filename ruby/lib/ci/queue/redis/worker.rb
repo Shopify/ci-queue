@@ -5,8 +5,6 @@ require 'set'
 module CI
   module Queue
     module Redis
-      ReservationError = Class.new(StandardError)
-
       class << self
         attr_accessor :requeue_offset
       end
