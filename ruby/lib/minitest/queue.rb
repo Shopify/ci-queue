@@ -266,6 +266,13 @@ module Minitest
       reopen_previous_step
       puts red("The heartbeat process died. This worker is exiting early.")
       exit!(41)
+    rescue CI::Queue::Redis::Error
+      reopen_previous_step
+      puts red("#{error.class}: #{error.message}")
+      error.backtrace.each do |frame|
+        puts red(frame)
+      end
+      exit!(41)
     rescue => error
       reopen_previous_step
       queue.report_worker_error(error)
