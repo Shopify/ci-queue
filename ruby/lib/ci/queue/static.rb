@@ -60,6 +60,10 @@ module CI
 
       def report_worker_error(error); end
 
+      def queue_initialized?
+        true
+      end
+
       def created_at=(timestamp)
         @created_at ||= timestamp
       end
