@@ -21,6 +21,8 @@ module CI
 
     attr_accessor :shuffler, :requeueable
 
+    Error = Class.new(StandardError)
+
     module Warnings
       RESERVED_LOST_TEST = :RESERVED_LOST_TEST
     end
