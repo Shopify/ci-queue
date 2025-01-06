@@ -3,5 +3,9 @@ machine:
 
 ci:
   hide:
-    - python-tests
+    - python-tests (3.10)
+    - python-tests (3.11)
+    - python-tests (3.7)
+    - python-tests (3.8)
+    - python-tests (3.9)
     - Dependabot
