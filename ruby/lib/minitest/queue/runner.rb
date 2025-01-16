@@ -261,6 +261,7 @@ module Minitest
             reporter.report
             reporter.write_failure_file(queue_config.failure_file) if queue_config.failure_file
             reporter.write_flaky_tests_file(queue_config.export_flaky_tests_file) if queue_config.export_flaky_tests_file
+            reporter.write_skipped_tests_file(queue_config.export_skipped_tests_file) if queue_config.export_skipped_tests_file
 
             msg = "#{supervisor.size} tests weren't run."
 
@@ -276,6 +277,7 @@ module Minitest
         reporter = BuildStatusReporter.new(build: supervisor.build)
         reporter.write_failure_file(queue_config.failure_file) if queue_config.failure_file
         reporter.write_flaky_tests_file(queue_config.export_flaky_tests_file) if queue_config.export_flaky_tests_file
+        reporter.write_skipped_tests_file(queue_config.export_skipped_tests_file) if queue_config.export_skipped_tests_file
         reporter.report
 
         exit! reporter.success? ? 0 : 1
@@ -549,6 +551,15 @@ module Minitest
           opts.separator ""
           opts.on('--export-flaky-tests-file FILE', help) do |file|
             queue_config.export_flaky_tests_file = file
+          end
+
+          help = <<~EOS
+            Defines a file where skipped tests during the execution are written to in json format.
+            Defaults to disabled.
+          EOS
+          opts.separator ""
+          opts.on('--export-skipped-tests-file FILE', help) do |file|
+            queue_config.export_skipped_tests_file = file
           end
 
           help = <<~EOS

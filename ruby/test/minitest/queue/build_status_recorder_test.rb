@@ -37,6 +37,7 @@ module Minitest::Queue
       assert_equal 1, summary.requeues
       assert_equal 5, summary.error_reports.size
       assert_equal 0, summary.flaky_reports.size
+      assert_equal 2, summary.skipped_reports.size
     end
 
     def test_retrying_test

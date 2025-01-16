@@ -21,6 +21,10 @@ module Minitest
         build.flaky_reports
       end
 
+      def skipped_reports
+        build.skipped_reports
+      end
+
       def requeued_tests
         build.requeued_tests
       end
@@ -88,6 +92,10 @@ module Minitest
 
       def write_flaky_tests_file(file)
         File.write(file, flaky_reports.to_json)
+      end
+
+      def write_skipped_tests_file(file)
+        File.write(file, skipped_reports.to_json)
       end
 
       private

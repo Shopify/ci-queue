@@ -824,6 +824,44 @@ module Integration
       end
     end
 
+    def test_redis_reporter_skipped_tests_file
+      Dir.mktmpdir do |dir|
+        skipped_tests_file = File.join(dir, 'skipped_tests_file.json')
+
+        capture_subprocess_io do
+          system(
+            { 'BUILDKITE' => '1' },
+            @exe, 'run',
+            '--queue', @redis_url,
+            '--seed', 'foobar',
+            '--build', '1',
+            '--worker', '1',
+            '--timeout', '1',
+            '--max-requeues', '1',
+            '--requeue-tolerance', '1',
+            '-Itest',
+            'test/dummy_test.rb',
+            chdir: 'test/fixtures/',
+          )
+        end
+
+        capture_subprocess_io do
+          system(
+            @exe, 'report',
+            '--queue', @redis_url,
+            '--build', '1',
+            '--timeout', '1',
+            '--export-skipped-tests-file', skipped_tests_file,
+            chdir: 'test/fixtures/',
+          )
+        end
+
+        content = File.read(skipped_tests_file)
+        skipped_tests = JSON.parse(content)
+        assert_includes skipped_tests, "ATest#test_foo"
+      end
+    end
+
     def test_redis_reporter
       # HACK: Simulate a timeout
       config = CI::Queue::Configuration.new(build_id: '1', worker_id: '1', timeout: '1')
