@@ -69,13 +69,14 @@ module CI
           nil
         end
 
-        def record_success(id, stats: nil, skip_flaky_record: false)
-          error_reports_deleted_count, requeued_count, _ = redis.pipelined do |pipeline|
+        def record_success(id, stats: nil, skipped: false, requeued: false)
+          previous_error_count, previous_requeue_count = redis.pipelined do |pipeline|
             pipeline.hdel(key('error-reports'), id.dup.force_encoding(Encoding::BINARY))
             pipeline.hget(key('requeues-count'), id.b)
             record_stats(stats, pipeline: pipeline)
           end
-          record_flaky(id) if !skip_flaky_record && (error_reports_deleted_count.to_i > 0 || requeued_count.to_i > 0)
+          record_flaky(id) if !skipped && (previous_error_count.to_i > 0 || previous_requeue_count.to_i > 0)
+          record_skipped(id) if skipped && !requeued
           nil
         end
 
@@ -86,6 +87,17 @@ module CI
               id.b
             )
             pipeline.expire(key('flaky-reports'), config.redis_ttl)
+          end
+          nil
+        end
+
+        def record_skipped(id, stats: nil)
+          redis.pipelined do |pipeline|
+            pipeline.sadd?(
+              key('skipped-reports'),
+              id.b
+            )
+            pipeline.expire(key('skipped-reports'), config.redis_ttl)
           end
           nil
         end
@@ -102,6 +114,10 @@ module CI
 
         def flaky_reports
           redis.smembers(key('flaky-reports'))
+        end
+
+        def skipped_reports
+          redis.smembers(key('skipped-reports'))
         end
 
         def fetch_stats(stat_names)
