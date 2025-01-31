@@ -74,12 +74,27 @@ module Minitest
         fetch_summary['requeues'].to_i
       end
 
+      def successes
+        fetch_summary['successes'].to_i
+      end
+
       def total_time
         fetch_summary['total_time'].to_f
       end
 
       def progress
         build.progress
+      end
+
+      def write_summary_file(total_tests, file)
+        File.write(file, {
+          total_tests: total_tests,
+          successes: successes,
+          failures: failures,
+          errors: errors,
+          skips: skips,
+          requeues: requeues,
+        }.to_json)
       end
 
       def write_failure_file(file)
@@ -96,7 +111,7 @@ module Minitest
 
       def aggregates
         success = failures.zero? && errors.zero?
-        failures_count = "#{failures} failures, #{errors} errors,"
+        failures_count = "#{successes} successes, #{failures} failures, #{errors} errors,"
 
         step([
           'Ran %d tests, %d assertions,' % [progress, assertions],

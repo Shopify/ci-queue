@@ -11,6 +11,7 @@ module Minitest
         skips
         requeues
         total_time
+        successes
       ).freeze
 
       class << self
@@ -18,7 +19,7 @@ module Minitest
       end
       self.failure_formatter = FailureFormatter
 
-      attr_accessor :requeues
+      attr_accessor :requeues, :successes
 
       def initialize(build:, **options)
         super(options)
@@ -28,6 +29,7 @@ module Minitest
         self.errors = 0
         self.skips = 0
         self.requeues = 0
+        self.successes = 0
       end
 
       def report
@@ -52,6 +54,7 @@ module Minitest
         if (test.failure || test.error?) && !test.skipped?
           build.record_error("#{test.klass}##{test.name}", dump(test), stats: stats)
         else
+          self.successes += 1
           build.record_success("#{test.klass}##{test.name}", stats: stats, skip_flaky_record: test.skipped?)
         end
       end
