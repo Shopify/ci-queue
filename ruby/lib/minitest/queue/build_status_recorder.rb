@@ -54,7 +54,6 @@ module Minitest
         if (test.failure || test.error?) && !test.skipped?
           build.record_error("#{test.klass}##{test.name}", dump(test), stats: stats)
         else
-          self.successes += 1
           build.record_success("#{test.klass}##{test.name}", stats: stats, skip_flaky_record: test.skipped?)
         end
       end

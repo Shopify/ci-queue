@@ -21,6 +21,10 @@ module Minitest
         build.flaky_reports
       end
 
+      def executed_tests
+        build.executed_tests
+      end
+
       def requeued_tests
         build.requeued_tests
       end
@@ -94,6 +98,8 @@ module Minitest
           errors: errors,
           skips: skips,
           requeues: requeues,
+          total_executed_tests: executed_tests.size,
+          executed_tests: executed_tests,
         }.to_json)
       end
 

@@ -64,13 +64,17 @@ module CI
               payload.dup.force_encoding(Encoding::BINARY),
             )
             pipeline.expire(key('error-reports'), config.redis_ttl)
+            pipeline.sadd?(key('executed-tests'), id.b)
+            pipeline.expire(key('executed-tests'), config.redis_ttl)
             record_stats(stats, pipeline: pipeline)
           end
           nil
         end
 
         def record_success(id, stats: nil, skip_flaky_record: false)
-          error_reports_deleted_count, requeued_count, _ = redis.pipelined do |pipeline|
+          _, _, error_reports_deleted_count, requeued_count, _ = redis.pipelined do |pipeline|
+            pipeline.sadd?(key('executed-tests'), id.b)
+            pipeline.expire(key('executed-tests'), config.redis_ttl)
             pipeline.hdel(key('error-reports'), id.dup.force_encoding(Encoding::BINARY))
             pipeline.hget(key('requeues-count'), id.b)
             record_stats(stats, pipeline: pipeline)
@@ -102,6 +106,10 @@ module CI
 
         def flaky_reports
           redis.smembers(key('flaky-reports'))
+        end
+
+        def executed_tests
+          redis.smembers(key('executed-tests'))
         end
 
         def fetch_stats(stat_names)
