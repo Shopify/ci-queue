@@ -21,6 +21,10 @@ module Minitest
         build.flaky_reports
       end
 
+      def executed_tests
+        build.executed_tests
+      end
+
       def requeued_tests
         build.requeued_tests
       end
@@ -80,6 +84,18 @@ module Minitest
 
       def progress
         build.progress
+      end
+
+      def write_summary_file(total_tests, file)
+        File.write(file, {
+          total_tests: total_tests,
+          failures: failures,
+          errors: errors,
+          skips: skips,
+          requeues: requeues,
+          total_executed_tests: executed_tests.size,
+          executed_tests: executed_tests,
+        }.to_json)
       end
 
       def write_failure_file(file)

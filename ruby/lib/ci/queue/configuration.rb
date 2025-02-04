@@ -3,7 +3,7 @@ module CI
   module Queue
     class Configuration
       attr_accessor :timeout, :worker_id, :max_requeues, :grind_count, :failure_file, :export_flaky_tests_file
-      attr_accessor :requeue_tolerance, :namespace, :failing_test, :statsd_endpoint
+      attr_accessor :requeue_tolerance, :namespace, :failing_test, :statsd_endpoint, :summary_file
       attr_accessor :max_test_duration, :max_test_duration_percentile, :track_test_duration
       attr_accessor :max_test_failed, :redis_ttl, :warnings_file, :debug_log, :max_missed_heartbeat_seconds
       attr_reader :circuit_breakers
@@ -37,7 +37,8 @@ module CI
         grind_count: nil, max_duration: nil, failure_file: nil, max_test_duration: nil,
         max_test_duration_percentile: 0.5, track_test_duration: false, max_test_failed: nil,
         queue_init_timeout: nil, redis_ttl: 8 * 60 * 60, report_timeout: nil, inactive_workers_timeout: nil,
-        export_flaky_tests_file: nil, warnings_file: nil, debug_log: nil, max_missed_heartbeat_seconds: nil)
+        export_flaky_tests_file: nil, warnings_file: nil, debug_log: nil, max_missed_heartbeat_seconds: nil,
+        summary_file: nil)
         @build_id = build_id
         @circuit_breakers = [CircuitBreaker::Disabled]
         @failure_file = failure_file
@@ -62,6 +63,7 @@ module CI
         @inactive_workers_timeout = inactive_workers_timeout
         @export_flaky_tests_file = export_flaky_tests_file
         @warnings_file = warnings_file
+        @summary_file = summary_file
         @debug_log = debug_log
         @max_missed_heartbeat_seconds = max_missed_heartbeat_seconds
       end
