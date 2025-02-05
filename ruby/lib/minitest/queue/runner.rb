@@ -276,6 +276,7 @@ module Minitest
         reporter = BuildStatusReporter.new(build: supervisor.build)
         reporter.write_failure_file(queue_config.failure_file) if queue_config.failure_file
         reporter.write_flaky_tests_file(queue_config.export_flaky_tests_file) if queue_config.export_flaky_tests_file
+        reporter.write_summary_file(supervisor.total, queue_config.summary_file) if queue_config.summary_file
         reporter.report
 
         exit! reporter.success? ? 0 : 1
@@ -549,6 +550,15 @@ module Minitest
           opts.separator ""
           opts.on('--export-flaky-tests-file FILE', help) do |file|
             queue_config.export_flaky_tests_file = file
+          end
+
+          help = <<~EOS
+            Defines a file where summary of test execution is written.
+            Defaults to disabled.
+          EOS
+          opts.separator ""
+          opts.on('--summary-file FILE', help) do |file|
+            queue_config.summary_file = file
           end
 
           help = <<~EOS
