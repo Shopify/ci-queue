@@ -55,6 +55,22 @@ module CI
               sleep 0.05
             end
           end
+
+          # check we executed all tests
+          # only the master should perform this check because otherwise we will DDoS Redis when all workers
+          # try to fetch the processed tests at the same time
+          if master? && exhausted?
+            executed_tests = (redis.smembers(key('success-reports')) + redis.hkeys(key('error-reports')))
+            executed_tests = executed_tests.map { |id| id.force_encoding(Encoding::BINARY) }
+            ids = @index.keys.map { |id| id.dup.force_encoding(Encoding::BINARY) }
+            missing_tests = ids - executed_tests
+
+            if missing_tests.size > 0
+              puts "ci-queue did not process all tests!"
+              puts missing_tests
+            end
+          end
+
           redis.pipelined do |pipeline|
             pipeline.expire(key('worker', worker_id, 'queue'), config.redis_ttl)
             pipeline.expire(key('processed'), config.redis_ttl)
