@@ -55,6 +55,13 @@ module CI
               sleep 0.05
             end
           end
+
+          # check we executed all tests
+          if exhausted? && (missing_tests = @index.keys - redis.smembers(key('processed'))) && missing_tests.size > 0
+            puts "We have not processed all tests!"
+            puts missing_tests
+          end
+
           redis.pipelined do |pipeline|
             pipeline.expire(key('worker', worker_id, 'queue'), config.redis_ttl)
             pipeline.expire(key('processed'), config.redis_ttl)
