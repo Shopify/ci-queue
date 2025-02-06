@@ -56,38 +56,15 @@ module CI
           redis.rpush(key('warnings'), Marshal.dump([type, attributes]))
         end
 
-        def record_error(id, payload, stats: nil)
-          redis.pipelined do |pipeline|
-            pipeline.hset(
-              key('error-reports'),
-              id.dup.force_encoding(Encoding::BINARY),
-              payload.dup.force_encoding(Encoding::BINARY),
-            )
-            pipeline.expire(key('error-reports'), config.redis_ttl)
-            record_stats(stats, pipeline: pipeline)
-          end
-          nil
-        end
+        def record_stats(stats)
+          return unless stats
 
-        def record_success(id, stats: nil, skip_flaky_record: false)
-          error_reports_deleted_count, requeued_count, _ = redis.pipelined do |pipeline|
-            pipeline.hdel(key('error-reports'), id.dup.force_encoding(Encoding::BINARY))
-            pipeline.hget(key('requeues-count'), id.b)
-            record_stats(stats, pipeline: pipeline)
-          end
-          record_flaky(id) if !skip_flaky_record && (error_reports_deleted_count.to_i > 0 || requeued_count.to_i > 0)
-          nil
-        end
-
-        def record_flaky(id, stats: nil)
           redis.pipelined do |pipeline|
-            pipeline.sadd?(
-              key('flaky-reports'),
-              id.b
-            )
-            pipeline.expire(key('flaky-reports'), config.redis_ttl)
+            stats.each do |stat_name, stat_value|
+              pipeline.hset(key(stat_name), config.worker_id, stat_value)
+              pipeline.expire(key(stat_name), config.redis_ttl)
+            end
           end
-          nil
         end
 
         def max_test_failed?
@@ -126,13 +103,7 @@ module CI
 
         attr_reader :config, :redis
 
-        def record_stats(stats, pipeline: redis)
-          return unless stats
-          stats.each do |stat_name, stat_value|
-            pipeline.hset(key(stat_name), config.worker_id, stat_value)
-            pipeline.expire(key(stat_name), config.redis_ttl)
-          end
-        end
+
 
         def key(*args)
           ['build', config.build_id, *args].join(':')
