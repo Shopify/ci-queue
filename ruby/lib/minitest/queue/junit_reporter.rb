@@ -71,6 +71,7 @@ module Minitest
             'classname' => suite,
             'assertions' => test.assertions,
             'time' => test.time,
+            'timestamp' => test.start_timestamp,
             'flaky_test' => test.flaked?,
             'run-command' => Minitest.run_command_for_runnable(test),
           }
