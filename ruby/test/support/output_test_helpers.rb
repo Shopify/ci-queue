@@ -29,7 +29,7 @@ module OutputTestHelpers
   end
 
   def freeze_xml_timing(output)
-    output.gsub(/time="[\d\-\.e]+"/, 'time="X.XX"')
+    output.gsub(/time="[\d\-\.e]+"/, 'time="X.XX"').gsub(/timestamp="[\d\-\.e]+"/, 'timestamp="X.XX"')
   end
 
   def normalize(output)

@@ -673,13 +673,13 @@ module Integration
         <?xml version="1.1" encoding="UTF-8"?>
         <testsuites>
           <testsuite name="ATest" filepath="test/dummy_test.rb" skipped="5" failures="1" errors="0" tests="6" assertions="5" time="X.XX">
-            <testcase name="test_foo" classname="ATest" assertions="0" time="X.XX" flaky_test="false" run-command=\"bundle exec ruby -Ilib:test test/dummy_test.rb -n ATest\\#test_foo\" lineno="5">
+            <testcase name="test_foo" classname="ATest" assertions="0" time="X.XX" timestamp="X.XX" flaky_test="false" run-command=\"bundle exec ruby -Ilib:test test/dummy_test.rb -n ATest\\#test_foo\" lineno="5">
               <skipped type="Minitest::Skip"/>
             </testcase>
-            <testcase name="test_bar" classname="ATest" assertions="1" time="X.XX" flaky_test="false" run-command=\"bundle exec ruby -Ilib:test test/dummy_test.rb -n ATest\\#test_bar\" lineno="5">
+            <testcase name="test_bar" classname="ATest" assertions="1" time="X.XX" timestamp="X.XX" flaky_test="false" run-command=\"bundle exec ruby -Ilib:test test/dummy_test.rb -n ATest\\#test_bar\" lineno="5">
               <skipped type="Minitest::Assertion"/>
             </testcase>
-            <testcase name="test_flaky" classname="ATest" assertions="1" time="X.XX" flaky_test="true" run-command=\"bundle exec ruby -Ilib:test test/dummy_test.rb -n ATest\\#test_flaky\" lineno="5">
+            <testcase name="test_flaky" classname="ATest" assertions="1" time="X.XX" timestamp="X.XX" flaky_test="true" run-command=\"bundle exec ruby -Ilib:test test/dummy_test.rb -n ATest\\#test_flaky\" lineno="5">
               <failure type="Minitest::Assertion" message="Expected false to be truthy.">
                 <![CDATA[
         Skipped:
@@ -688,8 +688,8 @@ module Integration
         ]]>
               </failure>
             </testcase>
-            <testcase name="test_flaky_passes" classname="ATest" assertions="1" time="X.XX" flaky_test="true" run-command="bundle exec ruby -Ilib:test test/dummy_test.rb -n ATest\\#test_flaky_passes" lineno="5"/>
-            <testcase name="test_flaky_fails_retry" classname="ATest" assertions="1" time="X.XX" flaky_test="true" run-command="bundle exec ruby -Ilib:test test/dummy_test.rb -n ATest\\#test_flaky_fails_retry" lineno="5">
+            <testcase name="test_flaky_passes" classname="ATest" assertions="1" time="X.XX" timestamp="X.XX" flaky_test="true" run-command="bundle exec ruby -Ilib:test test/dummy_test.rb -n ATest\\#test_flaky_passes" lineno="5"/>
+            <testcase name="test_flaky_fails_retry" classname="ATest" assertions="1" time="X.XX" timestamp="X.XX" flaky_test="true" run-command="bundle exec ruby -Ilib:test test/dummy_test.rb -n ATest\\#test_flaky_fails_retry" lineno="5">
               <failure type="Minitest::Assertion" message="Expected false to be truthy.">
                 <![CDATA[
         Skipped:
@@ -698,7 +698,7 @@ module Integration
         ]]>
               </failure>
             </testcase>
-            <testcase name="test_bar" classname="ATest" assertions="1" time="X.XX" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/dummy_test.rb -n ATest\\#test_bar" lineno="5">
+            <testcase name="test_bar" classname="ATest" assertions="1" time="X.XX" timestamp="X.XX" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/dummy_test.rb -n ATest\\#test_bar" lineno="5">
               <failure type="Minitest::Assertion" message="Expected false to be truthy.">
                 <![CDATA[
         Failure:
@@ -709,11 +709,11 @@ module Integration
             </testcase>
           </testsuite>
           <testsuite name="BTest" filepath="test/dummy_test.rb" skipped="1" failures="0" errors="1" tests="3" assertions="1" time="X.XX">
-            <testcase name="test_bar" classname="BTest" assertions="0" time="X.XX" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/dummy_test.rb -n BTest\\#test_bar" lineno="36">
+            <testcase name="test_bar" classname="BTest" assertions="0" time="X.XX" timestamp="X.XX" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/dummy_test.rb -n BTest\\#test_bar" lineno="36">
               <skipped type="TypeError"/>
             </testcase>
-            <testcase name="test_foo" classname="BTest" assertions="1" time="X.XX" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/dummy_test.rb -n BTest\\#test_foo" lineno="36"/>
-            <testcase name="test_bar" classname="BTest" assertions="0" time="X.XX" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/dummy_test.rb -n BTest\\#test_bar" lineno="36">
+            <testcase name="test_foo" classname="BTest" assertions="1" time="X.XX" timestamp="X.XX" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/dummy_test.rb -n BTest\\#test_foo" lineno="36"/>
+            <testcase name="test_bar" classname="BTest" assertions="0" time="X.XX" timestamp="X.XX" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/dummy_test.rb -n BTest\\#test_bar" lineno="36">
               <error type="TypeError" message="TypeError: String can&apos;t be coerced into Integer">
                 <![CDATA[
         Failure:
