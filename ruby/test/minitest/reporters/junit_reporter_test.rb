@@ -75,7 +75,13 @@ module Minitest::Reporters
         <testsuites>
           <testsuite name="Minitest::Test" filepath="test/my_test.rb" skipped="1" failures="0" errors="0" tests="1" assertions="1" time="0.12">
             <testcase name="test_foo" classname="Minitest::Test" assertions="1" time="0.12" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/my_test.rb -n Minitest::Test\\#test_foo" lineno="12">
-              <skipped type="Minitest::Skip"/>
+              <skipped type="Minitest::Skip" message="Minitest::Skip">
+                <![CDATA[
+        Skipped:
+        test_foo(Minitest::Test) [test/my_test.rb]:
+        Minitest::Skip
+        ]]>
+              </skipped>
             </testcase>
           </testsuite>
         </testsuites>
@@ -140,7 +146,13 @@ module Minitest::Reporters
         <testsuites>
           <testsuite name="Minitest::Test" filepath="test/my_test.rb" skipped="1" failures="0" errors="0" tests="1" assertions="1" time="0.12">
             <testcase name="test_foo" classname="Minitest::Test" assertions="1" time="0.12" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/my_test.rb -n Minitest::Test\\#test_foo" lineno="12">
-              <skipped type="Minitest::Assertion"/>
+              <skipped type="Minitest::Assertion" message="Failed">
+                <![CDATA[
+        Skipped:
+        test_foo(Minitest::Test) [test/my_test.rb]:
+        Failed
+        ]]>
+              </skipped>
             </testcase>
           </testsuite>
         </testsuites>
