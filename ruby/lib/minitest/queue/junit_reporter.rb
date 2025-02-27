@@ -87,7 +87,8 @@ module Minitest
       def add_xml_message_for(testcase, test)
         failure = test.failure
         if test.skipped? && !test.flaked?
-          testcase.add_element('skipped', 'type' => failure.error.class.name)
+          skip = testcase.add_element('skipped', 'type' => failure.error.class.name, 'message' => truncate_message(failure.message))
+          skip.add_text(REXML::CData.new(message_for(test)))
         elsif test.error?
           error = testcase.add_element('error', 'type' => failure.error.class.name, 'message' => truncate_message(failure.message))
           error.add_text(REXML::CData.new(message_for(test)))

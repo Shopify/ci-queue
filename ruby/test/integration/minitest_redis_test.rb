@@ -674,10 +674,22 @@ module Integration
         <testsuites>
           <testsuite name="ATest" filepath="test/dummy_test.rb" skipped="5" failures="1" errors="0" tests="6" assertions="5" time="X.XX">
             <testcase name="test_foo" classname="ATest" assertions="0" time="X.XX" timestamp="X.XX" flaky_test="false" run-command=\"bundle exec ruby -Ilib:test test/dummy_test.rb -n ATest\\#test_foo\" lineno="5">
-              <skipped type="Minitest::Skip"/>
+              <skipped type="Minitest::Skip" message="Skipped, no message given">
+                <![CDATA[
+        Skipped:
+        test_foo(ATest) [test/dummy_test.rb]:
+        Skipped, no message given
+        ]]>
+              </skipped>
             </testcase>
             <testcase name="test_bar" classname="ATest" assertions="1" time="X.XX" timestamp="X.XX" flaky_test="false" run-command=\"bundle exec ruby -Ilib:test test/dummy_test.rb -n ATest\\#test_bar\" lineno="5">
-              <skipped type="Minitest::Assertion"/>
+              <skipped type="Minitest::Assertion" message="Expected false to be truthy.">
+                <![CDATA[
+        Skipped:
+        test_bar(ATest) [test/dummy_test.rb]:
+        Expected false to be truthy.
+        ]]>
+              </skipped>
             </testcase>
             <testcase name="test_flaky" classname="ATest" assertions="1" time="X.XX" timestamp="X.XX" flaky_test="true" run-command=\"bundle exec ruby -Ilib:test test/dummy_test.rb -n ATest\\#test_flaky\" lineno="5">
               <failure type="Minitest::Assertion" message="Expected false to be truthy.">
@@ -710,7 +722,15 @@ module Integration
           </testsuite>
           <testsuite name="BTest" filepath="test/dummy_test.rb" skipped="1" failures="0" errors="1" tests="3" assertions="1" time="X.XX">
             <testcase name="test_bar" classname="BTest" assertions="0" time="X.XX" timestamp="X.XX" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/dummy_test.rb -n BTest\\#test_bar" lineno="36">
-              <skipped type="TypeError"/>
+              <skipped type="TypeError" message="TypeError: String can&apos;t be coerced into Integer">
+                <![CDATA[
+        Skipped:
+        test_bar(BTest) [test/dummy_test.rb]:
+        TypeError: String can't be coerced into Integer
+            test/dummy_test.rb:37:in `+'
+            test/dummy_test.rb:37:in `test_bar'
+        ]]>
+              </skipped>
             </testcase>
             <testcase name="test_foo" classname="BTest" assertions="1" time="X.XX" timestamp="X.XX" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/dummy_test.rb -n BTest\\#test_foo" lineno="36"/>
             <testcase name="test_bar" classname="BTest" assertions="0" time="X.XX" timestamp="X.XX" flaky_test="false" run-command="bundle exec ruby -Ilib:test test/dummy_test.rb -n BTest\\#test_bar" lineno="36">
