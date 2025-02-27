@@ -57,7 +57,12 @@ module CI
         File
       when 'redis', 'rediss'
         require 'ci/queue/redis'
-        Redis
+        if config.multi_queue_config
+          require 'ci/queue/multi_queue'
+          MultiQueue
+        else
+          Redis
+        end
       else
         raise ArgumentError, "Don't know how to handle #{uri.scheme} URLs"
       end
