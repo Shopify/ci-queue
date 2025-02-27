@@ -251,7 +251,7 @@ module Minitest
         if failed && CI::Queue.requeueable?(result) && queue.requeue(example)
           result.requeue!
           reporter.record(result)
-        elsif queue.acknowledge(example)
+        elsif queue.acknowledge(example, result)
           reporter.record(result)
           queue.increment_test_failed if failed
         elsif !failed
