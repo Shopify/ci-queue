@@ -66,6 +66,7 @@ module CI
             pipeline.expire(key('error-reports'), config.redis_ttl)
             record_stats(stats, pipeline: pipeline)
           end
+          record_executed_tests(id)
           nil
         end
 
@@ -75,7 +76,17 @@ module CI
             pipeline.hget(key('requeues-count'), id.b)
             record_stats(stats, pipeline: pipeline)
           end
+          record_executed_tests(id)
           record_flaky(id) if !skip_flaky_record && (error_reports_deleted_count.to_i > 0 || requeued_count.to_i > 0)
+          nil
+        end
+
+        def record_executed_tests(id)
+          return unless ENV['LOG_EXECUTED_TESTS']
+          redis.pipelined do |pipeline|
+            pipeline.sadd?(key('executed-tests'), id.b)
+            pipeline.expire(key('executed-tests'), config.redis_ttl)
+          end
           nil
         end
 
@@ -102,6 +113,10 @@ module CI
 
         def flaky_reports
           redis.smembers(key('flaky-reports'))
+        end
+
+        def executed_tests
+          redis.smembers(key('executed-tests'))
         end
 
         def fetch_stats(stat_names)
