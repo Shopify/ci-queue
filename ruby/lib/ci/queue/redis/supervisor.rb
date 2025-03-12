@@ -39,7 +39,9 @@ module CI
             yield if block_given?
           end
 
-          puts "Aborting, it seems all workers died." if time_left_with_no_workers <= 0
+          puts "Aborting, timed out." if time_left <= 0 && !exhausted?
+          puts "Aborting, it seems all workers died." if time_left_with_no_workers <= 0 && !exhausted?
+
           exhausted?
         rescue CI::Queue::Redis::LostMaster
           false
