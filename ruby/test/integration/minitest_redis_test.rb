@@ -237,9 +237,35 @@ module Integration
       assert_equal expected.strip, normalize(out.lines[0..2].join.strip)
       expected = <<~EXPECTED
         Encountered too many failed tests. Test run was ended early.
+      EXPECTED
+      assert_equal expected.strip, normalize(out.lines[3].strip)
+      expected = <<~EXPECTED
         97 tests weren't run.
       EXPECTED
-      assert_equal expected.strip, normalize(out.lines.last(2).join.strip)
+      assert_equal expected.strip, normalize(out.lines.last.strip)
+    end
+
+    def test_all_workers_died
+      # Run the reporter
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'report',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--timeout', '1',
+          '--max-test-failed', '3',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      refute_predicate $?, :success?
+      assert_empty err
+      expected = <<~EXPECTED
+        Waiting for workers to complete
+        No master was elected. Did all workers crash?
+      EXPECTED
+      assert_equal expected.strip, normalize(out.lines[0..2].join.strip)
     end
 
     def test_circuit_breaker

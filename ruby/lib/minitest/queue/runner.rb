@@ -257,23 +257,16 @@ module Minitest
           end
 
           unless supervisor.exhausted?
-            reporter = BuildStatusReporter.new(build: supervisor.build)
+            reporter = BuildStatusReporter.new(supervisor: supervisor)
             reporter.report
             reporter.write_failure_file(queue_config.failure_file) if queue_config.failure_file
             reporter.write_flaky_tests_file(queue_config.export_flaky_tests_file) if queue_config.export_flaky_tests_file
 
-            msg = "#{supervisor.size} tests weren't run."
-
-            if supervisor.max_test_failed?
-              puts('Encountered too many failed tests. Test run was ended early.')
-              abort!(msg)
-            else
-              abort!(msg)
-            end
+            abort!("#{supervisor.size} tests weren't run.")
           end
         end
 
-        reporter = BuildStatusReporter.new(build: supervisor.build)
+        reporter = BuildStatusReporter.new(supervisor: supervisor)
         reporter.write_failure_file(queue_config.failure_file) if queue_config.failure_file
         reporter.write_flaky_tests_file(queue_config.export_flaky_tests_file) if queue_config.export_flaky_tests_file
         reporter.report
