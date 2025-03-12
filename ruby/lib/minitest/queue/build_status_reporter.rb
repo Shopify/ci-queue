@@ -4,8 +4,9 @@ module Minitest
     class BuildStatusReporter < Minitest::Reporters::BaseReporter
       include ::CI::Queue::OutputHelpers
 
-      def initialize(build:, **options)
-        @build = build
+      def initialize(supervisor:, **options)
+        @supervisor = supervisor
+        @build = supervisor.build
         super(options)
       end
 
@@ -27,6 +28,23 @@ module Minitest
 
       def report
         puts aggregates
+
+        if supervisor.time_left.to_i <= 0
+          puts "Timed out waiting for tests to be executed."
+
+          remaining_tests = supervisor.test_ids
+          remaining_tests.first(10).each do |id|
+            puts "  #{id}"
+          end
+
+          if remaining_tests.size > 10
+            puts "  ..."
+          end
+        end
+
+        puts "All workers died." if supervisor.time_left_with_no_workers.to_i <= 0
+        puts 'Encountered too many failed tests. Test run was ended early.' if supervisor.max_test_failed?
+
         errors = error_reports
         puts errors
 
@@ -92,7 +110,7 @@ module Minitest
 
       private
 
-      attr_reader :build
+      attr_reader :build, :supervisor
 
       def aggregates
         success = failures.zero? && errors.zero?

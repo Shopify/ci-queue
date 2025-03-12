@@ -24,40 +24,27 @@ module CI
 
           yield if block_given?
 
-          time_left = config.report_timeout - duration.to_i
-          time_left_with_no_workers = config.inactive_workers_timeout
-          until exhausted? || time_left <= 0 || max_test_failed? || time_left_with_no_workers <= 0
-            time_left -= 1
+          @time_left = config.report_timeout - duration.to_i
+          @time_left_with_no_workers = config.inactive_workers_timeout
+          until exhausted? || @time_left <= 0 || max_test_failed? || @time_left_with_no_workers <= 0
+            @time_left -= 1
             sleep 1
 
             if active_workers?
-              time_left_with_no_workers = config.inactive_workers_timeout
+              @time_left_with_no_workers = config.inactive_workers_timeout
             else
-              time_left_with_no_workers -= 1
+              @time_left_with_no_workers -= 1
             end
 
             yield if block_given?
           end
 
-          if time_left <= 0 && !exhausted?
-            puts "Aborting, timed out."
-
-            remaining_tests = test_ids
-            remaining_tests.first(10).each do |id|
-              puts "  #{id}"
-            end
-
-            if remaining_tests.size > 10
-              puts "  ..."
-            end
-          end
-
-          puts "Aborting, it seems all workers died." if time_left_with_no_workers <= 0 && !exhausted?
-
           exhausted?
         rescue CI::Queue::Redis::LostMaster
           false
         end
+
+        attr_reader :time_left, :time_left_with_no_workers
 
         private
 
