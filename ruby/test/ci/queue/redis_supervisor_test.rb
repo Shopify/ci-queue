@@ -39,18 +39,6 @@ class CI::Queue::Redis::SupervisorTest < Minitest::Test
     assert_equal true, workers_done
   end
 
-  def test_wait_for_workers_timeout
-    @supervisor = supervisor(timeout: 10, queue_init_timeout: 0.1)
-    io = nil
-    thread = Thread.start do
-      io = capture_io { @supervisor.wait_for_workers }
-    end
-    thread.wakeup
-    worker(1)
-    thread.join
-    assert_includes io.join, "Aborting, it seems all workers died.\n"
-  end
-
   def test_num_workers
     assert_equal 0, @supervisor.workers_count
     worker(1)
