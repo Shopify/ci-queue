@@ -39,7 +39,19 @@ module CI
             yield if block_given?
           end
 
-          puts "Aborting, timed out." if time_left <= 0 && !exhausted?
+          if time_left <= 0 && !exhausted?
+            puts "Aborting, timed out."
+
+            remaining_tests = test_ids
+            remaining_tests.first(10).each do |id|
+              puts "  #{id}"
+            end
+
+            if remaining_tests.size > 10
+              puts "  ..."
+            end
+          end
+
           puts "Aborting, it seems all workers died." if time_left_with_no_workers <= 0 && !exhausted?
 
           exhausted?

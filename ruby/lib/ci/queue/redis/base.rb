@@ -133,11 +133,15 @@ module CI
           redis.zcard(key('running'))
         end
 
-        def to_a
+        def test_ids
           redis.multi do |transaction|
             transaction.lrange(key('queue'), 0, -1)
             transaction.zrange(key('running'), 0, -1)
-          end.flatten.reverse.map { |k| index.fetch(k) }
+          end.flatten
+        end
+
+        def to_a
+          test_ids.reverse.map { |k| index.fetch(k) }
         end
 
         def progress
