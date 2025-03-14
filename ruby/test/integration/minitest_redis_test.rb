@@ -232,13 +232,17 @@ module Integration
       assert_empty err
       expected = <<~EXPECTED
         Waiting for workers to complete
+        Requeued 44 tests
+      EXPECTED
+      assert_equal expected.strip, normalize(out.lines[0..1].join.strip)
+      expected = <<~EXPECTED
         Ran 3 tests, 47 assertions, 3 failures, 0 errors, 0 skips, 44 requeues in X.XXs (aggregated)
       EXPECTED
-      assert_equal expected.strip, normalize(out.lines[0..2].join.strip)
+      assert_equal expected.strip, normalize(out.lines[134].strip)
       expected = <<~EXPECTED
         Encountered too many failed tests. Test run was ended early.
       EXPECTED
-      assert_equal expected.strip, normalize(out.lines[3].strip)
+      assert_equal expected.strip, normalize(out.lines[136].strip)
       expected = <<~EXPECTED
         97 tests weren't run.
       EXPECTED
@@ -916,23 +920,10 @@ module Integration
 
         assert_empty err
         output = normalize(out)
+
         expected_output = <<~END
           Waiting for workers to complete
-          Ran 7 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs (aggregated)
-
-          FAIL ATest#test_bar
-          Expected false to be truthy.
-              test/dummy_test.rb:10:in `test_bar'
-
-          FAIL ATest#test_flaky_fails_retry
-          Expected false to be truthy.
-              test/dummy_test.rb:23:in `test_flaky_fails_retry'
-
-          ERROR BTest#test_bar
-        END
-        assert_includes output, expected_output
-
-        expected_output = <<~END
+          Requeued 4 tests
           REQUEUE
           ATest#test_bar (requeued 1 times)
 
@@ -944,6 +935,19 @@ module Integration
 
           REQUEUE
           BTest#test_bar (requeued 1 times)
+
+          Ran 7 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs (aggregated)
+
+
+          FAIL ATest#test_bar
+          Expected false to be truthy.
+              test/dummy_test.rb:10:in `test_bar'
+
+          FAIL ATest#test_flaky_fails_retry
+          Expected false to be truthy.
+              test/dummy_test.rb:23:in `test_flaky_fails_retry'
+
+          ERROR BTest#test_bar
         END
         assert_includes output, expected_output
       end
