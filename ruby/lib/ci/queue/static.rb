@@ -103,7 +103,7 @@ module CI
         @queue.empty?
       end
 
-      def acknowledge(test)
+      def acknowledge(test, result)
         @progress += 1
         true
       end

@@ -49,11 +49,7 @@ module Minitest
         end
 
         stats = COUNTERS.zip(COUNTERS.map { |c| send(c) }).to_h
-        if (test.failure || test.error?) && !test.skipped?
-          build.record_error("#{test.klass}##{test.name}", dump(test), stats: stats)
-        else
-          build.record_success("#{test.klass}##{test.name}", stats: stats, skip_flaky_record: test.skipped?)
-        end
+        build.record_stats(stats)
       end
 
       private
