@@ -27,10 +27,19 @@ module Minitest
       end
 
       def report
+        if requeued_tests.to_a.any?
+          step("Requeued #{requeued_tests.size} tests")
+          requeued_tests.to_a.sort.each do |test_id, count|
+            puts yellow("REQUEUE")
+            puts "#{test_id} (requeued #{count} times)"
+            puts ""
+          end
+        end
+
         puts aggregates
 
         if supervisor.time_left.to_i <= 0
-          puts "Timed out waiting for tests to be executed."
+          puts red("Timed out waiting for tests to be executed.")
 
           remaining_tests = supervisor.test_ids
           remaining_tests.first(10).each do |id|
@@ -40,19 +49,16 @@ module Minitest
           if remaining_tests.size > 10
             puts "  ..."
           end
+        elsif supervisor.time_left_with_no_workers.to_i <= 0
+          puts red("All workers died.")
+        elsif supervisor.max_test_failed?
+          puts red("Encountered too many failed tests. Test run was ended early.")
         end
 
-        puts "All workers died." if supervisor.time_left_with_no_workers.to_i <= 0
-        puts 'Encountered too many failed tests. Test run was ended early.' if supervisor.max_test_failed?
+        puts
 
         errors = error_reports
         puts errors
-
-        requeued_tests.to_a.sort.each do |test_id, count|
-          puts yellow("REQUEUE")
-          puts "#{test_id} (requeued #{count} times)"
-          puts ""
-        end
 
         build.worker_errors.to_a.sort.each do |worker_id, error|
           puts red("Worker #{worker_id } crashed")
@@ -60,7 +66,7 @@ module Minitest
           puts ""
         end
 
-        errors.empty?
+        success?
       end
 
       def success?
@@ -101,11 +107,11 @@ module Minitest
       end
 
       def write_failure_file(file)
-        File.write(file, error_reports.map(&:to_h).to_json)
+        JSON.dump(error_reports.map(&:to_h), File.open(file, 'w'))
       end
 
       def write_flaky_tests_file(file)
-        File.write(file, flaky_reports.to_json)
+        JSON.dump(flaky_reports, File.open(file, 'w'))
       end
 
       private
