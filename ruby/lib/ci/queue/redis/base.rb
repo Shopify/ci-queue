@@ -102,7 +102,11 @@ module CI
         end
 
         def exhausted?
-          queue_initialized? && size == 0
+          exhausted = queue_initialized? && size == 0
+          if redis.zcard(key('running')) < 15
+            to_a
+          end
+          exhausted
         end
 
         def expired?
