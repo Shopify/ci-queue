@@ -816,6 +816,14 @@ module Integration
                       .sort_by { |failure_report| failure_report[:test_line] }
                       .first
 
+        xml_file = File.join(File.dirname(failure_file), "#{File.basename(failure_file, File.extname(failure_file))}.xml")
+        xml_content = File.read(xml_file)
+        xml = REXML::Document.new(xml_content)
+        testcase = xml.elements['testsuites/testsuite/testcase[@name="test_bar"]']
+        assert_equal "ATest", testcase.attributes['classname']
+        assert_equal "test_bar", testcase.attributes['name']
+        assert_equal "test/dummy_test.rb", testcase.parent.attributes['filepath']
+        assert_equal "ATest", testcase.parent.attributes['name']
 
         ## output and test_file
         expected = {
