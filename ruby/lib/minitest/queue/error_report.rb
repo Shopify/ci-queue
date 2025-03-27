@@ -54,6 +54,10 @@ module Minitest
         @data[:test_name]
       end
 
+      def error_class
+        @data[:error_class]
+      end
+
       def test_and_module_name
         @data[:test_and_module_name]
       end
