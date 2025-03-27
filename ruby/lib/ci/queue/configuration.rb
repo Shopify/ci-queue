@@ -25,7 +25,14 @@ module CI
 
         def load_flaky_tests(path)
           return [] unless path
-          ::File.readlines(path).map(&:chomp).to_set
+          if ::File.extname(path) == ".xml"
+            require 'rexml/document'
+            REXML::Document.new(::File.read(path)).elements.to_a("//testcase").map do |element|
+              "#{element.attributes['classname']}##{element.attributes['name']}"
+            end.to_set
+          else
+            ::File.readlines(path).map(&:chomp).to_set
+          end
         rescue SystemCallError
           []
         end
