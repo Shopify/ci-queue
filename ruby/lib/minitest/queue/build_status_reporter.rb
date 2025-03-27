@@ -107,11 +107,15 @@ module Minitest
       end
 
       def write_failure_file(file)
-        JSON.dump(error_reports.map(&:to_h), File.open(file, 'w'))
+        File.open(file, 'w') do |f|
+          JSON.dump(error_reports.map(&:to_h), f)
+        end
       end
 
       def write_flaky_tests_file(file)
-        JSON.dump(flaky_reports, File.open(file, 'w'))
+        File.open(file, 'w') do |f|
+          JSON.dump(flaky_reports, f)
+        end
       end
 
       private
