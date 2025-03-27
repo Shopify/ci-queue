@@ -90,6 +90,21 @@ module CI::Queue
 
       flaky_tests = Configuration.load_flaky_tests('/tmp/does-not-exist')
       assert_empty flaky_tests
+
+      Tempfile.open(['flaky_test_file', '.junit.xml']) do |file|
+        file.write(<<~XML)
+          <testsuite name="ATest">
+            <testcase name="test_foo" classname="ATest" />
+            <testcase name="test_bar" classname="ATest" />
+          </testsuite>
+        XML
+        file.close
+
+        flaky_tests = Configuration.load_flaky_tests(file.path)
+        assert_equal 2, flaky_tests.size
+        assert_includes flaky_tests, "ATest#test_foo"
+        assert_includes flaky_tests, "ATest#test_bar"
+      end
     end
 
     def test_queue_init_timeout_unset

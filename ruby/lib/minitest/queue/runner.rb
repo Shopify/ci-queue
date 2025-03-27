@@ -323,7 +323,9 @@ module Minitest
         warnings = build.pop_warnings.map do |type, attributes|
           attributes.merge(type: type)
         end.compact
-        File.write(queue_config.warnings_file, warnings.to_json)
+        File.open(queue_config.warnings_file, 'w') do |f|
+          JSON.dump(warnings, f)
+        end
       end
 
       def run_tests_in_fork(queue)
