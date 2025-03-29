@@ -11,6 +11,157 @@ module CI
       self.requeue_offset = 42
 
       class Worker < Base
+        class ErrorReport
+          class << self
+            attr_accessor :coder
+
+            def load(payload)
+              new(coder.load(payload))
+            end
+          end
+
+          self.coder = Marshal
+
+          begin
+            require 'snappy'
+            require 'msgpack'
+            require 'stringio'
+
+            module SnappyPack
+              extend self
+
+              MSGPACK = MessagePack::Factory.new
+              MSGPACK.register_type(0x00, Symbol)
+
+              def load(payload)
+                io = StringIO.new(Snappy.inflate(payload))
+                MSGPACK.unpacker(io).unpack
+              end
+
+              def dump(object)
+                io = StringIO.new
+                packer = MSGPACK.packer(io)
+                packer.pack(object)
+                packer.flush
+                io.rewind
+                Snappy.deflate(io.string).force_encoding(Encoding::UTF_8)
+              end
+            end
+
+            self.coder = SnappyPack
+          rescue LoadError
+          end
+
+          def initialize(data)
+            @data = data
+          end
+
+          def dump
+            self.class.coder.dump(@data)
+          end
+
+          def test_name
+            @data[:test_name]
+          end
+
+          def test_and_module_name
+            @data[:test_and_module_name]
+          end
+
+          def test_suite
+            @data[:test_suite]
+          end
+
+          def test_file
+            @data[:test_file]
+          end
+
+          def test_line
+            @data[:test_line]
+          end
+
+          def to_h
+            @data
+          end
+
+          def to_s
+            output
+          end
+
+          def output
+            @data[:output]
+          end
+        end
+
+        class FailureFormatter < SimpleDelegator
+          include ::CI::Queue::OutputHelpers
+
+          def initialize(test)
+            @test = test
+            super
+          end
+
+          def to_s
+            [
+              header,
+              body,
+              "\n"
+            ].flatten.compact.join("\n")
+          end
+
+          def to_h
+            test_file, test_line = test.source_location
+            {
+              test_file: test_file,
+              test_line: test_line,
+              test_and_module_name: "#{test.klass}##{test.name}",
+              test_name: test.name,
+              test_suite: test.klass,
+              error_class: test.failure.error.class.name,
+              output: to_s,
+            }
+          end
+
+          private
+
+          attr_reader :test
+
+          def header
+            "#{red(status)} #{test.klass}##{test.name}"
+          end
+
+          def status
+            if test.error?
+              'ERROR'
+            elsif test.failure
+              'FAIL'
+            else
+              raise ArgumentError, "Couldn't infer test status"
+            end
+          end
+
+          def body
+            error = test.failure
+            message = if error.is_a?(Minitest::UnexpectedError)
+              "#{error.exception.class}: #{error.exception.message}"
+            else
+              error.exception.message
+            end
+
+            backtrace = Minitest.filter_backtrace(error.backtrace).map { |line| '    ' + relativize(line) }
+            [yellow(message), *backtrace].join("\n")
+          end
+
+          def relativize(trace_line)
+            trace_line.sub(/\A#{Regexp.escape("#{Dir.pwd}/")}/, '')
+          end
+        end
+
+        class << self
+          attr_accessor :failure_formatter
+        end
+        self.failure_formatter = FailureFormatter
+
         attr_reader :total
 
         def initialize(redis, config)
@@ -97,13 +248,20 @@ module CI
           build.report_worker_error(error)
         end
 
-        def acknowledge(test)
-          test_key = test.id
+        def acknowledge(example, result)
+          error_report = if (result.failure || result.error?) && !result.skipped?
+                           ErrorReport.new(self.class.failure_formatter.new(result).to_h).dump
+                         end
+
+
+          test_key = example.id
           raise_on_mismatching_test(test_key)
+
           eval_script(
             :acknowledge,
-            keys: [key('running'), key('processed'), key('owners')],
-            argv: [test_key],
+            keys: [key('running'), key('processed'), key('owners'), key('error-reports'), key('requeues-count'),
+                   key('flaky-reports')],
+            argv: [test_key, error_report.to_s, config.redis_ttl, result.skipped?.to_s]
           ) == 1
         end
 
