@@ -151,15 +151,16 @@ module CI
         def wait_for_master(timeout: 30)
           puts "----- Start wait_for_master"
           return true if master?
-          puts "----- master? true"
+          puts "----- master? false"
           return true if queue_initialized?
-          puts "----- queue_initialized? true"
+          puts "----- queue_initialized? false"
 
           (timeout * 10 + 1).to_i.times do
             if queue_initialized?
               puts "----- queue_initialized 1? true"
               return true
             else
+              puts "----- Sleeping for 0.1 seconds"
               sleep 0.1
             end
           end
