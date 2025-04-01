@@ -157,7 +157,7 @@ module CI
 
           (timeout * 10 + 1).to_i.times do
             if queue_initialized?
-              puts "----- queue_initialized? true"
+              puts "----- queue_initialized 1? true"
               return true
             else
               sleep 0.1

@@ -41,8 +41,8 @@ module CI
           end
 
           exhausted?
-        rescue CI::Queue::Redis::LostMaster
-          puts "----- LostMaster"
+        rescue CI::Queue::Redis::LostMaster => e
+          puts "----- LostMaster: #{e.message}"
           false
         end
 
