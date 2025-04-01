@@ -18,6 +18,7 @@ module CI
         end
 
         def wait_for_workers
+          puts "----- Start wait_for_workers"
           duration = measure do
             wait_for_master(timeout: config.queue_init_timeout)
           end
@@ -41,6 +42,7 @@ module CI
 
           exhausted?
         rescue CI::Queue::Redis::LostMaster
+          puts "----- LostMaster"
           false
         end
 
