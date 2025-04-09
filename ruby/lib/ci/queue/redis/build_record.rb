@@ -56,20 +56,29 @@ module CI
           redis.rpush(key('warnings'), Marshal.dump([type, attributes]))
         end
 
+        Test = Struct.new(:id) # Hack
+
         def record_error(id, payload, stats: nil)
-          redis.pipelined do |pipeline|
-            pipeline.hset(
-              key('error-reports'),
-              id.dup.force_encoding(Encoding::BINARY),
-              payload.dup.force_encoding(Encoding::BINARY),
-            )
-            pipeline.expire(key('error-reports'), config.redis_ttl)
-            record_stats(stats, pipeline: pipeline)
+          # FIXME: the ack and hset should be atomic
+          # otherwise the reporter may see the empty queue before the error
+          # is appended and wrongly think it's a success.
+          if @queue.acknowledge(Test.new(id))
+            redis.pipelined do |pipeline|
+              pipeline.hset(
+                key('error-reports'),
+                id.dup.force_encoding(Encoding::BINARY),
+                payload.dup.force_encoding(Encoding::BINARY),
+              )
+              pipeline.expire(key('error-reports'), config.redis_ttl)
+              record_stats(stats, pipeline: pipeline)
+              @queue.increment_test_failed
+            end
           end
           nil
         end
 
-        def record_success(id, stats: nil, skip_flaky_record: false)
+        def record_success(id, stats: nil, skip_flaky_record: false, acknowledge: true)
+          @queue.acknowledge(Test.new(id)) if acknowledge
           error_reports_deleted_count, requeued_count, _ = redis.pipelined do |pipeline|
             pipeline.hdel(key('error-reports'), id.dup.force_encoding(Encoding::BINARY))
             pipeline.hget(key('requeues-count'), id.b)
