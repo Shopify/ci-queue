@@ -224,13 +224,8 @@ module RSpec
             reporter.cancel_run!
             dup.mark_as_requeued!(reporter)
             return true
-          elsif reporter.acknowledge || !@exception
-            # If the test was already acknowledged by another worker (we timed out)
-            # Then we only record it if it is successful.
-            super(reporter)
           else
-            reporter.cancel_run!
-            return
+            super(reporter)
           end
         else
           super(reporter)
