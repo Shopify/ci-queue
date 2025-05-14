@@ -212,12 +212,10 @@ module CI
                   begin
                     redis.multi do |transaction|
                       transaction.lpush(key('queue'), tests) unless tests.empty?
-                      transaction.set(key('total'), @total)
-                      transaction.set(key('master-status'), 'ready')
+                      transaction.set(key('total'), @total, ex: config.redis_ttl)
+                      transaction.set(key('master-status'), 'ready', ex: config.redis_ttl)
 
                       transaction.expire(key('queue'), config.redis_ttl)
-                      transaction.expire(key('total'), config.redis_ttl)
-                      transaction.expire(key('master-status'), config.redis_ttl)
                     end
                   rescue ::Redis::BaseError, RedisClient::Error => error
                     if !queue_initialized? && attempts < 3
