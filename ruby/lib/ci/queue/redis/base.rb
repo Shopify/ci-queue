@@ -11,6 +11,8 @@ module CI
           ::SocketError, # https://github.com/redis/redis-rb/pull/631
         ].freeze
 
+        DEFAULT_TIMEOUT = 2
+
         module RedisInstrumentation
           def call(command, redis_config)
             logger = redis_config.custom[:debug_log]
@@ -45,9 +47,10 @@ module CI
               # ci-queue should not contain any sensitive data, so we can just disable the verification.
               ssl_params: { verify_mode: OpenSSL::SSL::VERIFY_NONE },
               custom: custom_config,
+              timeout: DEFAULT_TIMEOUT,
             )
           else
-            @redis = ::Redis.new(url: redis_url)
+            @redis = ::Redis.new(url: redis_url, timeout: DEFAULT_TIMEOUT)
           end
         end
 
