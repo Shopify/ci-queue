@@ -9,7 +9,11 @@ module CI
         CONNECTION_ERRORS = [
           ::Redis::BaseConnectionError,
           ::SocketError, # https://github.com/redis/redis-rb/pull/631
-        ].freeze
+        ]
+
+        # https://github.com/redis/redis-rb/pull/1312
+        CONNECTION_ERRORS << RedisClient::ConnectionError if defined?(RedisClient::ConnectionError)
+        CONNECTION_ERRORS.freeze
 
         module RedisInstrumentation
           def call(command, redis_config)
