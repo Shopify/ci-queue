@@ -161,6 +161,8 @@ module CI
           end
 
           @reserved_test = (try_to_reserve_lost_test || try_to_reserve_test)
+          puts "Reserved test: #{@reserved_test}"
+          @reserved_test
         end
 
         def try_to_reserve_test
