@@ -217,7 +217,14 @@ module CI
         def push(tests)
           @total = tests.size
 
-          if @master = redis.setnx(key('master-status'), 'setup')
+          # We set a unique value (worker_id) and read it back to make "SET if Not eXists" idempotent in case of a retry.
+          value = key('setup', worker_id)
+          _, status = redis.pipelined do |pipeline|
+            pipeline.set(key('master-status'), value, nx: true)
+            pipeline.get(key('master-status'))
+          end
+
+          if @master = (value == status)
             puts "Worker electected as leader, pushing #{@total} tests to the queue."
             puts
 
