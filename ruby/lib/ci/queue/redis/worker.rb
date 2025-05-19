@@ -203,6 +203,7 @@ module CI
 
           # We set a unique value (worker_id) and read it back to make "SET if Not eXists" idempotent in case of a retry.
           value = key('setup', worker_id)
+          puts "Setting master status to #{value}"
           _, status = redis.pipelined do |pipeline|
             pipeline.set(key('master-status'), value, nx: true)
             pipeline.get(key('master-status'))
