@@ -138,13 +138,13 @@ module CI
           nil
         end
 
-        private
-
-        attr_reader :index
-
         def worker_id
           config.worker_id
         end
+
+        private
+
+        attr_reader :index
 
         def raise_on_mismatching_test(test)
           if @reserved_test == test

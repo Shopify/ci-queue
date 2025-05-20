@@ -225,41 +225,60 @@ module Minitest
       end
     end
 
+    class ForkedWorker < SimpleDelegator
+      attr_accessor :worker_id
+    end
+
+
     def run_from_queue(reporter, *)
-      queue.poll do |example|
-        result = queue.with_heartbeat(example.id) do
-          example.run
-        end
+      ENV.fetch("PARALLEL_WORKERS", 1).to_i.times do |i|
+        puts "Forking worker #{i}"
+        fork do
+          queue.poll do |example|
+            forked_queue = ForkedWorker.new(queue)
+            forked_queue.worker_id = "#{queue.worker_id}-#{i}"
 
-        failed = !(result.passed? || result.skipped?)
+            puts "Worker #{i} running #{example.id}"
+            result = forked_queue.with_heartbeat(example.id) do
+              example.run
+            end
 
-        if example.flaky?
-          result.mark_as_flaked!
-          failed = false
-        end
+            failed = !(result.passed? || result.skipped?)
 
-        if failed && queue.config.failing_test && queue.config.failing_test != example.id
-          # When we do a bisect, we don't care about the result other than the test we're running the bisect on
-          result.mark_as_flaked!
-          failed = false
-        elsif failed
-          queue.report_failure!
-        else
-          queue.report_success!
-        end
+            if example.flaky?
+              result.mark_as_flaked!
+              failed = false
+            end
 
-        if failed && CI::Queue.requeueable?(result) && queue.requeue(example)
-          result.requeue!
-          reporter.record(result)
-        elsif queue.acknowledge(example)
-          reporter.record(result)
-          queue.increment_test_failed if failed
-        elsif !failed
-          # If the test was already acknowledged by another worker (we timed out)
-          # Then we only record it if it is successful.
-          reporter.record(result)
+            if failed && forked_queue.config.failing_test && forked_queue.config.failing_test != example.id
+              # When we do a bisect, we don't care about the result other than the test we're running the bisect on
+              result.mark_as_flaked!
+              failed = false
+            elsif failed
+              forked_queue.report_failure!
+            else
+              forked_queue.report_success!
+            end
+
+            if failed && CI::Queue.requeueable?(result) && forked_queue.requeue(example)
+              result.requeue!
+              reporter.record(result)
+            elsif forked_queue.acknowledge(example)
+              reporter.record(result)
+              forked_queue.increment_test_failed if failed
+            elsif !failed
+              # If the test was already acknowledged by another worker (we timed out)
+              # Then we only record it if it is successful.
+              reporter.record(result)
+            end
+          end
         end
       end
+
+      puts "Waiting for workers to finish..."
+      Process.waitall
+      puts "Workers finished"
+
       queue.stop_heartbeat!
     rescue Errno::EPIPE
       # This happens when the heartbeat process dies
