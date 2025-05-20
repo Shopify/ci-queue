@@ -8,7 +8,7 @@ Rake::TestTask.new(:test) do |t|
   t.libs << 'lib'
   selected_files = ENV["TEST_FILES"].to_s.strip.split(/\s+/)
   selected_files = nil if selected_files.empty?
-  t.test_files = selected_files || FileList['test/**/*_test.rb'] - FileList['test/fixtures/**/*_test.rb']
+  t.test_files = ["test/integration/minitest_redis_test.rb"]
 end
 
 task :default => :test

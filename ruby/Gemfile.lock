@@ -2,6 +2,7 @@ PATH
   remote: .
   specs:
     ci-queue (0.66.0)
+      drb
       logger
 
 GEM
