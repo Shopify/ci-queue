@@ -2,6 +2,7 @@
 require 'shellwords'
 require 'minitest'
 require 'minitest/reporters'
+require 'drb/drb'
 
 require 'minitest/queue/failure_formatter'
 require 'minitest/queue/error_report'
@@ -225,41 +226,107 @@ module Minitest
       end
     end
 
+    # The URI for the server to connect to
+    URI="druby://localhost:8780"
+    URI_2="druby://localhost:8787"
+
+    class TestServer
+
+      def initialize(queue, reporter)
+        @queue = queue
+        @reporter = reporter
+        @mutex = Mutex.new
+      end
+
+      attr_accessor :queue, :reporter, :mutex
+
+      def wait_for_master
+        queue.wait_for_master
+      end
+
+      def reserve(worker_id)
+        queue.pop(worker_id)
+      end
+
+      def stop?
+        queue.stop?
+      end
+
+      def record(worker_id, example, result)
+        mutex.synchronize do
+          failed = !(result.passed? || result.skipped?)
+
+          if example.flaky?
+            result.mark_as_flaked!
+            failed = false
+          end
+
+          if failed && queue.config.failing_test && queue.config.failing_test != example.id
+            # When we do a bisect, we don't care about the result other than the test we're running the bisect on
+            result.mark_as_flaked!
+            failed = false
+          elsif failed
+            queue.report_failure!
+          else
+            queue.report_success!
+          end
+
+          if failed && CI::Queue.requeueable?(result) && queue.requeue(example, worker_id)
+            result.requeue!
+            reporter.record(result)
+          elsif queue.acknowledge(example, worker_id)
+            reporter.record(result)
+            queue.increment_test_failed if failed
+          elsif !failed
+            # If the test was already acknowledged by another worker (we timed out)
+            # Then we only record it if it is successful.
+            reporter.record(result)
+          end
+        end
+
+      end
+    end
+
     def run_from_queue(reporter, *)
-      queue.poll do |example|
-        result = queue.with_heartbeat(example.id) do
-          example.run
-        end
+      # The object that handles requests on the server
+      server = TestServer.new(queue, reporter)
 
-        failed = !(result.passed? || result.skipped?)
+      DRb.start_service(URI, server)
 
-        if example.flaky?
-          result.mark_as_flaked!
-          failed = false
-        end
+      ENV.fetch("PARALLEL_WORKERS", 2).to_i.times do |i|
+        fork do
+          puts "Forking #{i}"
+            DRb.start_service
+            server = DRbObject.new_with_uri(URI)
+            server.wait_for_master
+            until server.stop?
+              if test = server.reserve(i)
+                puts "Process #{i} running: #{test.id}"
+                result = test.run
+                puts "Process #{i} result: #{result}"
+                server.record(i, test, result)
+              else
+                sleep 0.05
+              end
+            end
 
-        if failed && queue.config.failing_test && queue.config.failing_test != example.id
-          # When we do a bisect, we don't care about the result other than the test we're running the bisect on
-          result.mark_as_flaked!
-          failed = false
-        elsif failed
-          queue.report_failure!
-        else
-          queue.report_success!
-        end
-
-        if failed && CI::Queue.requeueable?(result) && queue.requeue(example)
-          result.requeue!
-          reporter.record(result)
-        elsif queue.acknowledge(example)
-          reporter.record(result)
-          queue.increment_test_failed if failed
-        elsif !failed
-          # If the test was already acknowledged by another worker (we timed out)
-          # Then we only record it if it is successful.
-          reporter.record(result)
+            puts "Done"
         end
       end
+
+      until queue.stop?
+        print "."
+        sleep 0.05
+      end
+      puts "Stopping DRb"
+      DRb.stop_service
+
+      puts "Waiting for processes"
+      Process.waitall
+      # Wait for the drb server thread to finish before exiting.
+
+      puts "Workers finished"
+
       queue.stop_heartbeat!
     rescue Errno::EPIPE
       # This happens when the heartbeat process dies

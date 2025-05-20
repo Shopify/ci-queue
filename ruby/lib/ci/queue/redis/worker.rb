@@ -46,6 +46,17 @@ module CI
           @master
         end
 
+        def stop?
+          shutdown_required? || config.circuit_breakers.any?(&:open?) || exhausted? || max_test_failed?
+        end
+
+        def pop(worker_id)
+          if test = reserve(worker_id)
+            index.fetch(test)
+          end
+        rescue *CONNECTION_ERRORS
+        end
+
         def poll
           wait_for_master
           until shutdown_required? || config.circuit_breakers.any?(&:open?) || exhausted? || max_test_failed?
@@ -97,9 +108,9 @@ module CI
           build.report_worker_error(error)
         end
 
-        def acknowledge(test)
+        def acknowledge(test, worker_id)
           test_key = test.id
-          raise_on_mismatching_test(test_key)
+          raise_on_mismatching_test(test_key, worker_id)
           eval_script(
             :acknowledge,
             keys: [key('running'), key('processed'), key('owners')],
@@ -107,9 +118,9 @@ module CI
           ) == 1
         end
 
-        def requeue(test, offset: Redis.requeue_offset)
+        def requeue(test, worker_id, offset: Redis.requeue_offset)
           test_key = test.id
-          raise_on_mismatching_test(test_key)
+          raise_on_mismatching_test(test_key, worker_id)
           global_max_requeues = config.global_max_requeues(total)
 
           requeued = config.max_requeues > 0 && global_max_requeues > 0 && eval_script(
@@ -125,7 +136,7 @@ module CI
             argv: [config.max_requeues, global_max_requeues, test_key, offset],
           ) == 1
 
-          @reserved_test = test_key unless requeued
+          @reserved_test[worker_id] = test_key unless requeued
           requeued
         end
 
@@ -138,29 +149,30 @@ module CI
           nil
         end
 
-        private
-
-        attr_reader :index
-
         def worker_id
           config.worker_id
         end
+        attr_reader :index
 
-        def raise_on_mismatching_test(test)
-          if @reserved_test == test
-            @reserved_test = nil
+        private
+
+
+        def raise_on_mismatching_test(test, worker_id)
+          if @reserved_test[worker_id] == test
+            @reserved_test[worker_id] = nil
           else
-            raise ReservationError, "Acknowledged #{test.inspect} but #{@reserved_test.inspect} was reserved"
+            raise ReservationError, "Acknowledged #{test.inspect} but #{@reserved_test[worker_id].inspect} was reserved"
           end
         end
 
-        def reserve
-          if @reserved_test
-            raise ReservationError, "#{@reserved_test.inspect} is already reserved. " \
+        def reserve(worker_id)
+          @reserved_test ||= {}
+          if @reserved_test[worker_id]
+            raise ReservationError, "#{@reserved_test[worker_id].inspect} is already reserved. " \
               "You have to acknowledge it before you can reserve another one"
           end
 
-          @reserved_test = (try_to_reserve_lost_test || try_to_reserve_test)
+          @reserved_test[worker_id] = (try_to_reserve_lost_test || try_to_reserve_test)
         end
 
         def try_to_reserve_test
