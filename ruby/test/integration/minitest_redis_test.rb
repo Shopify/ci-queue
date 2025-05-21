@@ -514,7 +514,7 @@ module Integration
           'skips' => 0,
           'requeues' => 0,
           'total_time' => index + 1,
-        })
+        }, acknowledge: false)
       end
 
       # Retry first worker, bailing out

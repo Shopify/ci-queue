@@ -150,6 +150,7 @@ module Minitest
     end
 
     class SingleExample
+      attr_reader :method_name
 
       def initialize(runnable, method_name)
         @runnable = runnable
@@ -250,15 +251,8 @@ module Minitest
 
         if failed && CI::Queue.requeueable?(result) && queue.requeue(example)
           result.requeue!
-          reporter.record(result)
-        elsif queue.acknowledge(example)
-          reporter.record(result)
-          queue.increment_test_failed if failed
-        elsif !failed
-          # If the test was already acknowledged by another worker (we timed out)
-          # Then we only record it if it is successful.
-          reporter.record(result)
         end
+        reporter.record(result)
       end
       queue.stop_heartbeat!
     rescue Errno::EPIPE
