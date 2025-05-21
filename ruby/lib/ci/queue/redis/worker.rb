@@ -97,8 +97,7 @@ module CI
           build.report_worker_error(error)
         end
 
-        def acknowledge(test)
-          test_key = test.id
+        def acknowledge(test_key)
           raise_on_mismatching_test(test_key)
           eval_script(
             :acknowledge,
@@ -146,11 +145,11 @@ module CI
           config.worker_id
         end
 
-        def raise_on_mismatching_test(test)
-          if @reserved_test == test
+        def raise_on_mismatching_test(test_key)
+          if @reserved_test == test_key
             @reserved_test = nil
           else
-            raise ReservationError, "Acknowledged #{test.inspect} but #{@reserved_test.inspect} was reserved"
+            raise ReservationError, "Acknowledged #{test_key.inspect} but #{@reserved_test.inspect} was reserved"
           end
         end
 

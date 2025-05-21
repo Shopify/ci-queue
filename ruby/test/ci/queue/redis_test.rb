@@ -186,7 +186,7 @@ class CI::Queue::RedisTest < Minitest::Test
       monitor.synchronize do
         condition.wait_until { acquired }
         second_queue.poll do |test|
-          assert_equal true, second_queue.acknowledge(test)
+          assert_equal true, second_queue.acknowledge(test.id)
         end
         done = true
         condition.signal
@@ -199,7 +199,7 @@ class CI::Queue::RedisTest < Minitest::Test
       monitor.synchronize do
         condition.signal
         condition.wait_until { done }
-        assert_equal false, @queue.acknowledge(test)
+        assert_equal false, @queue.acknowledge(test.id)
       end
     end
 
@@ -219,7 +219,7 @@ class CI::Queue::RedisTest < Minitest::Test
           queue = worker(i, tests: [TEST_LIST.first], build_id: '24')
           queue.poll do |test|
             sleep 1 # timeout
-            queue.acknowledge(test)
+            queue.acknowledge(test.id)
           end
         end
       end
@@ -243,7 +243,7 @@ class CI::Queue::RedisTest < Minitest::Test
             queue = worker(i, tests: [TEST_LIST.first], build_id: '24')
             queue.poll do |test|
               sleep 1 # timeout
-              queue.acknowledge(test)
+              queue.acknowledge(test.id)
             end
           end
         end

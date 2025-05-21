@@ -69,7 +69,7 @@ module SharedQueueAssertions
 
   def test_acknowledge
     @queue.poll do |test|
-      assert_equal true, @queue.acknowledge(test)
+      assert_equal true, @queue.acknowledge(test.id)
     end
   end
 
