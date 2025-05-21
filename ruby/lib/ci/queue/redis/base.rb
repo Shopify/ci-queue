@@ -181,8 +181,8 @@ module CI
           master_status == 'setup'
         end
 
-        def increment_test_failed
-          redis.incr(key('test_failed_count'))
+        def increment_test_failed(pipeline: redis)
+          pipeline.incr(key('test_failed_count'))
         end
 
         def test_failed
@@ -225,8 +225,8 @@ module CI
           redis.get(key('master-status'))
         end
 
-        def eval_script(script, *args)
-          redis.evalsha(load_script(script), *args)
+        def eval_script(script, keys:, argv:, pipeline: redis)
+          pipeline.evalsha(load_script(script), keys: keys, argv: argv)
         end
 
         def load_script(script)

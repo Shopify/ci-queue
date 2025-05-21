@@ -59,20 +59,10 @@ module CI
         Test = Struct.new(:id) # Hack
 
         def record_error(id, payload, stats: nil)
-          # FIXME: the ack and hset should be atomic
-          # otherwise the reporter may see the empty queue before the error
-          # is appended and wrongly think it's a success.
-          if @queue.acknowledge(id)
-            redis.pipelined do |pipeline|
-              pipeline.hset(
-                key('error-reports'),
-                id,
-                payload,
-              )
-              pipeline.expire(key('error-reports'), config.redis_ttl)
-              record_stats(stats, pipeline: pipeline)
-              @queue.increment_test_failed
-            end
+          redis.pipelined do |pipeline|
+            @queue.acknowledge(id, error: payload, pipeline: pipeline)
+            record_stats(stats, pipeline: pipeline)
+            @queue.increment_test_failed(pipeline: pipeline)
           end
           nil
         end
