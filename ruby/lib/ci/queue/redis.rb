@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+gem "redis", "~> 5.0"
 require 'redis'
 require 'ci/queue/redis/build_record'
 require 'ci/queue/redis/base'

@@ -14,7 +14,7 @@ module CI
           redis.pipelined do |pipeline|
             pipeline.lpush(
               key('error-reports'),
-              payload.force_encoding(Encoding::BINARY),
+              payload,
             )
             pipeline.expire(key('error-reports'), config.redis_ttl)
             record_stats(stats, pipeline: pipeline)
