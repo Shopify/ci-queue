@@ -97,12 +97,13 @@ module CI
           build.report_worker_error(error)
         end
 
-        def acknowledge(test_key)
+        def acknowledge(test_key, error: nil, pipeline: redis)
           raise_on_mismatching_test(test_key)
           eval_script(
             :acknowledge,
-            keys: [key('running'), key('processed'), key('owners')],
-            argv: [test_key],
+            keys: [key('running'), key('processed'), key('owners'), key('error-reports')],
+            argv: [test_key, error.to_s, config.redis_ttl],
+            pipeline: pipeline,
           ) == 1
         end
 

@@ -103,12 +103,12 @@ module CI
         @queue.empty?
       end
 
-      def acknowledge(test)
+      def acknowledge(...)
         @progress += 1
         true
       end
 
-      def increment_test_failed
+      def increment_test_failed(...)
         @test_failed = test_failed + 1
       end
 
