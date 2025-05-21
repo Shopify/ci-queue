@@ -22,7 +22,7 @@ module CI
           redis.pipelined do |pipeline|
             pipeline.lpush(
               test_time_key(test_name),
-              duration.to_s.force_encoding(Encoding::BINARY),
+              duration.to_s,
             )
             pipeline.expire(test_time_key(test_name), config.redis_ttl)
           end
@@ -33,7 +33,7 @@ module CI
           redis.pipelined do |pipeline|
             pipeline.lpush(
               all_test_names_key,
-              test_name.dup.force_encoding(Encoding::BINARY),
+              test_name,
             )
             pipeline.expire(all_test_names_key, config.redis_ttl)
           end
@@ -53,11 +53,11 @@ module CI
         end
 
         def all_test_names_key
-          "build:#{config.build_id}:list_of_test_names".dup.force_encoding(Encoding::BINARY)
+          "build:#{config.build_id}:list_of_test_names"
         end
 
         def test_time_key(test_name)
-          "build:#{config.build_id}:#{test_name}".dup.force_encoding(Encoding::BINARY)
+          "build:#{config.build_id}:#{test_name}"
         end
       end
     end

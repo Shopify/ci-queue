@@ -66,8 +66,8 @@ module CI
             redis.pipelined do |pipeline|
               pipeline.hset(
                 key('error-reports'),
-                id.dup.force_encoding(Encoding::BINARY),
-                payload.dup.force_encoding(Encoding::BINARY),
+                id,
+                payload,
               )
               pipeline.expire(key('error-reports'), config.redis_ttl)
               record_stats(stats, pipeline: pipeline)
@@ -80,8 +80,8 @@ module CI
         def record_success(id, stats: nil, skip_flaky_record: false, acknowledge: true)
           @queue.acknowledge(Test.new(id)) if acknowledge
           error_reports_deleted_count, requeued_count, _ = redis.pipelined do |pipeline|
-            pipeline.hdel(key('error-reports'), id.dup.force_encoding(Encoding::BINARY))
-            pipeline.hget(key('requeues-count'), id.b)
+            pipeline.hdel(key('error-reports'), id)
+            pipeline.hget(key('requeues-count'), id)
             record_stats(stats, pipeline: pipeline)
           end
           record_flaky(id) if !skip_flaky_record && (error_reports_deleted_count.to_i > 0 || requeued_count.to_i > 0)
