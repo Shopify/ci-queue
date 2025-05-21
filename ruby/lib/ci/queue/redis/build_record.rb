@@ -62,7 +62,7 @@ module CI
           # FIXME: the ack and hset should be atomic
           # otherwise the reporter may see the empty queue before the error
           # is appended and wrongly think it's a success.
-          if @queue.acknowledge(Test.new(id))
+          if @queue.acknowledge(id)
             redis.pipelined do |pipeline|
               pipeline.hset(
                 key('error-reports'),
@@ -78,7 +78,7 @@ module CI
         end
 
         def record_success(id, stats: nil, skip_flaky_record: false, acknowledge: true)
-          @queue.acknowledge(Test.new(id)) if acknowledge
+          @queue.acknowledge(id) if acknowledge
           error_reports_deleted_count, requeued_count, _ = redis.pipelined do |pipeline|
             pipeline.hdel(key('error-reports'), id)
             pipeline.hget(key('requeues-count'), id)
