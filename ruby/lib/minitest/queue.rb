@@ -107,7 +107,7 @@ module Minitest
   end
 
   module Queue
-    include ::CI::Queue::OutputHelpers
+    extend ::CI::Queue::OutputHelpers
     attr_writer :run_command_formatter, :project_root
 
     def run_command_formatter
@@ -147,6 +147,84 @@ module Minitest
       Pathname(path).relative_path_from(Pathname(root)).to_s
     rescue ArgumentError, TypeError
       path
+    end
+
+    class << self
+      def queue
+        Minitest.queue
+      end
+
+      def run(reporter, *)
+        rescue_run_errors do
+          queue.poll do |example|
+            result = queue.with_heartbeat(example.id) do
+              example.run
+            end
+
+            handle_test_result(reporter, example, result)
+          end
+
+          queue.stop_heartbeat!
+        end
+      end
+
+      def handle_test_result(reporter, example, result)
+        failed = !(result.passed? || result.skipped?)
+
+        if example.flaky?
+          result.mark_as_flaked!
+          failed = false
+        end
+
+        if failed && queue.config.failing_test && queue.config.failing_test != example.id
+          # When we do a bisect, we don't care about the result other than the test we're running the bisect on
+          result.mark_as_flaked!
+          failed = false
+        elsif failed
+          queue.report_failure!
+        else
+          queue.report_success!
+        end
+
+        if failed && CI::Queue.requeueable?(result) && queue.requeue(example)
+          result.requeue!
+          reporter.record(result)
+        elsif queue.acknowledge(example)
+          reporter.record(result)
+          queue.increment_test_failed if failed
+        elsif !failed
+          # If the test was already acknowledged by another worker (we timed out)
+          # Then we only record it if it is successful.
+          reporter.record(result)
+        end
+      end
+
+      private
+
+      def rescue_run_errors(&block)
+        block.call
+      rescue Errno::EPIPE
+        # This happens when the heartbeat process dies
+        reopen_previous_step
+        puts red("The heartbeat process died. This worker is exiting early.")
+        exit!(41)
+      rescue CI::Queue::Error => error
+        reopen_previous_step
+        puts red("#{error.class}: #{error.message}")
+        error.backtrace.each do |frame|
+          puts red(frame)
+        end
+        exit!(41)
+      rescue => error
+        reopen_previous_step
+        Minitest.queue.report_worker_error(error)
+        puts red("This worker exited because of an uncaught application error:")
+        puts red("#{error.class}: #{error.message}")
+        error.backtrace.each do |frame|
+          puts red(frame)
+        end
+        exit!(42)
+      end
     end
 
     class SingleExample
@@ -211,7 +289,7 @@ module Minitest
 
     def __run(*args)
       if queue
-        run_from_queue(*args)
+        Queue.run(*args)
 
         if queue.config.circuit_breakers.any?(&:open?)
           STDERR.puts queue.config.circuit_breakers.map(&:message).join(' ').strip
@@ -223,65 +301,6 @@ module Minitest
       else
         super
       end
-    end
-
-    def run_from_queue(reporter, *)
-      queue.poll do |example|
-        result = queue.with_heartbeat(example.id) do
-          example.run
-        end
-
-        failed = !(result.passed? || result.skipped?)
-
-        if example.flaky?
-          result.mark_as_flaked!
-          failed = false
-        end
-
-        if failed && queue.config.failing_test && queue.config.failing_test != example.id
-          # When we do a bisect, we don't care about the result other than the test we're running the bisect on
-          result.mark_as_flaked!
-          failed = false
-        elsif failed
-          queue.report_failure!
-        else
-          queue.report_success!
-        end
-
-        if failed && CI::Queue.requeueable?(result) && queue.requeue(example)
-          result.requeue!
-          reporter.record(result)
-        elsif queue.acknowledge(example)
-          reporter.record(result)
-          queue.increment_test_failed if failed
-        elsif !failed
-          # If the test was already acknowledged by another worker (we timed out)
-          # Then we only record it if it is successful.
-          reporter.record(result)
-        end
-      end
-      queue.stop_heartbeat!
-    rescue Errno::EPIPE
-      # This happens when the heartbeat process dies
-      reopen_previous_step
-      puts red("The heartbeat process died. This worker is exiting early.")
-      exit!(41)
-    rescue CI::Queue::Error => error
-      reopen_previous_step
-      puts red("#{error.class}: #{error.message}")
-      error.backtrace.each do |frame|
-        puts red(frame)
-      end
-      exit!(41)
-    rescue => error
-      reopen_previous_step
-      queue.report_worker_error(error)
-      puts red("This worker exited because of an uncaught application error:")
-      puts red("#{error.class}: #{error.message}")
-      error.backtrace.each do |frame|
-        puts red(frame)
-      end
-      exit!(42)
     end
   end
 end
