@@ -7,8 +7,10 @@ module CI
     module Redis
       class << self
         attr_accessor :requeue_offset
+        attr_accessor :max_sleep_time
       end
       self.requeue_offset = 42
+      self.max_sleep_time = 2
 
       class Worker < Base
         attr_reader :total
@@ -46,13 +48,21 @@ module CI
           @master
         end
 
+        DEFAULT_SLEEP_SECONDS = 0.5
+
         def poll
           wait_for_master
+          attempt = 0
           until shutdown_required? || config.circuit_breakers.any?(&:open?) || exhausted? || max_test_failed?
             if test = reserve
+              attempt = 0
               yield index.fetch(test)
             else
-              sleep 0.05
+              # Adding exponential backoff to avoid hammering Redis
+              # we just stay online here in case a test gets retried or times out so we can afford to wait
+              sleep_time = [DEFAULT_SLEEP_SECONDS * (2 ** attempt), Redis.max_sleep_time].min
+              attempt += 1
+              sleep sleep_time
             end
           end
 
