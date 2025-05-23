@@ -89,14 +89,15 @@ module CI
       end
 
       def running
-        @reserved_test ? 1 : 0
+        reserved_tests.empty? ? 0 : 1
       end
 
       def poll
-        while !@shutdown && config.circuit_breakers.none?(&:open?) && !max_test_failed? && @reserved_test = @queue.shift
-          yield index.fetch(@reserved_test)
+        while !@shutdown && config.circuit_breakers.none?(&:open?) && !max_test_failed? && reserved_test = @queue.shift
+          reserved_tests << reserved_test
+          yield index.fetch(reserved_test)
         end
-        @reserved_test = nil
+        reserved_tests.clear
       end
 
       def exhausted?
@@ -141,6 +142,10 @@ module CI
 
       def requeues
         @requeues ||= Hash.new(0)
+      end
+
+      def reserved_tests
+        @reserved_tests ||= Set.new
       end
     end
   end
