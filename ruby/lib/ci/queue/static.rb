@@ -97,7 +97,7 @@ module CI
           reserved_tests << reserved_test
           yield index.fetch(reserved_test)
         end
-        @reserved_tests.clear
+        reserved_tests.clear
       end
 
       def exhausted?
