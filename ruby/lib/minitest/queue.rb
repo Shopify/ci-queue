@@ -221,7 +221,7 @@ module Minitest
     end
 
     class SingleExample
-      attr_reader :method_name
+      attr_reader :runnable, :method_name
 
       def initialize(runnable, method_name)
         @runnable = runnable
