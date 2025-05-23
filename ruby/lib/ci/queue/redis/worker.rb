@@ -16,7 +16,7 @@ module CI
         attr_reader :total
 
         def initialize(redis, config)
-          @reserved_test = nil
+          @reserved_tests = Set.new
           @shutdown_required = false
           super(redis, config)
         end
@@ -151,7 +151,7 @@ module CI
             argv: [config.max_requeues, global_max_requeues, test_key, offset],
           ) == 1
 
-          @reserved_test = test_key unless requeued
+          reserved_tests << test_key unless requeued
           requeued
         end
 
@@ -168,25 +168,26 @@ module CI
 
         attr_reader :index
 
+        def reserved_tests
+          @reserved_tests ||= Set.new
+        end
+
         def worker_id
           config.worker_id
         end
 
         def raise_on_mismatching_test(test)
-          if @reserved_test == test
-            @reserved_test = nil
+          if reserved_tests.include?(test)
+            reserved_tests.delete(test)
           else
-            raise ReservationError, "Acknowledged #{test.inspect} but #{@reserved_test.inspect} was reserved"
+            raise ReservationError, "Acknowledged #{test.inspect} but only #{reserved_tests.map(&:inspect).join(", ")} reserved"
           end
         end
 
         def reserve
-          if @reserved_test
-            raise ReservationError, "#{@reserved_test.inspect} is already reserved. " \
-              "You have to acknowledge it before you can reserve another one"
-          end
-
-          @reserved_test = (try_to_reserve_lost_test || try_to_reserve_test)
+          test = (try_to_reserve_lost_test || try_to_reserve_test)
+          reserved_tests << test
+          test
         end
 
         def try_to_reserve_test
