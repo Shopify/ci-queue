@@ -23,6 +23,50 @@ module CI
           true
         end
 
+        def populate_from_paths(paths)
+          # We set a unique value (worker_id) and read it back to make "SET if Not eXists" idempotent in case of a retry.
+          value = key('setup', worker_id)
+          _, status = redis.pipelined do |pipeline|
+            pipeline.set(key('master-status'), value, nx: true)
+            pipeline.get(key('master-status'))
+          end
+
+          if @master = (value == status)
+            puts "Worker elected as leader, requiring files..."
+
+            duration = measure do
+              paths.sort.each do |f|
+                require ::File.expand_path(f)
+              end
+            end
+
+            puts "Loaded #{paths.size} files in #{duration.round(2)}s"
+
+            tests = Minitest.loaded_tests
+            @index = tests.map { |t| [t.id, t] }.to_h
+
+            puts "Calculating test locations..."
+            duration = measure do
+              @locations = @index.map { |id, t| [id, t.source_location.first] }.to_h # can we cache this?
+            end
+            puts "Calculated test locations in #{duration.round(2)}s"
+
+            puts "Pushing test locations to Redis..."
+            duration = measure do
+              redis.hset(key('test_locations'), @locations)
+            end
+            puts "Pushed test locations to Redis in #{duration.round(2)}s"
+
+            tests = Queue.shuffle(tests, Random.new)
+            push(tests.map(&:id)) # todo move this up?
+            self
+
+          else
+            @index = {} # we will fill the index on demand
+            require "minitest/autorun"
+          end
+        end
+
         def populate(tests, random: Random.new)
           @index = tests.map { |t| [t.id, t] }.to_h
           tests = Queue.shuffle(tests, random)
@@ -46,11 +90,28 @@ module CI
           @master
         end
 
+        def location(test)
+          redis.hget(key('test_locations'), test)
+        end
+
         def poll
-          wait_for_master
+          puts "Waiting for master..."
+          wait_for_master(timeout: 300)
+          puts "Master found, fetching total number of tests..."
+          @total = redis.get(key('total')).to_i
+          puts "Total number of tests: #{@total} in the queue"
           until shutdown_required? || config.circuit_breakers.any?(&:open?) || exhausted? || max_test_failed?
             if test = reserve
-              yield index.fetch(test)
+              result = index.fetch(test) do
+                puts "Test #{test} not found in index, fetching location from Redis"
+                path = location(test)
+                puts "Location for #{test} is #{path}"
+                require ::File.expand_path(path)
+                tests = Minitest.loaded_tests
+                @index = tests.map { |t| [t.id, t] }.to_h
+                @index.fetch(test) { raise "Test #{test} not found in index" }
+              end
+              yield result
             else
               sleep 0.05
             end

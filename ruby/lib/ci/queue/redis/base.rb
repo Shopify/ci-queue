@@ -12,21 +12,24 @@ module CI
         ].freeze
 
         DEFAULT_TIMEOUT = 2
+        MAX_ELEMENTS_TO_LOG = 10
 
         module RedisInstrumentation
           def call(command, redis_config)
             logger = redis_config.custom[:debug_log]
-            logger.info("Running '#{command}'")
+            logger.info("Running '#{command[0, MAX_ELEMENTS_TO_LOG]}'")
             result = super
-            logger.info("Finished '#{command}': #{result}")
+            logger.info("Finished '#{command[0, MAX_ELEMENTS_TO_LOG]}': #{result}")
             result
           end
 
           def call_pipelined(commands, redis_config)
             logger = redis_config.custom[:debug_log]
-            logger.info("Running '#{commands}'")
+            truncated_commands = commands.map { |array| array[0, MAX_ELEMENTS_TO_LOG] }
+            logger.info("Running '#{truncated_commands}'")
             result = super
-            logger.info("Finished '#{commands}': #{result}")
+            truncated_result = result.map { |array| array.to_s[0, MAX_ELEMENTS_TO_LOG] }
+            logger.info("Finished '#{truncated_commands}': #{truncated_result}")
             result
           end
         end

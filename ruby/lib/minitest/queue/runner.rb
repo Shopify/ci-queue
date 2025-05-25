@@ -101,8 +101,7 @@ module Minitest
               populate_queue
             end
           else
-            load_tests
-            populate_queue
+            Minitest.queue.populate_from_paths(argv)
           end
         end
 

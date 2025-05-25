@@ -161,6 +161,10 @@ module Minitest
         @id ||= "#{@runnable}##{@method_name}".freeze
       end
 
+      def source_location
+        @runnable.new(method_name).method(method_name).source_location
+      end
+
       def <=>(other)
         id <=> other.id
       end
