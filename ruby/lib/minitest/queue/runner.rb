@@ -258,20 +258,19 @@ module Minitest
 
           unless supervisor.exhausted?
             reporter = BuildStatusReporter.new(supervisor: supervisor)
-            reporter.report
+            exit_code = reporter.report
             reporter.write_failure_file(queue_config.failure_file) if queue_config.failure_file
             reporter.write_flaky_tests_file(queue_config.export_flaky_tests_file) if queue_config.export_flaky_tests_file
 
-            abort!("#{supervisor.size} tests weren't run.")
+            abort!("#{supervisor.size} tests weren't run.", exit_code)
           end
         end
 
         reporter = BuildStatusReporter.new(supervisor: supervisor)
         reporter.write_failure_file(queue_config.failure_file) if queue_config.failure_file
         reporter.write_flaky_tests_file(queue_config.export_flaky_tests_file) if queue_config.export_flaky_tests_file
-        reporter.report
-
-        exit! reporter.success? ? 0 : 1
+        exit_code = reporter.report
+        exit! exit_code
       end
 
       def report_grind_command

@@ -229,6 +229,7 @@ module Integration
       end
 
       refute_predicate $?, :success?
+      assert_equal 44, $?.exitstatus
       assert_empty err
       expected = <<~EXPECTED
         Waiting for workers to complete
@@ -264,6 +265,7 @@ module Integration
       end
 
       refute_predicate $?, :success?
+      assert_equal 40, $?.exitstatus
       assert_empty err
       expected = <<~EXPECTED
         Waiting for workers to complete
@@ -1018,7 +1020,7 @@ module Integration
       assert_includes out, "Worker 1 crashed"
       assert_includes out, "Some error in the test framework"
 
-      assert_equal 1, $?.exitstatus
+      assert_equal 42, $?.exitstatus
     end
 
     private
