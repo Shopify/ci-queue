@@ -108,7 +108,16 @@ module Minitest
         build.requeued_tests
       end
 
+      APPLICATION_ERROR_EXIT_CODE = 42
+      TIMED_OUT_EXIT_CODE = 43
+      TOO_MANY_FAILED_TESTS_EXIT_CODE = 44
+      WORKERS_DIED_EXIT_CODE = 45
+      SUCCESS_EXIT_CODE = 0
+      TEST_FAILURE_EXIT_CODE = 1
+
       def report
+        exit_code = TEST_FAILURE_EXIT_CODE
+
         if requeued_tests.to_a.any?
           step("Requeued #{requeued_tests.size} tests")
           requeued_tests.to_a.sort.each do |test_id, count|
@@ -131,10 +140,14 @@ module Minitest
           if remaining_tests.size > 10
             puts "  ..."
           end
+
+          exit_code = TIMED_OUT_EXIT_CODE
         elsif supervisor.time_left_with_no_workers.to_i <= 0
           puts red("All workers died.")
+          exit_code = WORKERS_DIED_EXIT_CODE
         elsif supervisor.max_test_failed?
           puts red("Encountered too many failed tests. Test run was ended early.")
+          exit_code = TOO_MANY_FAILED_TESTS_EXIT_CODE
         end
 
         puts
@@ -146,9 +159,10 @@ module Minitest
           puts red("Worker #{worker_id } crashed")
           puts error
           puts ""
+          exit_code = APPLICATION_ERROR_EXIT_CODE
         end
 
-        success?
+        success? ? SUCCESS_EXIT_CODE : exit_code
       end
 
       def success?
