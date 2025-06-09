@@ -269,7 +269,7 @@ module Integration
       assert_empty err
       expected = <<~EXPECTED
         Waiting for workers to complete
-        No master was elected. Did all workers crash?
+        No leader was elected. This typically means no worker was able to start. Were there any errors during application boot?
       EXPECTED
       assert_equal expected.strip, normalize(out.lines[0..2].join.strip)
     end

@@ -288,7 +288,7 @@ module RSpec
 
         unless supervisor.wait_for_workers
           unless supervisor.queue_initialized?
-            abort! "No master was elected. Did all workers crash?"
+            abort! "No leader was elected. This typically means no worker was able to start. Were there any errors during application boot?"
           end
 
           unless supervisor.exhausted?
