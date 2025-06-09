@@ -253,7 +253,7 @@ module Minitest
 
         unless supervisor.wait_for_workers { display_warnings(supervisor.build) }
           unless supervisor.queue_initialized?
-            abort! "No master was elected. Did all workers crash?", 40
+            abort! "No leader was elected. This typically means no worker was able to start. Were there any errors during application boot?", 40
           end
 
           unless supervisor.exhausted?
