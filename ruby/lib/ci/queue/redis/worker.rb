@@ -177,9 +177,7 @@ module CI
         end
 
         def raise_on_mismatching_test(test)
-          if reserved_tests.include?(test)
-            reserved_tests.delete(test)
-          else
+          unless reserved_tests.delete?(test)
             raise ReservationError, "Acknowledged #{test.inspect} but only #{reserved_tests.map(&:inspect).join(", ")} reserved"
           end
         end
