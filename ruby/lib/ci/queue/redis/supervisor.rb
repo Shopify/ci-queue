@@ -26,7 +26,7 @@ module CI
 
           @time_left = config.report_timeout - duration.to_i
           @time_left_with_no_workers = config.inactive_workers_timeout
-          until exhausted? || @time_left <= 0 || max_test_failed? || @time_left_with_no_workers <= 0
+          until finished? || @time_left <= 0 || max_test_failed? || @time_left_with_no_workers <= 0
             @time_left -= 1
             sleep 1
 
@@ -39,7 +39,7 @@ module CI
             yield if block_given?
           end
 
-          exhausted?
+          finished?
         rescue CI::Queue::Redis::LostMaster
           false
         end
@@ -47,6 +47,14 @@ module CI
         attr_reader :time_left, :time_left_with_no_workers
 
         private
+
+        def finished?
+          exhausted? && master_confirmed_all_tests_executed?
+        end
+
+        def master_confirmed_all_tests_executed?
+          redis.get(key('master-confirmed-all-tests-executed')) == 'true'
+        end
 
         def active_workers?
           # if there are running jobs we assume there are still agents active

@@ -27,8 +27,8 @@ module CI
 
         def populate(tests, random: Random.new)
           @index = tests.map { |t| [t.id, t] }.to_h
-          tests = Queue.shuffle(tests, random)
-          push(tests.map(&:id))
+          @shuffled_tests = Queue.shuffle(tests, random).map(&:id)
+          push(@shuffled_tests)
           self
         end
 
@@ -68,6 +68,23 @@ module CI
           redis.pipelined do |pipeline|
             pipeline.expire(key('worker', worker_id, 'queue'), config.redis_ttl)
             pipeline.expire(key('processed'), config.redis_ttl)
+          end
+
+          # check we executed all tests
+          # only the master should perform this check because otherwise we will DDoS Redis when all workers
+          # try to fetch the processed tests at the same time
+          if master? && exhausted?
+            executed_tests = (redis.smembers(key('success-reports')) + redis.hkeys(key('error-reports')))
+            missing_tests = @shuffled_tests - executed_tests
+
+            if missing_tests.size > 0
+              puts "ci-queue did not process all tests - #{missing_tests.count} tests not executed!"
+              puts missing_tests.first(10)
+              report_worker_error(StandardError.new("ci-queue did not process all tests!"))
+            end
+
+            redis.set(key('master-confirmed-all-tests-executed'), true)
+            redis.expire(key('master-confirmed-all-tests-executed'), config.redis_ttl)
           end
         rescue *CONNECTION_ERRORS
         end

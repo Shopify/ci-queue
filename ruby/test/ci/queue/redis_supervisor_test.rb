@@ -34,7 +34,9 @@ class CI::Queue::Redis::SupervisorTest < Minitest::Test
       workers_done = @supervisor.wait_for_workers
     end
     thread.wakeup
-    poll(worker(1))
+    worker = worker(1)
+    worker.instance_variable_set(:@master, true)
+    poll(worker)
     thread.join
     assert_equal true, workers_done
   end
