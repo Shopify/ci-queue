@@ -72,6 +72,8 @@ module CI
           error_reports_deleted_count, requeued_count, _ = redis.pipelined do |pipeline|
             pipeline.hdel(key('error-reports'), id)
             pipeline.hget(key('requeues-count'), id)
+            pipeline.sadd(key('success-reports'), id)
+            pipeline.expire(key('success-reports'), config.redis_ttl)
             record_stats(stats, pipeline: pipeline)
           end
           record_flaky(id) if !skip_flaky_record && (error_reports_deleted_count.to_i > 0 || requeued_count.to_i > 0)
