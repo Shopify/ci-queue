@@ -8,6 +8,8 @@ end
 require 'minitest/autorun'
 require_relative './backtrace_filters'
 
+sleep 10
+
 Minitest.backtrace_filter = BacktraceFilters.new(
   Minitest.backtrace_filter
 )
