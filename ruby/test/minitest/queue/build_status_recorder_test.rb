@@ -79,7 +79,7 @@ module Minitest::Queue
     private
 
     def reserve(queue, method_name)
-      queue.instance_variable_set(:@reserved_test, Minitest::Queue::SingleExample.new("Minitest::Test", method_name).id)
+      queue.instance_variable_set(:@reserved_tests, Set.new([Minitest::Queue::SingleExample.new("Minitest::Test", method_name).id]))
     end
 
     def worker(id)
