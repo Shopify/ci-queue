@@ -76,6 +76,20 @@ module Minitest::Queue
       assert_equal 0, summary.error_reports.size
     end
 
+    def test_static_queue_record_success
+      static_queue = CI::Queue::Static.new(['test_example'], CI::Queue::Configuration.new(build_id: '42', worker_id: '1'))
+      static_reporter = BuildStatusRecorder.new(build: static_queue.build)
+      static_reporter.start
+
+      static_reporter.record(result('test_example'))
+
+      assert_equal 1, static_reporter.assertions
+      assert_equal 0, static_reporter.failures
+      assert_equal 0, static_reporter.errors
+      assert_equal 0, static_reporter.skips
+      assert_equal 0, static_reporter.requeues
+    end
+
     private
 
     def reserve(queue, method_name)
