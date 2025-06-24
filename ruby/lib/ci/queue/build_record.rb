@@ -23,7 +23,7 @@ module CI
         record_stats(stats)
       end
 
-      def record_success(id, stats: nil, skip_flaky_record: false)
+      def record_success(id, stats: nil, skip_flaky_record: false, acknowledge: true)
         error_reports.delete(id)
         record_stats(stats)
       end
