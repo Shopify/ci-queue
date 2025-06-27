@@ -186,8 +186,15 @@ module Minitest
           queue.report_success!
         end
 
-        if failed && CI::Queue.requeueable?(result) && queue.requeue(example)
-          result.requeue!
+
+
+        if failed
+          requeueable = CI::Queue.requeueable?(result)
+          puts "==== requeueable: #{requeueable}"
+          if requeueable && queue.requeue(example)
+            puts "==== test requeued!!!"
+            result.requeue!
+          end
         end
         reporter.record(result)
       end

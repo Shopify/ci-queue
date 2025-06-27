@@ -122,7 +122,9 @@ module CI
           raise_on_mismatching_test(test_key)
           global_max_requeues = config.global_max_requeues(total)
 
-          requeued = config.max_requeues > 0 && global_max_requeues > 0 && eval_script(
+          puts "=== global_max_requeues: #{global_max_requeues}"
+
+          result = config.max_requeues > 0 && global_max_requeues > 0 && eval_script(
             :requeue,
             keys: [
               key('processed'),
@@ -133,7 +135,11 @@ module CI
               key('owners'),
             ],
             argv: [config.max_requeues, global_max_requeues, test_key, offset],
-          ) == 1
+          )
+
+          puts "=== requeueresult: #{result.inspect}"
+
+          requeued = result == 1
 
           reserved_tests << test_key unless requeued
           requeued
