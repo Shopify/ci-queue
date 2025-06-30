@@ -76,6 +76,34 @@ module Minitest::Queue
       assert_equal 0, summary.error_reports.size
     end
 
+    def test_retrying_test_reverse
+      yielded = false
+
+      test = nil
+
+      @queue.poll do |_test|
+        test = _test
+        assert_equal "a", test.method_name
+        @reporter.record(result(test.method_name))
+
+        assert_equal 0, summary.error_reports.size
+
+        yielded = true
+        break
+      end
+
+      assert yielded, "@queue.poll didn't yield"
+
+      second_queue = worker(2)
+      second_reporter = BuildStatusRecorder.new(build: second_queue.build)
+      second_reporter.start
+
+      # pretend we reserved the same test again
+      reserve(second_queue, "a")
+      second_reporter.record(result("a", failure: "Something went wrong"))
+      assert_equal 0, summary.error_reports.size
+    end
+
     def test_static_queue_record_success
       static_queue = CI::Queue::Static.new(['test_example'], CI::Queue::Configuration.new(build_id: '42', worker_id: '1'))
       static_reporter = BuildStatusRecorder.new(build: static_queue.build)
@@ -97,16 +125,20 @@ module Minitest::Queue
     end
 
     def worker(id)
-      CI::Queue::Redis.new(
-        @redis_url,
-        CI::Queue::Configuration.new(
-          build_id: '42',
-          worker_id: id.to_s,
-          timeout: 0.2,
-        ),
-      ).populate([
-        Minitest::Queue::SingleExample.new("Minitest::Test", "a")
-      ])
+      result = nil
+      capture_io do
+        result = CI::Queue::Redis.new(
+          @redis_url,
+          CI::Queue::Configuration.new(
+            build_id: '42',
+            worker_id: id.to_s,
+            timeout: 0.2,
+          ),
+        ).populate([
+          Minitest::Queue::SingleExample.new("Minitest::Test", "a")
+        ])
+      end
+      result
     end
 
     def summary
