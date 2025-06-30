@@ -881,6 +881,7 @@ module Integration
         content = File.read(flaky_tests_file)
         flaky_tests = JSON.parse(content)
         assert_includes flaky_tests, "ATest#test_flaky"
+        assert_equal 1, flaky_tests.count
       end
     end
 
