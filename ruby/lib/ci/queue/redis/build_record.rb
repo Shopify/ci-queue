@@ -56,8 +56,6 @@ module CI
           redis.rpush(key('warnings'), Marshal.dump([type, attributes]))
         end
 
-        Test = Struct.new(:id) # Hack
-
         def record_error(id, payload, stats: nil)
           redis.pipelined do |pipeline|
             @queue.acknowledge(id, error: payload, pipeline: pipeline)
