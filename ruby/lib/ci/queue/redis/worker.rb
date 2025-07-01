@@ -131,6 +131,7 @@ module CI
               key('running'),
               key('worker', worker_id, 'queue'),
               key('owners'),
+              key('error-reports'),
             ],
             argv: [config.max_requeues, global_max_requeues, test_key, offset],
           ) == 1

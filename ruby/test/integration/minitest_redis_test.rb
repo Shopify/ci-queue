@@ -509,6 +509,7 @@ module Integration
       assert_equal 100, error_reports.size
 
       error_reports.keys.each_with_index do |test_id, index|
+        queue.instance_variable_set(:@reserved_tests, Set.new([test_id]))
         queue.build.record_success(test_id.dup, stats: {
           'assertions' => index + 1,
           'errors' => 0,
@@ -516,7 +517,7 @@ module Integration
           'skips' => 0,
           'requeues' => 0,
           'total_time' => index + 1,
-        }, acknowledge: false)
+        })
       end
 
       # Retry first worker, bailing out
