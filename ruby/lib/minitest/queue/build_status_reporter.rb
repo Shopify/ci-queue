@@ -129,7 +129,7 @@ module Minitest
 
         puts aggregates
 
-        if supervisor.time_left.to_i <= 0
+        if timed_out?
           puts red("Timed out waiting for tests to be executed.")
 
           remaining_tests = supervisor.test_ids
@@ -142,7 +142,7 @@ module Minitest
           end
 
           exit_code = TIMED_OUT_EXIT_CODE
-        elsif supervisor.time_left_with_no_workers.to_i <= 0
+        elsif all_workers_died?
           puts red("All workers died.")
           exit_code = WORKERS_DIED_EXIT_CODE
         elsif supervisor.max_test_failed?
@@ -167,7 +167,11 @@ module Minitest
 
       def success?
         build.error_reports.empty? &&
-          build.worker_errors.empty?
+          build.worker_errors.empty? &&
+          build.queue_exhausted? &&
+          !supervisor.max_test_failed? &&
+          !all_workers_died? &&
+          !timed_out?
       end
 
       def record(*)
@@ -219,6 +223,14 @@ module Minitest
       private
 
       attr_reader :build, :supervisor
+
+      def timed_out?
+        supervisor.time_left.to_i <= 0
+      end
+
+      def all_workers_died?
+        supervisor.time_left_with_no_workers.to_i <= 0
+      end
 
       def aggregates
         success = failures.zero? && errors.zero?
