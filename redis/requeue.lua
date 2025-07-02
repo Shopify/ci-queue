@@ -4,6 +4,7 @@ local queue_key = KEYS[3]
 local zset_key = KEYS[4]
 local worker_queue_key = KEYS[5]
 local owners_key = KEYS[6]
+local error_reports_key = KEYS[7]
 
 local max_requeues = tonumber(ARGV[1])
 local global_max_requeues = tonumber(ARGV[2])
@@ -30,6 +31,8 @@ end
 
 redis.call('hincrby', requeues_count_key, '___total___', 1)
 redis.call('hincrby', requeues_count_key, test, 1)
+
+redis.call('hdel', error_reports_key, test)
 
 local pivot = redis.call('lrange', queue_key, -1 - offset, 0 - offset)[1]
 if pivot then
