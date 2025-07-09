@@ -57,11 +57,12 @@ module CI
         end
 
         def record_error(id, payload, stats: nil)
-          redis.pipelined do |pipeline|
+          acknowledged, _ = redis.pipelined do |pipeline|
             @queue.acknowledge(id, error: payload, pipeline: pipeline)
             record_stats(stats, pipeline: pipeline)
-            @queue.increment_test_failed(pipeline: pipeline)
           end
+
+          @queue.increment_test_failed if acknowledged == 1
           nil
         end
 
