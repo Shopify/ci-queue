@@ -25,7 +25,7 @@ module Minitest::Queue
 
       @supervisor.instance_variable_set(:@time_left, 0)
 
-      out, err = capture_subprocess_io do
+      out, _ = capture_subprocess_io do
         exit_status = @reporter.report
       end
 
@@ -44,7 +44,7 @@ module Minitest::Queue
       @supervisor.instance_variable_set(:@time_left, 1)
       @supervisor.instance_variable_set(:@time_left_with_no_workers, 0)
 
-      out, err = capture_subprocess_io do
+      out, _ = capture_subprocess_io do
         exit_status = @reporter.report
       end
 

@@ -74,6 +74,7 @@ module Minitest::Queue
       reserve(second_queue, "a")
       second_reporter.record(result("a"))
       assert_equal 0, summary.error_reports.size
+      assert_equal 1, @queue.test_failed
     end
 
     def test_retrying_test_reverse
@@ -102,6 +103,7 @@ module Minitest::Queue
       reserve(second_queue, "a")
       second_reporter.record(result("a", failure: "Something went wrong"))
       assert_equal 0, summary.error_reports.size
+      assert_equal 0, @queue.test_failed
     end
 
     def test_static_queue_record_success
