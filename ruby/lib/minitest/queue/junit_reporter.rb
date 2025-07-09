@@ -9,7 +9,7 @@ module Minitest
     class JUnitReporter < Minitest::Reporters::BaseReporter
       include ::CI::Queue::OutputHelpers
 
-      def initialize(report_path = 'log/junit.xml', options = {})
+      def initialize(report_path = ENV.fetch("CI_QUEUE_MINITEST_JUNITXML", 'log/junit.xml'), options = {})
         super({})
         @report_path = File.absolute_path(report_path)
         @base_path = options[:base_path] || Dir.pwd
