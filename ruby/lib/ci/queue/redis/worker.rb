@@ -219,7 +219,7 @@ module CI
           end
 
           if @master = (value == status)
-            puts "Worker electected as leader, pushing #{@total} tests to the queue."
+            puts "Worker elected as leader, pushing #{@total} tests to the queue."
             puts
 
             attempts = 0
