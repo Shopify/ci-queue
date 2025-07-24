@@ -34,7 +34,7 @@ module Integration
 
       assert_empty err
       expected_output = strip_heredoc <<-EOS
-        Worker electected as leader, pushing 3 tests to the queue.
+        Worker elected as leader, pushing 3 tests to the queue.
 
         Finished pushing 3 tests to the queue in X.XXs.
 
@@ -91,7 +91,7 @@ module Integration
 
       assert_empty err
       expected_output = strip_heredoc <<-EOS
-        Worker electected as leader, pushing 3 tests to the queue.
+        Worker elected as leader, pushing 3 tests to the queue.
 
         Finished pushing 3 tests to the queue in X.XXs.
 
@@ -273,7 +273,7 @@ module Integration
 
       assert_empty err
       expected_output = strip_heredoc <<-EOS
-        Worker electected as leader, pushing 2 tests to the queue.
+        Worker elected as leader, pushing 2 tests to the queue.
 
         Finished pushing 2 tests to the queue in X.XXs.
 
@@ -317,7 +317,7 @@ module Integration
 
       assert_empty err
       expected_output = strip_heredoc <<-EOS
-        Worker electected as leader, pushing 3 tests to the queue.
+        Worker elected as leader, pushing 3 tests to the queue.
 
         Finished pushing 3 tests to the queue in X.XXs.
 
@@ -418,7 +418,7 @@ module Integration
 
       assert_empty err
       expected_output = strip_heredoc <<-EOS
-        Worker electected as leader, pushing 1 tests to the queue.
+        Worker elected as leader, pushing 1 tests to the queue.
 
         Finished pushing 1 tests to the queue in X.XXs.
 
