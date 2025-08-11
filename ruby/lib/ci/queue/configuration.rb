@@ -20,6 +20,8 @@ module CI
             statsd_endpoint: env['CI_QUEUE_STATSD_ADDR'],
             redis_ttl: env['CI_QUEUE_REDIS_TTL']&.to_i ||  8 * 60 * 60,
             debug_log: env['CI_QUEUE_DEBUG_LOG'],
+            max_requeues: env['CI_QUEUE_MAX_REQUEUES']&.to_i || 0,
+            requeue_tolerance: env['CI_QUEUE_REQUEUE_TOLERANCE']&.to_f || 0,
           )
         end
 
