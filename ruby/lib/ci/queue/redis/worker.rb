@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 require 'ci/queue/static'
-require 'set'
+require 'concurrent/set'
 
 module CI
   module Queue
@@ -16,7 +16,7 @@ module CI
         attr_reader :total
 
         def initialize(redis, config)
-          @reserved_tests = Set.new
+          @reserved_tests = Concurrent::Set.new
           @shutdown_required = false
           super(redis, config)
         end
@@ -154,7 +154,7 @@ module CI
         attr_reader :index
 
         def reserved_tests
-          @reserved_tests ||= Set.new
+          @reserved_tests ||= Concurrent::Set.new
         end
 
         def worker_id
