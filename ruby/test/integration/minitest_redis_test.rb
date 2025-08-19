@@ -3,6 +3,7 @@ require 'test_helper'
 require 'tmpdir'
 require 'active_support'
 require 'active_support/testing/time_helpers'
+require 'concurrent/set'
 
 module Integration
   class MinitestRedisTest < Minitest::Test
@@ -509,7 +510,7 @@ module Integration
       assert_equal 100, error_reports.size
 
       error_reports.keys.each_with_index do |test_id, index|
-        queue.instance_variable_set(:@reserved_tests, Set.new([test_id]))
+        queue.instance_variable_set(:@reserved_tests, Concurrent::Set.new([test_id]))
         queue.build.record_success(test_id.dup, stats: {
           'assertions' => index + 1,
           'errors' => 0,

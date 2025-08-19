@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'concurrent/set'
+
 module CI
   module Queue
     class Static
@@ -145,7 +147,7 @@ module CI
       end
 
       def reserved_tests
-        @reserved_tests ||= Set.new
+        @reserved_tests ||= Concurrent::Set.new
       end
     end
   end
