@@ -23,21 +23,23 @@ module Minitest::Queue
       assert_equal ['Minitest::Test#a', 'Minitest::Test#b'], File.readlines(log_path).map(&:chomp)
     end
 
-    def test_forking
-      pid = fork do
-        @reporter.start
-      end
-      pids = 5.times.map do
-        fork do
-          @reporter.before_test(runnable(Process.pid))
-          @reporter.report
+    unless truffleruby?
+      def test_forking
+        pid = fork do
+          @reporter.start
         end
-      end
-      (pids + [pid]).map do |pid|
-        Process.waitpid(pid)
-      end
+        pids = 5.times.map do
+          fork do
+            @reporter.before_test(runnable(Process.pid))
+            @reporter.report
+          end
+        end
+        (pids + [pid]).map do |pid|
+          Process.waitpid(pid)
+        end
 
-      assert_equal pids.map { |pid| "Minitest::Test##{pid}" }.sort, File.readlines(log_path).map(&:chomp).sort
+        assert_equal pids.map { |pid| "Minitest::Test##{pid}" }.sort, File.readlines(log_path).map(&:chomp).sort
+      end
     end
 
     private
