@@ -674,7 +674,7 @@ module Integration
                     .sort_by { |h| "#{h[:test_id]}##{h[:test_index]}" }
                     .first
 
-      start_delta = RUBY_ENGINE == "truffleruby" ? 15 : 5
+      start_delta = self.class.truffleruby? ? 15 : 5
       assert_in_delta start_time.to_i, failure[:test_start_timestamp], start_delta, "start time"
       assert_in_delta end_time.to_i, failure[:test_finish_timestamp], 5
       assert failure[:test_finish_timestamp] > failure[:test_start_timestamp]

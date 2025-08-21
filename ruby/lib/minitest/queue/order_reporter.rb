@@ -4,21 +4,29 @@ require 'minitest/reporters'
 class Minitest::Queue::OrderReporter < Minitest::Reporters::BaseReporter
   def initialize(options = {})
     @path = options.delete(:path)
+    @file = nil
     super
   end
 
   def start
-    @file = File.open(@path, 'w+')
     super
+    file.truncate(0)
   end
 
   def before_test(test)
     super
-    @file.puts("#{test.class.name}##{test.name}")
-    @file.flush
+    file.puts("#{test.class.name}##{test.name}")
+    file.flush
   end
 
   def report
-    @file.close
+    file.close
+  end
+
+  private
+
+  def file
+    @file ||= File.open(@path, 'a+')
   end
 end
+

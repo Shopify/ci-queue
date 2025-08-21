@@ -19,3 +19,12 @@ require 'stringio'
 Dir[File.expand_path('../support/**/*.rb', __FILE__)].sort.each do |file|
   require file
 end
+
+
+class Minitest::Test
+  class << self
+    def truffleruby?
+      RUBY_ENGINE == "truffleruby"
+    end
+  end
+end
