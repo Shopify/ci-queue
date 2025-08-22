@@ -1,0 +1,9 @@
+[package]
+name = "ci-queue-core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+redis = "0.32.5"
+thiserror = "2.0.16"
+uuid = { version = "1.18.0", features = ["v4"] }

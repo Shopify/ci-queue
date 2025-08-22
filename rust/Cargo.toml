@@ -1,0 +1,3 @@
+[workspace]
+members = ["ci-queue-core", "ci-queue-playwright"]
+resolver = "2"
