@@ -34,8 +34,9 @@ This is why `ci-queue` optionally allows to put failed tests back into the queue
 
 Two implementations are provided, please refer to the respective documentations:
 
-  - [Python](python/)
-  - [Ruby](ruby/)
+- [Python](python/)
+- [Ruby](ruby/)
+- [Rust](rust/)
 
 ## Redis Requirements
 
@@ -48,4 +49,3 @@ Bug reports and pull requests are welcome on GitHub at https://github.com/Shopif
 ## License
 
 The code is available as open source under the terms of the [MIT License](http://opensource.org/licenses/MIT).
-
