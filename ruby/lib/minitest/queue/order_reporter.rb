@@ -4,7 +4,7 @@ require 'minitest/reporters'
 class Minitest::Queue::OrderReporter < Minitest::Reporters::BaseReporter
   def initialize(options = {})
     @path = options.delete(:path)
-    @file = nil
+    @file = File.open(@path, 'a+')
     super
   end
 
@@ -25,8 +25,6 @@ class Minitest::Queue::OrderReporter < Minitest::Reporters::BaseReporter
 
   private
 
-  def file
-    @file ||= File.open(@path, 'a+')
-  end
+  attr_reader :file
 end
 
