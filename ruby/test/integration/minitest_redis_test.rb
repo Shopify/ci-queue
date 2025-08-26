@@ -212,6 +212,8 @@ module Integration
         )
       end
 
+      refute_predicate $?, :success?
+      assert_equal 1, $?.exitstatus
       assert_equal 'This worker is exiting early because too many failed tests were encountered.', err.chomp
       output = normalize(out.lines.last.strip)
       assert_equal 'Ran 47 tests, 47 assertions, 3 failures, 0 errors, 0 skips, 44 requeues in X.XXs', output
