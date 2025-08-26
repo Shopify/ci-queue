@@ -168,9 +168,9 @@ module CI
         end
 
         def reserve
-          test = (try_to_reserve_lost_test || try_to_reserve_test)
-          reserved_tests << test
-          test
+          (try_to_reserve_lost_test || try_to_reserve_test).tap do |test|
+            reserved_tests << test if test
+          end
         end
 
         def try_to_reserve_test
