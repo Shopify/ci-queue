@@ -253,6 +253,29 @@ module Integration
       assert_equal expected.strip, normalize(out.lines.last.strip)
     end
 
+    def test_max_test_failed_with_setup_failures
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '--heartbeat', '1',
+          '--max-requeues', '3',
+          '--requeue-tolerance', '0.12',
+          "--max-consecutive-failures", "3",
+          '-Itest',
+          'test/failing_setup_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      refute_predicate $?, :success?
+      assert_equal 1, $?.exitstatus
+    end
+
     def test_all_workers_died
       # Run the reporter
       out, err = capture_subprocess_io do
