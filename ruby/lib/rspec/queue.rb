@@ -291,7 +291,6 @@ module RSpec
           end
         end
 
-        # TODO: better reporting
         errors = supervisor.build.error_reports.sort_by(&:first).map(&:last)
         if errors.empty?
           step(green('No errors found'))
@@ -299,7 +298,50 @@ module RSpec
         else
           message = errors.size == 1 ? "1 error found" : "#{errors.size} errors found"
           step(red(message), collapsed: false)
-          puts errors
+
+          # Extract test file paths for summary
+          test_paths = []
+          errors.each do |error_output|
+            # Look for the rspec rerun command (should always be present thanks to BuildStatusRecorder)
+            # The rspec command appears on its own line, possibly after whitespace
+            if match = error_output.match(/^\s*rspec\s+([^\s]+)(?::\d+)?/m)
+              # Extract just the file path, removing line number if present
+              file_path = match[1].split(':').first
+              test_paths << file_path
+            end
+          end
+
+          # Print summary section FIRST, before any details
+          if test_paths.any?
+            # Count failures per file
+            file_counts = test_paths.each_with_object(Hash.new(0)) { |path, counts| counts[path] += 1 }
+
+            puts "\n" + "=" * 80
+            puts "FAILED TESTS SUMMARY:"
+            puts "=" * 80
+            file_counts.sort_by { |path, _| path }.each do |path, count|
+              if count == 1
+                puts "  #{path}"
+              else
+                puts "  #{path} (#{count} failures)"
+              end
+            end
+            puts "=" * 80
+          end
+
+          # Print full output of errors after the summary
+          puts "\n" + "=" * 80
+          puts "DETAILED ERROR INFORMATION:"
+          puts "=" * 80
+
+          errors.each_with_index do |error, index|
+            puts "\n" + "-" * 80
+            puts "Error #{index + 1} of #{errors.size}"
+            puts "-" * 80
+            puts error
+          end
+
+          puts "=" * 80
           1
         end
       end
