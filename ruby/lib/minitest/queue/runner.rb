@@ -344,6 +344,7 @@ module Minitest
       end
 
       def populate_queue
+        puts "Populating queue with #{Minitest.loaded_tests} tests"
         Minitest.queue.populate(Minitest.loaded_tests, random: ordering_seed)
       end
 
