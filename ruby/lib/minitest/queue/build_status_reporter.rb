@@ -153,7 +153,10 @@ module Minitest
         puts
 
         errors = error_reports
-        puts errors
+        if errors.any?
+          pretty_print_summary(errors)
+          pretty_print_failures(errors)
+        end
 
         build.worker_errors.to_a.sort.each do |worker_id, error|
           puts red("Worker #{worker_id } crashed")
@@ -223,6 +226,37 @@ module Minitest
       private
 
       attr_reader :build, :supervisor
+
+      def pretty_print_summary(errors)
+        test_paths = errors.map(&:test_file).compact
+        return unless test_paths.any?
+
+        file_counts = test_paths.each_with_object(Hash.new(0)) { |path, counts| counts[path] += 1 }
+
+        puts "\n" + "=" * 80
+        puts "FAILED TESTS SUMMARY:"
+        puts "=" * 80
+        file_counts.sort_by { |path, _| path }.each do |path, count|
+          relative_path = Minitest::Queue.relative_path(path)
+          if count == 1
+            puts "  #{relative_path}"
+          else
+            puts "  #{relative_path} (#{count} failures)"
+          end
+        end
+        puts "=" * 80
+      end
+
+      def pretty_print_failures(errors)
+        errors.each_with_index do |error, index|
+          puts "\n" + "-" * 80
+          puts "Error #{index + 1} of #{errors.size}"
+          puts "-" * 80
+          puts error
+        end
+
+        puts "=" * 80
+      end
 
       def timed_out?
         supervisor.time_left.to_i <= 0
