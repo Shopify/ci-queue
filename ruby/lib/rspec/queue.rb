@@ -435,7 +435,18 @@ module RSpec
         invalid_usage!('Missing --queue parameter') unless queue_url
         invalid_usage!('Missing --build parameter') unless RSpec::Queue.config.build_id
         invalid_usage!('Missing --worker parameter') unless RSpec::Queue.config.worker_id
-        RSpec.configuration.backtrace_formatter.filter_gem('ci-queue')
+        RSpec.configure do |config|
+          config.backtrace_exclusion_patterns = [
+            # Filter bundler paths
+            %r{/tmp/bundle/},
+            # RSpec internals
+            %r{/gems/rspec-},
+            # ci-queue and rspec-queue internals
+            %r{exe/rspec-queue},
+            %r{lib/ci/queue/},
+            %r{rspec/queue}
+          ]
+        end
       end
 
       def run_specs(example_groups)
