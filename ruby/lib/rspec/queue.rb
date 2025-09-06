@@ -5,6 +5,7 @@ require 'rspec/core'
 require 'ci/queue'
 require 'rspec/queue/build_status_recorder'
 require 'rspec/queue/order_recorder'
+require 'rspec/queue/error_report'
 
 module RSpec
   module Queue
@@ -291,7 +292,9 @@ module RSpec
           end
         end
 
-        errors = supervisor.build.error_reports.sort_by(&:first).map(&:last)
+        errors = supervisor.build.error_reports.sort_by(&:first).map do |_, error_data|
+            RSpec::Queue::ErrorReport.load(error_data)
+        end
         if errors.empty?
           step(green('No errors found'))
           0
@@ -299,50 +302,46 @@ module RSpec
           message = errors.size == 1 ? "1 error found" : "#{errors.size} errors found"
           step(red(message), collapsed: false)
 
-          # Extract test file paths for summary
-          test_paths = []
-          errors.each do |error_output|
-            # Look for the rspec rerun command (should always be present thanks to BuildStatusRecorder)
-            # The rspec command appears on its own line, possibly after whitespace
-            if match = error_output.match(/^\s*rspec\s+([^\s]+)(?::\d+)?/m)
-              # Extract just the file path, removing line number if present
-              file_path = match[1].split(':').first
-              test_paths << file_path
-            end
-          end
-
-          # Print summary section FIRST, before any details
-          if test_paths.any?
-            # Count failures per file
-            file_counts = test_paths.each_with_object(Hash.new(0)) { |path, counts| counts[path] += 1 }
-
-            puts "\n" + "=" * 80
-            puts "FAILED TESTS SUMMARY:"
-            puts "=" * 80
-            file_counts.sort_by { |path, _| path }.each do |path, count|
-              if count == 1
-                puts "  #{path}"
-              else
-                puts "  #{path} (#{count} failures)"
-              end
-            end
-            puts "=" * 80
-          end
-
-          # Print full output of errors after the summary
-          puts "\n" + "=" * 80
-          puts "DETAILED ERROR INFORMATION:"
-          puts "=" * 80
-
-          errors.each_with_index do |error, index|
-            puts "\n" + "-" * 80
-            puts "Error #{index + 1} of #{errors.size}"
-            puts "-" * 80
-            puts error
-          end
-
-          puts "=" * 80
+          pretty_print_summary(errors)
+          pretty_print_failures(errors)
           1
+          # Example output
+          #
+          # FAILED TESTS SUMMARY:
+          # =================================================================================
+          #   ./spec/dummy_spec.rb
+          #   ./spec/dummy_spec_2.rb (2 failures)
+          #   ./spec/dummy_spec_3.rb (3 failures)
+          # =================================================================================
+          #
+          # --------------------------------------------------------------------------------
+          # Error 1 of 3
+          # --------------------------------------------------------------------------------
+          #
+          #   Object doesn't work on first try
+          #   Failure/Error: expect(1 + 1).to be == 42
+          #
+          #     expected: == 42
+          #      got:    2
+          #
+          # --- stacktrace will be here ---
+          # --- rerun command will be here ---
+          #
+          # --------------------------------------------------------------------------------
+          # Error 2 of 3
+          # --------------------------------------------------------------------------------
+          #
+          #   Object doesn't work on first try
+          #   Failure/Error: expect(1 + 1).to be == 42
+          #
+          #     expected: == 42
+          #      got:    2
+          #
+          # --- stacktrace will be here ---
+          # --- rerun command will be here ---
+          #
+          #  ... etc
+          # =================================================================================
         end
       end
 
@@ -361,6 +360,38 @@ module RSpec
 
         invalid_usage!('Missing --queue parameter') unless queue_url
         invalid_usage!('Missing --build parameter') unless RSpec::Queue.config.build_id
+      end
+
+      private
+
+      def pretty_print_summary(errors)
+        test_paths = errors.map(&:test_file).compact
+        return unless test_paths.any?
+
+        file_counts = test_paths.each_with_object(Hash.new(0)) { |path, counts| counts[path] += 1 }
+
+        puts "\n" + "=" * 80
+        puts "FAILED TESTS SUMMARY:"
+        puts "=" * 80
+        file_counts.sort_by { |path, _| path }.each do |path, count|
+          if count == 1
+            puts "  #{path}"
+          else
+            puts "  #{path} (#{count} failures)"
+          end
+        end
+        puts "=" * 80
+      end
+
+      def pretty_print_failures(errors)
+        errors.each_with_index do |error, index|
+          puts "\n" + "-" * 80
+          puts "Error #{index + 1} of #{errors.size}"
+          puts "-" * 80
+          puts error.to_s
+        end
+
+        puts "=" * 80
       end
     end
 

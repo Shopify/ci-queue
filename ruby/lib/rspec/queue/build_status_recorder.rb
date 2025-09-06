@@ -1,4 +1,7 @@
 # frozen_string_literal: true
+require 'rspec/queue/failure_formatter'
+require 'rspec/queue/error_report'
+
 module RSpec
   module Queue
     class BuildStatusRecorder
@@ -6,7 +9,9 @@ module RSpec
 
       class << self
         attr_accessor :build
+        attr_accessor :failure_formatter
       end
+      self.failure_formatter = FailureFormatter
 
       def initialize(*)
       end
@@ -18,17 +23,13 @@ module RSpec
 
       def example_failed(notification)
         example = notification.example
-        build.record_error(example.id, [
-          notification.fully_formatted(nil),
-          colorized_rerun_command(example),
-        ].join("\n"))
+        build.record_error(example.id, dump(notification))
       end
 
       private
 
-      def colorized_rerun_command(example, colorizer=::RSpec::Core::Formatters::ConsoleCodes)
-        colorizer.wrap("rspec #{example.location_rerun_argument}", RSpec.configuration.failure_color) + " " +
-        colorizer.wrap("# #{example.full_description}",   RSpec.configuration.detail_color)
+      def dump(notification)
+        ErrorReport.new(self.class.failure_formatter.new(notification).to_h).dump
       end
 
       def build
