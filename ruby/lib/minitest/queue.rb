@@ -257,6 +257,12 @@ module Minitest
         Minitest.queue.flaky?(self)
       end
 
+      def source_location
+        @runnable.instance_method(@method_name).source_location
+      rescue NameError, NoMethodError
+        nil
+      end
+
       private
 
       def current_timestamp

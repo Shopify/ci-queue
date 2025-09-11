@@ -193,6 +193,7 @@ module Minitest
           puts reopen_previous_step
           puts red("The failing test does not exist.")
           File.write('log/test_order.log', "")
+          File.write('log/bisect_test_details.log', "")
           exit! 1
         end
 
@@ -200,6 +201,7 @@ module Minitest
           puts reopen_previous_step
           puts red("The test fail when ran alone, no need to bisect.")
           File.write('log/test_order.log', queue_config.failing_test)
+          File.write('log/bisect_test_details.log', "")
           exit! 0
         end
 
@@ -218,6 +220,7 @@ module Minitest
         if queue.suspects_left == 0
           step(yellow("The failing test was the first test in the test order so there is nothing to bisect."))
           File.write('log/test_order.log', "")
+          File.write('log/bisect_test_details.log', "")
           exit! 1
         end
 
@@ -226,6 +229,7 @@ module Minitest
         if run_tests_in_fork(failing_order)
           step(yellow("The bisection was inconclusive, there might not be any leaky test here."))
           File.write('log/test_order.log', "")
+          File.write('log/bisect_test_details.log', "")
           exit! 1
         else
           step(green('The following command should reproduce the leak on your machine:'), collapsed: false)
@@ -238,6 +242,16 @@ module Minitest
           puts
 
           File.write('log/test_order.log', failing_order.to_a.map(&:id).join("\n"))
+          
+          bisect_test_details = failing_order.to_a.map do |test|
+            source_location = test.source_location
+            file_path = source_location&.first || 'unknown'
+            line_number = source_location&.last || -1
+            "#{test.id} #{file_path}:#{line_number}"
+          end
+          
+          File.write('log/bisect_test_details.log', bisect_test_details.join("\n"))
+          
           exit! 0
         end
       end
