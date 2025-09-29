@@ -34,8 +34,8 @@ This is why `ci-queue` optionally allows to put failed tests back into the queue
 
 Two implementations are provided, please refer to the respective documentations:
 
-  - [Python](python/)
-  - [Ruby](ruby/)
+- [Python](python/)
+- [Ruby](ruby/)
 
 ## Redis Requirements
 
@@ -45,7 +45,28 @@ Two implementations are provided, please refer to the respective documentations:
 
 Bug reports and pull requests are welcome on GitHub at https://github.com/Shopify/ci-queue.
 
+## Tophatting
+
+To test changes, you can modify your repo's `Gemfile` to use your `ci-queue` branch in CI
+
+```ruby
+# areas/core/shopify/Gemfile
+
+gem "ci-queue", github: "Shopify/ci-queue", branch: "your-branch-name"
+```
+
+Update the `Gemfile.lock`
+
+```
+bundle install
+```
+
+Push your `Gemfile` changes to a branch and run CI through `devx`
+
+```
+devx ci trigger
+```
+
 ## License
 
 The code is available as open source under the terms of the [MIT License](http://opensource.org/licenses/MIT).
-
