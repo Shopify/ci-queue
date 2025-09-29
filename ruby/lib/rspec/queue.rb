@@ -5,6 +5,7 @@ require 'rspec/core'
 require 'ci/queue'
 require 'rspec/queue/build_status_recorder'
 require 'rspec/queue/order_recorder'
+require 'rspec/queue/error_report'
 
 module RSpec
   module Queue
@@ -291,16 +292,56 @@ module RSpec
           end
         end
 
-        # TODO: better reporting
-        errors = supervisor.build.error_reports.sort_by(&:first).map(&:last)
+        errors = supervisor.build.error_reports.sort_by(&:first).map do |_, error_data|
+            RSpec::Queue::ErrorReport.load(error_data)
+        end
         if errors.empty?
           step(green('No errors found'))
           0
         else
           message = errors.size == 1 ? "1 error found" : "#{errors.size} errors found"
           step(red(message), collapsed: false)
-          puts errors
+
+          pretty_print_summary(errors)
+          pretty_print_failures(errors)
           1
+          # Example output
+          #
+          # FAILED TESTS SUMMARY:
+          # =================================================================================
+          #   ./spec/dummy_spec.rb
+          #   ./spec/dummy_spec_2.rb (2 failures)
+          #   ./spec/dummy_spec_3.rb (3 failures)
+          # =================================================================================
+          #
+          # --------------------------------------------------------------------------------
+          # Error 1 of 3
+          # --------------------------------------------------------------------------------
+          #
+          #   Object doesn't work on first try
+          #   Failure/Error: expect(1 + 1).to be == 42
+          #
+          #     expected: == 42
+          #      got:    2
+          #
+          # --- stacktrace will be here ---
+          # --- rerun command will be here ---
+          #
+          # --------------------------------------------------------------------------------
+          # Error 2 of 3
+          # --------------------------------------------------------------------------------
+          #
+          #   Object doesn't work on first try
+          #   Failure/Error: expect(1 + 1).to be == 42
+          #
+          #     expected: == 42
+          #      got:    2
+          #
+          # --- stacktrace will be here ---
+          # --- rerun command will be here ---
+          #
+          #  ... etc
+          # =================================================================================
         end
       end
 
@@ -319,6 +360,38 @@ module RSpec
 
         invalid_usage!('Missing --queue parameter') unless queue_url
         invalid_usage!('Missing --build parameter') unless RSpec::Queue.config.build_id
+      end
+
+      private
+
+      def pretty_print_summary(errors)
+        test_paths = errors.map(&:test_file).compact
+        return unless test_paths.any?
+
+        file_counts = test_paths.each_with_object(Hash.new(0)) { |path, counts| counts[path] += 1 }
+
+        puts "\n" + "=" * 80
+        puts "FAILED TESTS SUMMARY:"
+        puts "=" * 80
+        file_counts.sort_by { |path, _| path }.each do |path, count|
+          if count == 1
+            puts "  #{path}"
+          else
+            puts "  #{path} (#{count} failures)"
+          end
+        end
+        puts "=" * 80
+      end
+
+      def pretty_print_failures(errors)
+        errors.each_with_index do |error, index|
+          puts "\n" + "-" * 80
+          puts "Error #{index + 1} of #{errors.size}"
+          puts "-" * 80
+          puts error.to_s
+        end
+
+        puts "=" * 80
       end
     end
 
@@ -362,7 +435,18 @@ module RSpec
         invalid_usage!('Missing --queue parameter') unless queue_url
         invalid_usage!('Missing --build parameter') unless RSpec::Queue.config.build_id
         invalid_usage!('Missing --worker parameter') unless RSpec::Queue.config.worker_id
-        RSpec.configuration.backtrace_formatter.filter_gem('ci-queue')
+        RSpec.configure do |config|
+          config.backtrace_exclusion_patterns = [
+            # Filter bundler paths
+            %r{/tmp/bundle/},
+            # RSpec internals
+            %r{/gems/rspec-},
+            # ci-queue and rspec-queue internals
+            %r{exe/rspec-queue},
+            %r{lib/ci/queue/},
+            %r{rspec/queue}
+          ]
+        end
       end
 
       def run_specs(example_groups)

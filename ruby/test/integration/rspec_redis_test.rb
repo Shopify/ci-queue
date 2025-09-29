@@ -189,6 +189,16 @@ module Integration
         Waiting for workers to complete
         1 error found
 
+        ================================================================================
+        FAILED TESTS SUMMARY:
+        ================================================================================
+          ./spec/dummy_spec.rb
+        ================================================================================
+
+        --------------------------------------------------------------------------------
+        Error 1 of 1
+        --------------------------------------------------------------------------------
+
           Object doesn't work on first try
           Failure/Error: expect(1 + 1).to be == 42
 
@@ -197,6 +207,7 @@ module Integration
           # ./spec/dummy_spec.rb:12:in `block (2 levels) in <top (required)>'
 
         rspec ./spec/dummy_spec.rb:7 # Object doesn't work on first try
+        ================================================================================
       EOS
 
       assert_equal expected_output, normalize(out)
@@ -363,6 +374,16 @@ module Integration
         --- Waiting for workers to complete
         +++ 1 error found
 
+        ================================================================================
+        FAILED TESTS SUMMARY:
+        ================================================================================
+          ./spec/dummy_spec.rb
+        ================================================================================
+
+        --------------------------------------------------------------------------------
+        Error 1 of 1
+        --------------------------------------------------------------------------------
+
           Object doesn't work on first try
           Failure/Error: expect(1 + 1).to be == 42
 
@@ -371,6 +392,7 @@ module Integration
           # ./spec/dummy_spec.rb:12:in `block (2 levels) in <top (required)>'
 
         rspec ./spec/dummy_spec.rb:7 # Object doesn't work on first try
+        ================================================================================
       EOS
 
       assert_equal expected_output, normalize(out)

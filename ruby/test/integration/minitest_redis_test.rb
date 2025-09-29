@@ -954,15 +954,40 @@ module Integration
           Ran 7 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs (aggregated)
 
 
+
+          ================================================================================
+          FAILED TESTS SUMMARY:
+          ================================================================================
+            test/dummy_test.rb (3 failures)
+          ================================================================================
+
+          --------------------------------------------------------------------------------
+          Error 1 of 3
+          --------------------------------------------------------------------------------
           FAIL ATest#test_bar
           Expected false to be truthy.
               test/dummy_test.rb:10:in `test_bar'
 
+
+          --------------------------------------------------------------------------------
+          Error 2 of 3
+          --------------------------------------------------------------------------------
           FAIL ATest#test_flaky_fails_retry
           Expected false to be truthy.
               test/dummy_test.rb:23:in `test_flaky_fails_retry'
 
+
+          --------------------------------------------------------------------------------
+          Error 3 of 3
+          --------------------------------------------------------------------------------
           ERROR BTest#test_bar
+          Minitest::UnexpectedError: TypeError: String can't be coerced into Integer
+              test/dummy_test.rb:37:in `+'
+              test/dummy_test.rb:37:in `test_bar'
+              test/dummy_test.rb:37:in `+'
+              test/dummy_test.rb:37:in `test_bar'
+          
+          ================================================================================
         END
         assert_includes output, expected_output
       end
