@@ -139,7 +139,7 @@ module Integration
           )
         end
 
-      assert_includes File.read(log_file.path), 'INFO -- : Finished \'["exists", "build:1:worker:1:queue"]\': 0'
+      assert_includes File.read(log_file.path), 'INFO -- : Finished \'["exists", "b:c4ca4238:w:1:q"]\': 0'
       assert_empty err
       result = normalize(out.lines.last.strip)
       assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', result
@@ -444,7 +444,7 @@ module Integration
       assert_equal 'Ran 100 tests, 100 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
 
       one_day = 60 * 60 * 24
-      key = ['build', "1", "created-at"].join(':')
+      key = CI::Queue::Redis::KeyShortener.key("1", "created-at")
       @redis.set(key, Time.now - one_day)
 
       out, err = capture_subprocess_io do

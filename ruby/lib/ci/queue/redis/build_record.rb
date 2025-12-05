@@ -139,7 +139,7 @@ module CI
         end
 
         def key(*args)
-          ['build', config.build_id, *args].join(':')
+          KeyShortener.key(config.build_id, *args)
         end
       end
     end
