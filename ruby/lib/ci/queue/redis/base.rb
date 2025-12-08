@@ -155,15 +155,33 @@ module CI
           return true if master?
           return true if queue_initialized?
 
-          (timeout * 10 + 1).to_i.times do
-            if queue_initialized?
-              return true
-            else
-              sleep 0.1
+          if config.batch_upload
+            return wait_for_streaming(timeout: timeout)
+          else
+            (timeout * 10 + 1).to_i.times do
+              if queue_initialized?
+                return true
+              else
+                sleep 0.1
+              end
             end
+
+            raise LostMaster, "The master worker is still `#{master_status}` after #{timeout} seconds waiting."
+          end
+        end
+
+        def wait_for_streaming(timeout:)
+          (timeout * 10 + 1).to_i.times do
+            status = master_status
+
+            # Ready to work if streaming or complete
+            return true if status == 'streaming' || status == 'ready' || status == 'finished'
+
+            # Master hasn't started yet
+            sleep 0.1
           end
 
-          raise LostMaster, "The master worker is still `#{master_status}` after #{timeout} seconds waiting."
+          raise LostMaster, "The master worker didn't start streaming after #{timeout} seconds waiting."
         end
 
         def workers_count
@@ -173,7 +191,11 @@ module CI
         def queue_initialized?
           @queue_initialized ||= begin
             status = master_status
-            status == 'ready' || status == 'finished'
+            if config.batch_upload
+              status == 'streaming' || status == 'ready' || status == 'finished'
+            else
+              status == 'ready' || status == 'finished'
+            end
           end
         end
 
