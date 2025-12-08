@@ -214,7 +214,7 @@ module CI
         end
 
         def key(*args)
-          ['build', build_id, *args].join(':')
+          KeyShortener.key(config.build_id, *args)
         end
 
         def build_id
