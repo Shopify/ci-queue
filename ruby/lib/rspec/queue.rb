@@ -167,6 +167,30 @@ module RSpec
           queue.config.redis_ttl = time
         end
 
+        help = <<~EOS
+          Enable batch/streaming upload mode. In this mode, the master worker will load test files
+          and push tests to the queue in batches, allowing other workers to start processing tests
+          immediately without waiting for all tests to be uploaded. This significantly reduces
+          startup time for large test suites.
+
+          IMPORTANT: When using this mode, test files are loaded lazily on-demand on workers.
+          You MUST explicitly require all dependencies in your spec_helper.rb.
+          Autoloading may not work as expected since not all test files are loaded upfront.
+        EOS
+        parser.separator ""
+        parser.on('--batch-upload', *help) do
+          queue_config.batch_upload = true
+        end
+
+        help = <<~EOS
+          Specify the number of tests to upload in each batch when --batch-upload is enabled.
+          Defaults to 100.
+        EOS
+        parser.separator ""
+        parser.on('--batch-size SIZE', Integer, *help) do |size|
+          queue_config.batch_size = Integer(size)
+        end
+
         parser
       end
 

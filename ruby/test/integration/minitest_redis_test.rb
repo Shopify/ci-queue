@@ -48,6 +48,32 @@ module Integration
       assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', result
     end
 
+    def test_batch_upload_
+      out, err = capture_subprocess_io do
+        system(
+          { 'BUILDKITE' => '1' },
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '--max-requeues', '1',
+          '--requeue-tolerance', '1',
+          '--batch-upload',
+          '--batch-size', '1',
+          '-Itest',
+          'test/dummy_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      assert_empty err
+      assert_match(/Expected false to be truthy/, normalize(out)) # failure output
+      result = normalize(out.lines.last.strip)
+      assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', result
+    end
+
     def test_lost_test_with_heartbeat_monitor
       _, err = capture_subprocess_io do
         2.times.map do |i|
@@ -986,7 +1012,7 @@ module Integration
               test/dummy_test.rb:37:in `test_bar'
               test/dummy_test.rb:37:in `+'
               test/dummy_test.rb:37:in `test_bar'
-          
+
           ================================================================================
         END
         assert_includes output, expected_output

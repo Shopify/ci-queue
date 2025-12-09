@@ -84,7 +84,11 @@ module Minitest
         trap('TERM') { Minitest.queue.shutdown! }
         trap('INT') { Minitest.queue.shutdown! }
 
-        if queue.rescue_connection_errors { queue.exhausted? }
+        # In batch upload mode, we need to call load_tests_and_populate to discover tests
+        # So skip the early exhaustion check unless we're in a retry scenario
+        skip_early_exhaustion_check = queue_config.batch_upload && !retry?
+
+        if !skip_early_exhaustion_check && queue.rescue_connection_errors { queue.exhausted? }
           puts green('All tests were ran already')
         else
           # If the job gets (automatically) retried and there are still workers running but not many tests left
@@ -97,12 +101,10 @@ module Minitest
             if remaining <= running
               puts green("Queue almost empty, exiting early...")
             else
-              load_tests
-              populate_queue
+              load_tests_and_populate
             end
           else
-            load_tests
-            populate_queue
+            load_tests_and_populate
           end
         end
 
@@ -355,6 +357,19 @@ module Minitest
       def reset_counters
         queue.build.reset_stats(BuildStatusRecorder::COUNTERS)
         queue.build.reset_worker_error
+      end
+
+      def load_tests_and_populate
+        if queue_config.batch_upload && queue.respond_to?(:populate_from_files)
+          # In batch mode, pass file paths directly to the queue
+          # The master will load files in batches as it uploads
+          # Workers will load files lazily as needed
+          Minitest.queue.populate_from_files(argv, random: ordering_seed)
+        else
+          # Traditional mode: load all tests upfront
+          load_tests
+          populate_queue
+        end
       end
 
       def populate_queue
@@ -634,6 +649,32 @@ module Minitest
 
           opts.on("--debug-log FILE", "Path to debug log file for e.g. Redis instrumentation") do |path|
             queue_config.debug_log = path
+          end
+
+          help = <<~EOS
+            Enable batch/streaming upload mode. In this mode, the master worker will load test files
+            and push tests to the queue in batches, allowing other workers to start processing tests
+            immediately without waiting for all tests to be uploaded. This significantly reduces
+            startup time for large test suites.
+
+            IMPORTANT: When using this mode, test files are loaded lazily on-demand on workers.
+            You MUST explicitly require all dependencies (models, helpers, etc.) in your test_helper.rb.
+            Autoloading may not work as expected since not all test files are loaded upfront.
+          EOS
+          opts.separator ""
+          opts.on('--batch-upload', help) do
+            queue_config.batch_upload = true
+          end
+
+          help = <<~EOS
+            Specify the number of tests to upload in each batch when --batch-upload is enabled.
+            Smaller batches allow workers to start sooner but may increase overhead.
+            Larger batches reduce overhead but increase initial wait time.
+            Defaults to 100.
+          EOS
+          opts.separator ""
+          opts.on('--batch-size SIZE', Integer, help) do |size|
+            queue_config.batch_size = size
           end
 
           opts.separator ""
