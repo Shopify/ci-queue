@@ -105,7 +105,13 @@ module CI
         end
 
         def exhausted?
-          queue_initialized? && size == 0
+          # In batch upload mode, don't consider the queue exhausted while streaming
+          # The master is still uploading tests, so workers should wait/retry
+          if config.batch_upload && master_status == 'streaming'
+            false
+          else
+            queue_initialized? && size == 0
+          end
         end
 
         def expired?

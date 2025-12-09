@@ -65,6 +65,9 @@ module CI
 
         def poll
           wait_for_master
+          # Non-master workers need to fetch total from Redis after master finishes
+          @total ||= redis.get(key('total')).to_i unless master?
+          puts "Starting poll loop, master: #{master?}"
           attempt = 0
           until shutdown_required? || config.circuit_breakers.any?(&:open?) || exhausted? || max_test_failed?
             if test_id = reserve
@@ -199,30 +202,42 @@ module CI
             attempts = 0
             duration = measure do
               file_paths.each_slice(files_per_batch).with_index do |file_batch, batch_num|
-                # Load files in this batch
-                batch_tests = []
+                puts "Processing batch #{batch_num} with #{file_batch.size} files..."
+                # Track which file loaded which runnables
+                runnable_to_file = {}
+
+                # Load all files in this batch
                 file_batch.each do |file_path|
                   abs_path = ::File.expand_path(file_path)
+                  puts "Loading file #{abs_path}..."
                   require abs_path
+                  puts "Finished loading file #{abs_path}..."
                   @source_files_loaded.add(abs_path)
                 end
 
-                # Extract tests from newly loaded files
+                # Extract tests from runnables (call runnables only once!)
+                # The @index.key? check automatically skips already-processed tests
+                batch_tests = []
                 if defined?(Minitest)
+                  puts "Extracting tests from runnables..."
                   Minitest::Test.runnables.each do |runnable|
                     runnable.runnable_methods.each do |method_name|
                       test = Minitest::Queue::SingleExample.new(runnable, method_name)
                       unless @index.key?(test.id)
                         batch_tests << test
                         @index[test.id] = test
+                        # Map this runnable to the batch file for metadata
+                        runnable_to_file[runnable] ||= file_batch.first
                       end
                     end
                   end
                 end
 
+                puts "Found #{batch_tests.size} new tests in batch"
+
                 # Shuffle tests in this batch
                 batch_tests = Queue.shuffle(batch_tests, random)
-
+                puts "Shuffled tests: #{batch_tests.size}"
                 unless batch_tests.empty?
                   # Extract metadata
                   test_ids = []
@@ -230,12 +245,16 @@ module CI
 
                   batch_tests.each do |test|
                     test_ids << test.id
-                    if test.respond_to?(:source_location) && (location = test.source_location)
-                      metadata[test.id] = location[0] # file path
+                    # Use the file that loaded the runnable, not source_location
+                    if runnable_to_file.key?(test.runnable)
+                      metadata[test.id] = runnable_to_file[test.runnable]
+                    elsif test.respond_to?(:source_location) && (location = test.source_location)
+                      metadata[test.id] = location[0] # fallback to source_location
                     end
                   end
 
                   # Upload batch to Redis
+                  puts "Uploading batch to Redis..."
                   with_redis_timeout(5) do
                     redis.without_reconnect do
                       redis.pipelined do |pipeline|
@@ -255,6 +274,8 @@ module CI
                     end
                     raise
                   end
+
+                  puts "Finished uploading batch to Redis..."
 
                   tests_uploaded += test_ids.size
 
@@ -280,6 +301,16 @@ module CI
 
             puts
             puts "Finished pushing #{@total} tests to the queue in #{duration.round(2)}s."
+          else
+            # Non-master workers need to load at least one test file to ensure
+            # the test_helper (and thus minitest/autorun) is loaded, which registers
+            # the at_exit hook needed for test execution
+            unless file_paths.empty?
+              first_file = file_paths.first
+              abs_path = ::File.expand_path(first_file)
+              require abs_path
+              @source_files_loaded.add(abs_path)
+            end
           end
 
           register
@@ -301,6 +332,7 @@ module CI
           file_path = redis.hget(key('test-metadata'), test_id)
 
           if file_path && !@source_files_loaded.include?(file_path)
+            puts "Loading test file #{file_path}..."
             # Lazy load the test file
             require_test_file(file_path)
             @source_files_loaded.add(file_path)
@@ -339,7 +371,7 @@ module CI
           end
 
           # Fallback: create a test object that will report an error
-          warn "Warning: Test #{test_id} not found after loading file. Ensure all dependencies are explicitly required in test_helper.rb"
+          puts "Warning: Test #{test_id} not found after loading file. Ensure all dependencies are explicitly required in test_helper.rb"
           # Return nil and let index.fetch handle the KeyError
           nil
         end
