@@ -13,11 +13,9 @@ module Minitest
       end
 
       def to_s
-        [
-          header,
-          body,
-          "\n"
-        ].flatten.compact.join("\n")
+        s = +"#{header}\n#{body}\n\n"
+        s.encode!(Encoding::UTF_8, invalid: :replace, undef: :replace)
+        s
       end
 
       def to_h
