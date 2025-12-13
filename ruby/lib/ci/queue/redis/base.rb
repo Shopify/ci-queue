@@ -92,7 +92,7 @@ module CI
         end
 
         def custom_config
-          return unless config.debug_log
+          return {} unless config.debug_log
 
           require 'logger'
           { debug_log: Logger.new(config.debug_log) }
