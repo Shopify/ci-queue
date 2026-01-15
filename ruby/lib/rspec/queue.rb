@@ -226,6 +226,7 @@ module RSpec
             dup.mark_as_requeued!(reporter)
             return true
           else
+            reporter.acknowledge if skipped?
             super(reporter)
           end
         else
@@ -422,7 +423,7 @@ module RSpec
       end
 
       def acknowledge
-        @queue.acknowledge(@example)
+        @queue.acknowledge(@example.id)
       end
     end
 

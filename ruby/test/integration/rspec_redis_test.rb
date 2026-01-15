@@ -152,6 +152,55 @@ module Integration
       assert_equal 0, $?.exitstatus
     end
 
+    def test_redis_runner_pending
+      @order_path = File.expand_path('../../fixtures/pending/log/test_order.log', __FILE__)
+      out, err = capture_subprocess_io do
+        system(
+          { 'BUILDKITE' => '1', 'BUILDKITE_COMMIT' => 'aaaaaaaaaaaaa' },
+          @exe,
+          '--queue', @redis_url,
+          '--seed', '123',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          chdir: 'test/fixtures/pending',
+          )
+        assert_equal 0, $?.exitstatus
+      end
+
+      assert_empty err
+      expected_output = strip_heredoc <<-EOS
+        Worker elected as leader, pushing 2 tests to the queue.
+
+        Finished pushing 2 tests to the queue in X.XXs.
+
+        Randomized with seed 123
+        .*
+
+        Pending: (Failures listed here are expected and do not affect your suite's status)
+
+          1) Object pending 'xit' example should be ignored
+             # Temporarily skipped with xit
+             # ./spec/dummy_spec.rb:7
+
+        Finished in X.XXXXX seconds (files took X.XXXXX seconds to load)
+        2 examples, 0 failures, 1 pending
+
+        Randomized with seed 123
+
+      EOS
+
+      assert_equal expected_output, normalize(out)
+
+
+      expected_test_order = [
+        "./spec/dummy_spec.rb[1:1]\n",
+        "./spec/dummy_spec.rb[1:2]\n",
+      ]
+
+      assert_equal expected_test_order, File.read(@order_path).lines
+    end
+
     def test_retry_report
       # Run first worker, failing all tests
       out, err = capture_subprocess_io do
