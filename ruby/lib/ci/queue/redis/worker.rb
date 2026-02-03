@@ -34,52 +34,18 @@ module CI
           self
         end
 
-        # Populate queue with lazy loading support
-        # Only the leader loads all test files and builds the manifest
-        # Workers load files on-demand when they claim tests
+        # Populate queue with lazy loading support (streaming mode)
+        # Tests are pushed to the queue as each file is loaded, allowing workers
+        # to start claiming tests before all files are loaded.
+        #
+        # Queue entry format: "file_path\ttest_id"
+        # This embeds the file path so workers can load files on-demand without
+        # waiting for a manifest.
         def populate_lazy(test_files:, random:, config:)
           @lazy_load_mode = true
           @lazy_loader ||= LazyLoader.new
 
-          push do
-            begin
-              # This block only runs on master - load files and build manifest
-              test_files.each do |f|
-                require(f)
-              rescue LoadError => e
-                raise LazyLoadError, "Failed to load test file #{f}: #{e.message}"
-              end
-
-              tests = Minitest.loaded_tests
-              if tests.empty?
-                raise LazyLoadError, "No tests found after loading #{test_files.size} test files. " \
-                                     "Ensure test files define Minitest::Test subclasses."
-              end
-
-              # Build and store manifest
-              manifest = LazyLoader.build_manifest(tests)
-              @lazy_loader.set_manifest(manifest)
-              @lazy_loader.store_manifest(redis, key('manifest'), manifest, ttl: config.redis_ttl)
-
-              # Count files loaded for metrics
-              source_files = Set.new
-              tests.each do |test|
-                source_location = test.source_location&.first
-                source_files.add(source_location) if source_location
-              end
-              @files_loaded_by_leader = source_files.size
-
-              puts "Leader loaded #{@files_loaded_by_leader} test files, found #{tests.size} tests."
-
-              # Return shuffled test IDs
-              Queue.shuffle(tests, random).map(&:id)
-            rescue LazyLoadError
-              raise
-            rescue => error
-              build.report_worker_error(error)
-              raise LazyLoadError, "Failed to build manifest: #{error.class}: #{error.message}"
-            end
-          end
+          push_streaming(test_files: test_files, random: random, config: config)
           self
         end
 
@@ -113,12 +79,11 @@ module CI
 
         def poll
           wait_for_master
-          fetch_manifest_for_lazy_load if lazy_load?
           attempt = 0
           until shutdown_required? || config.circuit_breakers.any?(&:open?) || exhausted? || max_test_failed?
-            if test_id = reserve
+            if test_id = reserve_entry
               attempt = 0
-              example = lazy_load? ? load_test_lazily(test_id) : index.fetch(test_id)
+              example = lazy_load? ? load_test_from_entry(test_id) : index.fetch(test_id)
               yield example
             else
               # Adding exponential backoff to avoid hammering Redis
@@ -135,6 +100,71 @@ module CI
         rescue *CONNECTION_ERRORS
         end
 
+        # Parse a queue entry which may be in one of two formats:
+        # - Plain test ID: "ClassName#test_method"
+        # - Tab-separated with file path: "file_path.rb\tClassName#test_method"
+        def parse_queue_entry(entry)
+          if entry.include?("\t")
+            file_path, test_id = entry.split("\t", 2)
+            [file_path, test_id]
+          else
+            [nil, entry]
+          end
+        end
+
+        # Reserve a test entry
+        # - Stores the full queue_entry in reserved_tests (for Redis operations)
+        # - Returns the test_id (for test loading and matching with test.id)
+        # - Maintains mapping from test_id to queue_entry for acknowledge/requeue
+        def reserve_entry
+          queue_entry = try_to_reserve_lost_test || try_to_reserve_test
+          return nil unless queue_entry
+
+          file_path, test_id = parse_queue_entry(queue_entry)
+
+          # Track the full queue_entry for Redis operations
+          reserved_tests << queue_entry
+
+          # Map test_id -> queue_entry for acknowledge/requeue
+          @test_id_to_entry ||= {}
+          @test_id_to_entry[test_id] = queue_entry
+
+          # Store file path for lazy loading
+          @pending_file_paths ||= {}
+          @pending_file_paths[test_id] = file_path if file_path
+
+          test_id
+        end
+
+        # Get the queue entry for a test_id (used by acknowledge/requeue)
+        def queue_entry_for_test(test_id)
+          @test_id_to_entry ||= {}
+          @test_id_to_entry[test_id] || test_id
+        end
+
+        # Load a test from a queue entry using the embedded file path or manifest
+        def load_test_from_entry(test_id)
+          class_name, method_name = LazyLoader.parse_test_id(test_id)
+
+          # Try to get file path from the pending map (streaming mode)
+          # or fall back to manifest (legacy mode)
+          @pending_file_paths ||= {}
+          file_path = @pending_file_paths.delete(test_id)
+
+          if file_path
+            # Streaming mode: load file directly
+            @lazy_loader.load_file_directly(file_path)
+          else
+            # Legacy mode: use manifest
+            fetch_manifest_for_lazy_load
+            @lazy_loader.load_class(class_name)
+          end
+
+          # Return a SingleExample like the index would
+          runnable = @lazy_loader.find_class(class_name)
+          Minitest::Queue::SingleExample.new(runnable, method_name)
+        end
+
         def fetch_manifest_for_lazy_load
           return unless @lazy_loader
           return if @manifest_fetched
@@ -144,11 +174,8 @@ module CI
         end
 
         def load_test_lazily(test_id)
-          class_name, method_name = LazyLoader.parse_test_id(test_id)
-          @lazy_loader.load_class(class_name)
-          # Return a SingleExample like the index would
-          runnable = @lazy_loader.find_class(class_name)
-          Minitest::Queue::SingleExample.new(runnable, method_name)
+          # Deprecated: use load_test_from_entry instead
+          load_test_from_entry(test_id)
         end
 
         if ::Redis.method_defined?(:exists?)
@@ -187,18 +214,22 @@ module CI
         end
 
         def acknowledge(test_key, error: nil, pipeline: redis)
-          raise_on_mismatching_test(test_key)
+          # Convert test_id to full queue entry (may include file path in streaming mode)
+          queue_entry = queue_entry_for_test(test_key)
+          raise_on_mismatching_test(queue_entry, test_key)
           eval_script(
             :acknowledge,
             keys: [key('running'), key('processed'), key('owners'), key('error-reports')],
-            argv: [test_key, error.to_s, config.redis_ttl],
+            argv: [queue_entry, error.to_s, config.redis_ttl],
             pipeline: pipeline,
           ) == 1
         end
 
         def requeue(test, offset: Redis.requeue_offset)
           test_key = test.id
-          raise_on_mismatching_test(test_key)
+          # Convert test_id to full queue entry (may include file path in streaming mode)
+          queue_entry = queue_entry_for_test(test_key)
+          raise_on_mismatching_test(queue_entry, test_key)
           global_max_requeues = config.global_max_requeues(total)
 
           requeued = config.max_requeues > 0 && global_max_requeues > 0 && eval_script(
@@ -212,10 +243,10 @@ module CI
               key('owners'),
               key('error-reports'),
             ],
-            argv: [config.max_requeues, global_max_requeues, test_key, offset],
+            argv: [config.max_requeues, global_max_requeues, queue_entry, offset],
           ) == 1
 
-          reserved_tests << test_key unless requeued
+          reserved_tests << queue_entry unless requeued
           requeued
         end
 
@@ -240,10 +271,14 @@ module CI
           config.worker_id
         end
 
-        def raise_on_mismatching_test(test)
-          unless reserved_tests.delete?(test)
-            raise ReservationError, "Acknowledged #{test.inspect} but only #{reserved_tests.map(&:inspect).join(", ")} reserved"
+        def raise_on_mismatching_test(queue_entry, test_key = nil)
+          unless reserved_tests.delete?(queue_entry)
+            display_key = test_key || queue_entry
+            raise ReservationError, "Acknowledged #{display_key.inspect} but only #{reserved_tests.map(&:inspect).join(", ")} reserved"
           end
+          # Note: We don't delete from @test_id_to_entry here because the test may still
+          # need the mapping if requeue is called before acknowledge. The mapping will
+          # naturally be overwritten when the same test_id is reserved again.
         end
 
         def reserve
@@ -339,6 +374,124 @@ module CI
           redis.expire(key('workers'), config.redis_ttl)
         rescue *CONNECTION_ERRORS
           raise if @master
+        end
+
+        # Streaming queue population for lazy loading.
+        # Unlike push(), this method:
+        # 1. Loads test files one at a time
+        # 2. Pushes tests to queue immediately after loading each file
+        # 3. Sets master-status to 'ready' early so workers can start
+        # 4. Uses queue entries with embedded file path: "file_path\ttest_id"
+        def push_streaming(test_files:, random:, config:)
+          # Leader election - same as push()
+          value = key('setup', worker_id)
+          _, status = redis.pipelined do |pipeline|
+            pipeline.set(key('master-status'), value, nx: true)
+            pipeline.get(key('master-status'))
+          end
+
+          if @master = (value == status)
+            push_streaming_as_leader(test_files: test_files, random: random, config: config)
+          else
+            # Not the leader - wait for queue to be initialized
+            wait_for_streaming_queue(config: config)
+          end
+
+          register
+          redis.expire(key('workers'), config.redis_ttl)
+        rescue *CONNECTION_ERRORS
+          raise if @master
+        end
+
+        def push_streaming_as_leader(test_files:, random:, config:)
+          all_entries = []
+          files_loaded = 0
+          all_tests = []
+
+          begin
+            # Load each test file and collect entries with file paths
+            test_files.each do |file_path|
+              begin
+                # Track count before loading to efficiently find new tests
+                count_before = Minitest.loaded_tests.size
+
+                require(file_path)
+
+                # Find new tests that were added by this file (from count_before to end)
+                loaded_tests = Minitest.loaded_tests
+                (count_before...loaded_tests.size).each do |i|
+                  test = loaded_tests[i]
+                  # Queue entry format: "file_path\ttest_id"
+                  all_entries << "#{file_path}\t#{test.id}"
+                  all_tests << test
+                end
+
+                files_loaded += 1
+              rescue LoadError => e
+                raise LazyLoadError, "Failed to load test file #{file_path}: #{e.message}"
+              end
+            end
+
+            if all_entries.empty?
+              raise LazyLoadError, "No tests found after loading #{test_files.size} test files. " \
+                                   "Ensure test files define Minitest::Test subclasses."
+            end
+
+            @files_loaded_by_leader = files_loaded
+            @total = all_entries.size
+
+            # Build and store manifest for backward compatibility
+            # (consumers may use manifest if they don't have embedded file path)
+            manifest = LazyLoader.build_manifest(all_tests)
+            @lazy_loader.set_manifest(manifest)
+            @lazy_loader.store_manifest(redis, key('manifest'), manifest, ttl: config.redis_ttl)
+
+            puts "Leader loaded #{files_loaded} test files, found #{@total} tests."
+
+            # Shuffle entries (preserves file_path\ttest_id format)
+            shuffled_entries = Queue.shuffle(all_entries, random)
+
+            puts "Worker elected as leader, pushing #{@total} tests to the queue."
+            puts
+
+            # Push all entries to queue in single transaction
+            duration = measure do
+              with_redis_timeout(5) do
+                redis.without_reconnect do
+                  redis.multi do |transaction|
+                    transaction.lpush(key('queue'), shuffled_entries) unless shuffled_entries.empty?
+                    transaction.set(key('total'), @total)
+                    transaction.set(key('master-status'), 'ready')
+
+                    transaction.expire(key('queue'), config.redis_ttl)
+                    transaction.expire(key('total'), config.redis_ttl)
+                    transaction.expire(key('master-status'), config.redis_ttl)
+                  end
+                end
+              end
+            end
+
+            puts "Finished pushing #{@total} tests to the queue in #{duration.round(2)}s."
+
+          rescue LazyLoadError
+            raise
+          rescue => error
+            build.report_worker_error(error)
+            raise LazyLoadError, "Failed during streaming population: #{error.class}: #{error.message}"
+          end
+        end
+
+        def wait_for_streaming_queue(config:)
+          # Same timeout behavior as wait_for_master but use configured timeout
+          timeout = config.queue_init_timeout || 30
+          deadline = CI::Queue.time_now + timeout
+
+          until queue_initialized?
+            if CI::Queue.time_now > deadline
+              raise LostMaster, "Queue not initialized after #{timeout} seconds waiting for leader."
+            end
+            sleep 0.1
+          end
         end
 
         def register

@@ -103,6 +103,11 @@ module CI
         file_path = @manifest[class_name]
         raise LazyLoadError, "No manifest entry for #{class_name}" unless file_path
 
+        load_file_directly(file_path)
+      end
+
+      # Load a file directly by path (used in streaming mode where file path is embedded in queue entry)
+      def load_file_directly(file_path)
         # Use `load` instead of `require` - classes may be partially defined
         # (constant exists but methods missing due to autoloader/parent class).
         # Ruby's require checks $LOADED_FEATURES and may skip re-execution,
