@@ -21,8 +21,16 @@ module Minitest
       end
 
       def initialize(argv)
+        puts "[ci-queue] Runner.initialize called with #{argv.size} args"
+        puts "[ci-queue] First 5 args: #{argv.first(5).inspect}"
+        puts "[ci-queue] Last 5 args: #{argv.last(5).inspect}"
+        $stdout.flush
         @queue_config = CI::Queue::Configuration.from_env(ENV)
         @command, @argv = parse(argv)
+        puts "[ci-queue] After parsing: command=#{@command.inspect}, argv has #{@argv.size} items"
+        puts "[ci-queue] First 5 remaining args: #{@argv.first(5).inspect}"
+        puts "[ci-queue] lazy_load? = #{@queue_config.lazy_load?}"
+        $stdout.flush
         if Minitest.respond_to?(:seed=)
           Minitest.seed = @queue_config.seed.to_i
         end
@@ -382,11 +390,16 @@ module Minitest
       end
 
       def load_tests
+        puts "[ci-queue] load_tests called, lazy_load?=#{queue_config.lazy_load?}, argv.size=#{argv.size}"
+        $stdout.flush
         if queue_config.lazy_load?
           # In lazy load mode, only load test helpers, not test files
           # Test files are stored for later use when the leader populates the queue
           load_test_helpers
           @test_files = argv.sort.map { |f| File.expand_path(f) }
+          puts "[ci-queue] Set @test_files to #{@test_files.size} files"
+          puts "[ci-queue] First 3 test files: #{@test_files.first(3).inspect}"
+          $stdout.flush
           validate_test_files!
         else
           # Eager loading mode - load all test files now
