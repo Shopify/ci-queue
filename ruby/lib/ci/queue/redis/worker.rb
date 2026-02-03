@@ -403,18 +403,15 @@ module CI
           raise if @master
         end
 
-        # Batch size for streaming - push tests in chunks to allow workers to start early
-        STREAMING_BATCH_SIZE = 1000
-
         def push_streaming_as_leader(test_files:, random:, config:)
-          all_entries = []
           all_tests = []
           files_loaded = 0
           total_pushed = 0
-          first_batch_pushed = false
+          queue_initialized = false
 
           begin
-            # Load each test file and collect entries with file paths
+            # Load each test file and push tests IMMEDIATELY
+            # This ensures workers can start as soon as possible
             test_files.each do |file_path|
               begin
                 # Track count before loading to efficiently find new tests
@@ -422,37 +419,48 @@ module CI
 
                 require(file_path)
 
-                # Find new tests that were added by this file (from count_before to end)
+                # Find new tests that were added by this file
                 loaded_tests = Minitest.loaded_tests
+                file_entries = []
                 (count_before...loaded_tests.size).each do |i|
                   test = loaded_tests[i]
                   # Queue entry format: "file_path\ttest_id"
-                  all_entries << "#{file_path}\t#{test.id}"
+                  file_entries << "#{file_path}\t#{test.id}"
                   all_tests << test
                 end
 
                 files_loaded += 1
 
-                # Push batch when we have enough entries (allows workers to start early)
-                if all_entries.size >= STREAMING_BATCH_SIZE
-                  batch = all_entries.shift(STREAMING_BATCH_SIZE)
-                  # Shuffle each batch independently
-                  shuffled_batch = Queue.shuffle(batch, random)
-                  push_streaming_batch(shuffled_batch, first_batch: !first_batch_pushed, config: config)
-                  total_pushed += shuffled_batch.size
-                  first_batch_pushed = true
+                # Push this file's tests immediately (allows workers to start ASAP)
+                if file_entries.any?
+                  # Shuffle entries from this file
+                  shuffled_entries = Queue.shuffle(file_entries, random)
+
+                  if !queue_initialized
+                    # First file with tests: initialize queue and set 'ready'
+                    puts "Worker elected as leader (streaming mode), initializing queue..."
+                    puts
+
+                    redis.multi do |transaction|
+                      transaction.lpush(key('queue'), shuffled_entries)
+                      transaction.set(key('total'), shuffled_entries.size)
+                      transaction.set(key('master-status'), 'ready')
+
+                      transaction.expire(key('queue'), config.redis_ttl)
+                      transaction.expire(key('total'), config.redis_ttl)
+                      transaction.expire(key('master-status'), config.redis_ttl)
+                    end
+                    queue_initialized = true
+                  else
+                    # Subsequent files: just push to queue
+                    redis.lpush(key('queue'), shuffled_entries)
+                  end
+
+                  total_pushed += shuffled_entries.size
                 end
               rescue LoadError => e
                 raise LazyLoadError, "Failed to load test file #{file_path}: #{e.message}"
               end
-            end
-
-            # Push remaining entries
-            if all_entries.any?
-              shuffled_remaining = Queue.shuffle(all_entries, random)
-              push_streaming_batch(shuffled_remaining, first_batch: !first_batch_pushed, config: config)
-              total_pushed += shuffled_remaining.size
-              first_batch_pushed = true
             end
 
             if total_pushed == 0
@@ -463,7 +471,7 @@ module CI
             @files_loaded_by_leader = files_loaded
             @total = total_pushed
 
-            # Finalize: set the total count and mark as fully ready
+            # Finalize: set the actual total count
             redis.multi do |transaction|
               transaction.set(key('total'), @total)
               transaction.expire(key('total'), config.redis_ttl)
@@ -481,27 +489,6 @@ module CI
           rescue => error
             build.report_worker_error(error)
             raise LazyLoadError, "Failed during streaming population: #{error.class}: #{error.message}"
-          end
-        end
-
-        def push_streaming_batch(entries, first_batch:, config:)
-          if first_batch
-            # First batch: initialize queue and set status to 'ready' so workers can start
-            puts "Worker elected as leader (streaming mode), pushing first batch of #{entries.size} tests..."
-            puts
-
-            redis.multi do |transaction|
-              transaction.lpush(key('queue'), entries)
-              transaction.set(key('total'), entries.size)  # Initial estimate, updated at end
-              transaction.set(key('master-status'), 'ready')
-
-              transaction.expire(key('queue'), config.redis_ttl)
-              transaction.expire(key('total'), config.redis_ttl)
-              transaction.expire(key('master-status'), config.redis_ttl)
-            end
-          else
-            # Subsequent batches: just push to queue
-            redis.lpush(key('queue'), entries)
           end
         end
 
