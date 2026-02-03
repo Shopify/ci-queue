@@ -383,6 +383,9 @@ module CI
         # 3. Sets master-status to 'ready' early so workers can start
         # 4. Uses queue entries with embedded file path: "file_path\ttest_id"
         def push_streaming(test_files:, random:, config:)
+          puts "[ci-queue] push_streaming called with #{test_files.size} test files"
+          $stdout.flush
+
           # Leader election - same as push()
           value = key('setup', worker_id)
           _, status = redis.pipelined do |pipeline|
@@ -391,8 +394,12 @@ module CI
           end
 
           if @master = (value == status)
+            puts "[ci-queue] Worker #{worker_id} elected as LEADER"
+            $stdout.flush
             push_streaming_as_leader(test_files: test_files, random: random, config: config)
           else
+            puts "[ci-queue] Worker #{worker_id} is CONSUMER, waiting for leader (status=#{status.inspect})"
+            $stdout.flush
             # Not the leader - wait for queue to be initialized
             wait_for_streaming_queue(config: config)
           end
@@ -408,6 +415,10 @@ module CI
           files_loaded = 0
           total_pushed = 0
           queue_initialized = false
+          start_time = CI::Queue.time_now
+
+          puts "[ci-queue] Leader starting to load #{test_files.size} test files..."
+          $stdout.flush
 
           begin
             # Load each test file and push tests IMMEDIATELY
@@ -438,8 +449,9 @@ module CI
 
                   if !queue_initialized
                     # First file with tests: initialize queue and set 'ready'
-                    puts "Worker elected as leader (streaming mode), initializing queue..."
-                    puts
+                    elapsed = (CI::Queue.time_now - start_time).round(2)
+                    puts "[ci-queue] First file with tests loaded after #{elapsed}s, initializing queue with #{shuffled_entries.size} tests..."
+                    $stdout.flush
 
                     redis.multi do |transaction|
                       transaction.lpush(key('queue'), shuffled_entries)
@@ -451,12 +463,21 @@ module CI
                       transaction.expire(key('master-status'), config.redis_ttl)
                     end
                     queue_initialized = true
+                    puts "[ci-queue] Queue initialized, master-status set to 'ready'"
+                    $stdout.flush
                   else
                     # Subsequent files: just push to queue
                     redis.lpush(key('queue'), shuffled_entries)
                   end
 
                   total_pushed += shuffled_entries.size
+
+                  # Progress update every 100 files
+                  if files_loaded % 100 == 0
+                    elapsed = (CI::Queue.time_now - start_time).round(2)
+                    puts "[ci-queue] Progress: #{files_loaded}/#{test_files.size} files, #{total_pushed} tests pushed (#{elapsed}s elapsed)"
+                    $stdout.flush
+                  end
                 end
               rescue LoadError => e
                 raise LazyLoadError, "Failed to load test file #{file_path}: #{e.message}"
@@ -477,6 +498,10 @@ module CI
               transaction.expire(key('total'), config.redis_ttl)
             end
 
+            elapsed = (CI::Queue.time_now - start_time).round(2)
+            puts "[ci-queue] Leader finished: #{files_loaded} files, #{@total} tests in #{elapsed}s"
+            $stdout.flush
+
             # Build and store manifest for backward compatibility
             manifest = LazyLoader.build_manifest(all_tests)
             @lazy_loader.set_manifest(manifest)
@@ -493,16 +518,34 @@ module CI
         end
 
         def wait_for_streaming_queue(config:)
-          # Same timeout behavior as wait_for_master but use configured timeout
-          timeout = config.queue_init_timeout || 30
+          # Use configured timeout, default to 5 minutes for large test suites
+          timeout = config.queue_init_timeout || 300
           deadline = CI::Queue.time_now + timeout
+          last_status_log = CI::Queue.time_now
+
+          puts "[ci-queue] Consumer waiting for queue (timeout=#{timeout}s)..."
+          $stdout.flush
 
           until queue_initialized?
             if CI::Queue.time_now > deadline
-              raise LostMaster, "Queue not initialized after #{timeout} seconds waiting for leader."
+              status = redis.get(key('master-status'))
+              raise LostMaster, "Queue not initialized after #{timeout} seconds waiting for leader. master-status=#{status.inspect}"
             end
+
+            # Log status every 10 seconds
+            if CI::Queue.time_now - last_status_log >= 10
+              status = redis.get(key('master-status'))
+              elapsed = (CI::Queue.time_now - (deadline - timeout)).round(1)
+              puts "[ci-queue] Still waiting for queue... (#{elapsed}s elapsed, master-status=#{status.inspect})"
+              $stdout.flush
+              last_status_log = CI::Queue.time_now
+            end
+
             sleep 0.1
           end
+
+          puts "[ci-queue] Queue ready, consumer can start"
+          $stdout.flush
         end
 
         def register
