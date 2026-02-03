@@ -403,10 +403,15 @@ module CI
           raise if @master
         end
 
+        # Batch size for streaming - push tests in chunks to allow workers to start early
+        STREAMING_BATCH_SIZE = 1000
+
         def push_streaming_as_leader(test_files:, random:, config:)
           all_entries = []
-          files_loaded = 0
           all_tests = []
+          files_loaded = 0
+          total_pushed = 0
+          first_batch_pushed = false
 
           begin
             # Load each test file and collect entries with file paths
@@ -427,57 +432,76 @@ module CI
                 end
 
                 files_loaded += 1
+
+                # Push batch when we have enough entries (allows workers to start early)
+                if all_entries.size >= STREAMING_BATCH_SIZE
+                  batch = all_entries.shift(STREAMING_BATCH_SIZE)
+                  # Shuffle each batch independently
+                  shuffled_batch = Queue.shuffle(batch, random)
+                  push_streaming_batch(shuffled_batch, first_batch: !first_batch_pushed, config: config)
+                  total_pushed += shuffled_batch.size
+                  first_batch_pushed = true
+                end
               rescue LoadError => e
                 raise LazyLoadError, "Failed to load test file #{file_path}: #{e.message}"
               end
             end
 
-            if all_entries.empty?
+            # Push remaining entries
+            if all_entries.any?
+              shuffled_remaining = Queue.shuffle(all_entries, random)
+              push_streaming_batch(shuffled_remaining, first_batch: !first_batch_pushed, config: config)
+              total_pushed += shuffled_remaining.size
+              first_batch_pushed = true
+            end
+
+            if total_pushed == 0
               raise LazyLoadError, "No tests found after loading #{test_files.size} test files. " \
                                    "Ensure test files define Minitest::Test subclasses."
             end
 
             @files_loaded_by_leader = files_loaded
-            @total = all_entries.size
+            @total = total_pushed
+
+            # Finalize: set the total count and mark as fully ready
+            redis.multi do |transaction|
+              transaction.set(key('total'), @total)
+              transaction.expire(key('total'), config.redis_ttl)
+            end
 
             # Build and store manifest for backward compatibility
-            # (consumers may use manifest if they don't have embedded file path)
             manifest = LazyLoader.build_manifest(all_tests)
             @lazy_loader.set_manifest(manifest)
             @lazy_loader.store_manifest(redis, key('manifest'), manifest, ttl: config.redis_ttl)
 
             puts "Leader loaded #{files_loaded} test files, found #{@total} tests."
 
-            # Shuffle entries (preserves file_path\ttest_id format)
-            shuffled_entries = Queue.shuffle(all_entries, random)
-
-            puts "Worker elected as leader, pushing #{@total} tests to the queue."
-            puts
-
-            # Push all entries to queue in single transaction
-            duration = measure do
-              with_redis_timeout(5) do
-                redis.without_reconnect do
-                  redis.multi do |transaction|
-                    transaction.lpush(key('queue'), shuffled_entries) unless shuffled_entries.empty?
-                    transaction.set(key('total'), @total)
-                    transaction.set(key('master-status'), 'ready')
-
-                    transaction.expire(key('queue'), config.redis_ttl)
-                    transaction.expire(key('total'), config.redis_ttl)
-                    transaction.expire(key('master-status'), config.redis_ttl)
-                  end
-                end
-              end
-            end
-
-            puts "Finished pushing #{@total} tests to the queue in #{duration.round(2)}s."
-
           rescue LazyLoadError
             raise
           rescue => error
             build.report_worker_error(error)
             raise LazyLoadError, "Failed during streaming population: #{error.class}: #{error.message}"
+          end
+        end
+
+        def push_streaming_batch(entries, first_batch:, config:)
+          if first_batch
+            # First batch: initialize queue and set status to 'ready' so workers can start
+            puts "Worker elected as leader (streaming mode), pushing first batch of #{entries.size} tests..."
+            puts
+
+            redis.multi do |transaction|
+              transaction.lpush(key('queue'), entries)
+              transaction.set(key('total'), entries.size)  # Initial estimate, updated at end
+              transaction.set(key('master-status'), 'ready')
+
+              transaction.expire(key('queue'), config.redis_ttl)
+              transaction.expire(key('total'), config.redis_ttl)
+              transaction.expire(key('master-status'), config.redis_ttl)
+            end
+          else
+            # Subsequent batches: just push to queue
+            redis.lpush(key('queue'), entries)
           end
         end
 
