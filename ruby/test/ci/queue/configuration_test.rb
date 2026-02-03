@@ -143,5 +143,67 @@ module CI::Queue
       assert_equal 45, config.report_timeout
     end
 
+    # === Lazy Loading Configuration ===
+
+    def test_lazy_load_defaults_to_false
+      config = Configuration.new
+      refute config.lazy_load?
+    end
+
+    def test_lazy_load_can_be_enabled
+      config = Configuration.new(lazy_load: true)
+      assert config.lazy_load?
+    end
+
+    def test_lazy_load_from_env
+      config = Configuration.from_env('CI_QUEUE_LAZY_LOAD' => 'true')
+      assert config.lazy_load?
+    end
+
+    def test_lazy_load_from_env_false
+      config = Configuration.from_env('CI_QUEUE_LAZY_LOAD' => 'false')
+      refute config.lazy_load?
+    end
+
+    def test_lazy_load_from_env_missing
+      config = Configuration.from_env({})
+      refute config.lazy_load?
+    end
+
+    def test_test_helpers_defaults_to_nil
+      config = Configuration.new
+      assert_nil config.test_helpers
+    end
+
+    def test_test_helpers_can_be_set
+      config = Configuration.new(test_helpers: 'test/test_helper.rb')
+      assert_equal 'test/test_helper.rb', config.test_helpers
+    end
+
+    def test_test_helpers_from_env
+      config = Configuration.from_env('CI_QUEUE_TEST_HELPERS' => 'test/helper.rb')
+      assert_equal 'test/helper.rb', config.test_helpers
+    end
+
+    def test_test_helper_paths_returns_empty_array_when_nil
+      config = Configuration.new
+      assert_equal [], config.test_helper_paths
+    end
+
+    def test_test_helper_paths_parses_single_path
+      config = Configuration.new(test_helpers: 'test/helper.rb')
+      assert_equal ['test/helper.rb'], config.test_helper_paths
+    end
+
+    def test_test_helper_paths_parses_multiple_paths
+      config = Configuration.new(test_helpers: 'test/helper.rb, test/support.rb, test/fixtures.rb')
+      assert_equal ['test/helper.rb', 'test/support.rb', 'test/fixtures.rb'], config.test_helper_paths
+    end
+
+    def test_test_helper_paths_strips_whitespace
+      config = Configuration.new(test_helpers: '  test/helper.rb  ,  test/support.rb  ')
+      assert_equal ['test/helper.rb', 'test/support.rb'], config.test_helper_paths
+    end
+
   end
 end

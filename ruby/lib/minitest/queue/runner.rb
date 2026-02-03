@@ -3,6 +3,7 @@ require 'optparse'
 require 'json'
 require 'minitest/queue'
 require 'ci/queue'
+require 'ci/queue/lazy_loader'
 require 'digest/md5'
 require 'minitest/reporters/bisect_reporter'
 require 'minitest/reporters/statsd_reporter'
@@ -358,7 +359,18 @@ module Minitest
       end
 
       def populate_queue
-        Minitest.queue.populate(Minitest.loaded_tests, random: ordering_seed)
+        if queue_config.lazy_load?
+          # In lazy load mode, pass test_files to the queue
+          # The leader will load files, build manifest, and populate
+          # Workers will load files on-demand
+          Minitest.queue.populate_lazy(
+            test_files: test_files,
+            random: ordering_seed,
+            config: queue_config,
+          )
+        else
+          Minitest.queue.populate(Minitest.loaded_tests, random: ordering_seed)
+        end
       end
 
       def set_load_path
@@ -370,9 +382,39 @@ module Minitest
       end
 
       def load_tests
-        argv.sort.each do |f|
-          require File.expand_path(f)
+        if queue_config.lazy_load?
+          # In lazy load mode, only load test helpers, not test files
+          # Test files are stored for later use when the leader populates the queue
+          load_test_helpers
+          @test_files = argv.sort.map { |f| File.expand_path(f) }
+          validate_test_files!
+        else
+          # Eager loading mode - load all test files now
+          argv.sort.each do |f|
+            require File.expand_path(f)
+          end
         end
+      end
+
+      def validate_test_files!
+        missing_files = test_files.reject { |f| ::File.exist?(f) }
+        unless missing_files.empty?
+          abort! "The following test files do not exist:\n  #{missing_files.join("\n  ")}"
+        end
+      end
+
+      def load_test_helpers
+        queue_config.test_helper_paths.each do |helper_path|
+          expanded = File.expand_path(helper_path)
+          unless ::File.exist?(expanded)
+            abort! "Test helper file does not exist: #{helper_path}"
+          end
+          require expanded
+        end
+      end
+
+      def test_files
+        @test_files ||= []
       end
 
       def parse(argv)
@@ -634,6 +676,27 @@ module Minitest
 
           opts.on("--debug-log FILE", "Path to debug log file for e.g. Redis instrumentation") do |path|
             queue_config.debug_log = path
+          end
+
+          help = <<~EOS
+            Enable lazy loading of test files. Only the leader loads all test files to populate the queue.
+            Consumer workers load test files on-demand as they claim tests from the queue.
+            This can significantly reduce memory usage for large test suites.
+            Can also be enabled via CI_QUEUE_LAZY_LOAD=true environment variable.
+          EOS
+          opts.separator ""
+          opts.on("--lazy-load", help) do
+            queue_config.lazy_load = true
+          end
+
+          help = <<~EOS
+            Comma-separated list of test helper files to load before running tests.
+            Optional, but recommended when using --lazy-load to ensure test infrastructure is available.
+            Can also be set via CI_QUEUE_TEST_HELPERS environment variable.
+          EOS
+          opts.separator ""
+          opts.on("--test-helpers FILES", help) do |files|
+            queue_config.test_helpers = files
           end
 
           opts.separator ""

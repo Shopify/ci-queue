@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 require 'ci/queue/static'
+require 'ci/queue/lazy_loader'
 require 'concurrent/set'
 
 module CI
@@ -18,6 +19,7 @@ module CI
         def initialize(redis, config)
           @reserved_tests = Concurrent::Set.new
           @shutdown_required = false
+          @lazy_loader = LazyLoader.new if config.lazy_load?
           super(redis, config)
         end
 
@@ -32,8 +34,67 @@ module CI
           self
         end
 
+        # Populate queue with lazy loading support
+        # Only the leader loads all test files and builds the manifest
+        # Workers load files on-demand when they claim tests
+        def populate_lazy(test_files:, random:, config:)
+          @lazy_load_mode = true
+          @lazy_loader ||= LazyLoader.new
+
+          push do
+            begin
+              # This block only runs on master - load files and build manifest
+              test_files.each do |f|
+                require(f)
+              rescue LoadError => e
+                raise LazyLoadError, "Failed to load test file #{f}: #{e.message}"
+              end
+
+              tests = Minitest.loaded_tests
+              if tests.empty?
+                raise LazyLoadError, "No tests found after loading #{test_files.size} test files. " \
+                                     "Ensure test files define Minitest::Test subclasses."
+              end
+
+              # Build and store manifest
+              manifest = LazyLoader.build_manifest(tests)
+              @lazy_loader.set_manifest(manifest)
+              @lazy_loader.store_manifest(redis, key('manifest'), manifest, ttl: config.redis_ttl)
+
+              # Count files loaded for metrics
+              source_files = Set.new
+              tests.each do |test|
+                source_location = test.source_location&.first
+                source_files.add(source_location) if source_location
+              end
+              @files_loaded_by_leader = source_files.size
+
+              puts "Leader loaded #{@files_loaded_by_leader} test files, found #{tests.size} tests."
+
+              # Return shuffled test IDs
+              Queue.shuffle(tests, random).map(&:id)
+            rescue LazyLoadError
+              raise
+            rescue => error
+              build.report_worker_error(error)
+              raise LazyLoadError, "Failed to build manifest: #{error.class}: #{error.message}"
+            end
+          end
+          self
+        end
+
         def populated?
-          !!defined?(@index)
+          !!defined?(@index) || @lazy_load_mode
+        end
+
+        def lazy_load?
+          @lazy_load_mode || config.lazy_load?
+        end
+
+        def files_loaded_count
+          return 0 unless @lazy_loader
+
+          @lazy_loader.files_loaded_count
         end
 
         def shutdown!
@@ -52,11 +113,13 @@ module CI
 
         def poll
           wait_for_master
+          fetch_manifest_for_lazy_load if lazy_load?
           attempt = 0
           until shutdown_required? || config.circuit_breakers.any?(&:open?) || exhausted? || max_test_failed?
-            if test = reserve
+            if test_id = reserve
               attempt = 0
-              yield index.fetch(test)
+              example = lazy_load? ? load_test_lazily(test_id) : index.fetch(test_id)
+              yield example
             else
               # Adding exponential backoff to avoid hammering Redis
               # we just stay online here in case a test gets retried or times out so we can afford to wait
@@ -70,6 +133,22 @@ module CI
             pipeline.expire(key('processed'), config.redis_ttl)
           end
         rescue *CONNECTION_ERRORS
+        end
+
+        def fetch_manifest_for_lazy_load
+          return unless @lazy_loader
+          return if @manifest_fetched
+
+          @lazy_loader.fetch_manifest(redis, key('manifest'))
+          @manifest_fetched = true
+        end
+
+        def load_test_lazily(test_id)
+          class_name, method_name = LazyLoader.parse_test_id(test_id)
+          @lazy_loader.load_class(class_name)
+          # Return a SingleExample like the index would
+          runnable = @lazy_loader.find_class(class_name)
+          Minitest::Queue::SingleExample.new(runnable, method_name)
         end
 
         if ::Redis.method_defined?(:exists?)
@@ -208,8 +287,11 @@ module CI
           lost_test
         end
 
-        def push(tests)
-          @total = tests.size
+        # Push test IDs to the queue.
+        # Can be called with test IDs directly, or with a block that returns test IDs.
+        # The block form is used for lazy loading where only the master loads test files.
+        def push(tests = nil, &block)
+          @total = tests.size if tests
 
           # We set a unique value (worker_id) and read it back to make "SET if Not eXists" idempotent in case of a retry.
           value = key('setup', worker_id)
@@ -219,6 +301,10 @@ module CI
           end
 
           if @master = (value == status)
+            # If block given, call it to get test IDs (used for lazy loading)
+            tests = yield if block_given?
+            @total = tests.size
+
             puts "Worker elected as leader, pushing #{@total} tests to the queue."
             puts
 

@@ -38,6 +38,31 @@ minitest-queue --queue redis://example.com run -Itest test/**/*_test.rb
 
 Additionally you can configure the requeue settings (see main README) with `--max-requeues` and `--requeue-tolerance`.
 
+#### Lazy Loading (Minitest only)
+
+For large test suites, you can enable lazy loading to reduce memory usage on worker nodes. With lazy loading enabled:
+
+- The **leader** worker loads all test files to build a manifest mapping test classes to their source files
+- **Consumer** workers only load test files on-demand as they pick up tests from the queue
+
+This can provide significant memory savings (40-80%+) for workers that don't need to run the entire test suite.
+
+```bash
+minitest-queue --queue redis://example.com run \
+  --lazy-load \
+  --test-helpers test/test_helper.rb \
+  -Itest test/**/*_test.rb
+```
+
+Options:
+- `--lazy-load`: Enable lazy loading mode
+- `--test-helpers`: Comma-separated list of helper files to load before tests (e.g., `test/test_helper.rb`)
+
+You can also enable lazy loading via environment variables:
+- `CI_QUEUE_LAZY_LOAD=true`
+- `CI_QUEUE_TEST_HELPERS=test/test_helper.rb`
+
+**Note:** Lazy loading is currently only available for Minitest.
 
 If you'd like to centralize the error reporting you can do so with:
 

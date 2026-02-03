@@ -35,4 +35,15 @@ module OutputTestHelpers
   def normalize(output)
     freeze_timing(decolorize_output(output))
   end
+
+  # Find the test summary line (e.g., "Ran 2 tests, 2 assertions, ...")
+  # This is more robust than assuming it's the last line since worker stats may follow
+  def find_summary_line(output)
+    output.lines.reverse.find { |line| line =~ /Ran \d+ tests,/ }&.strip
+  end
+
+  # Normalize the memory value in worker stats output
+  def normalize_worker_stats(output)
+    output.gsub(/\d+ MB peak memory/, 'X MB peak memory')
+  end
 end

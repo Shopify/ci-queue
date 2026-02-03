@@ -14,6 +14,7 @@ require 'ci/queue/static'
 require 'ci/queue/file'
 require 'ci/queue/grind'
 require 'ci/queue/bisect'
+require 'ci/queue/lazy_loader'
 
 module CI
   module Queue

@@ -270,6 +270,146 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_instance_of CI::Queue::Redis::Worker, queue
   end
 
+  # === Lazy Loading Tests ===
+
+  def test_lazy_load_mode_flag
+    queue = worker(1, lazy_load: true)
+    assert_predicate queue, :lazy_load?
+
+    queue2 = worker(2, lazy_load: false)
+    refute_predicate queue2, :lazy_load?
+  end
+
+  def test_files_loaded_count_starts_at_zero
+    queue = worker(1, lazy_load: true)
+    assert_equal 0, queue.files_loaded_count
+  end
+
+  def test_populate_lazy_sets_lazy_load_mode
+    @redis.flushdb
+    queue = worker(1, lazy_load: false, populate: false, build_id: 'lazy-1')
+    refute_predicate queue, :lazy_load?
+
+    # Create temp test files
+    test_files = create_temp_test_files
+
+    capture_io do
+      queue.populate_lazy(
+        test_files: test_files,
+        random: Random.new(0),
+        config: queue.send(:config),
+      )
+    end
+
+    assert_predicate queue, :lazy_load?
+  ensure
+    cleanup_temp_test_classes
+  end
+
+  def test_populate_lazy_leader_loads_files_and_builds_manifest
+    @redis.flushdb
+    queue = worker(1, lazy_load: true, populate: false, build_id: 'lazy-2')
+    test_files = create_temp_test_files
+
+    output, _ = capture_io do
+      queue.populate_lazy(
+        test_files: test_files,
+        random: Random.new(0),
+        config: queue.send(:config),
+      )
+    end
+
+    assert_predicate queue, :master?
+    assert_match(/Leader loaded/, output)
+    assert_match(/test files/, output)
+    assert_match(/tests/, output)
+
+    # Verify manifest was stored in Redis
+    manifest_key = CI::Queue::Redis::KeyShortener.key('lazy-2', 'manifest')
+    manifest = @redis.hgetall(manifest_key)
+    refute_empty manifest
+    assert manifest.key?('LazyTestA')
+    assert manifest.key?('LazyTestB')
+  ensure
+    cleanup_temp_test_classes
+  end
+
+  def test_populate_lazy_consumer_does_not_load_files
+    @redis.flushdb
+    # First worker becomes leader and populates
+    leader = worker(1, lazy_load: true, populate: false, build_id: 'lazy-3')
+    test_files = create_temp_test_files
+
+    capture_io do
+      leader.populate_lazy(
+        test_files: test_files,
+        random: Random.new(0),
+        config: leader.send(:config),
+      )
+    end
+
+    # Remove the test classes so we can verify consumer doesn't load them
+    cleanup_temp_test_classes
+
+    # Second worker becomes consumer
+    consumer = worker(2, lazy_load: true, populate: false, build_id: 'lazy-3')
+
+    capture_io do
+      consumer.populate_lazy(
+        test_files: test_files,
+        random: Random.new(0),
+        config: consumer.send(:config),
+      )
+    end
+
+    refute_predicate consumer, :master?
+    # Consumer should not have loaded any files yet
+    assert_equal 0, consumer.files_loaded_count
+  ensure
+    cleanup_temp_test_classes
+  end
+
+  def test_populate_lazy_raises_on_load_error
+    @redis.flushdb
+    queue = worker(1, lazy_load: true, populate: false, build_id: 'lazy-4')
+    nonexistent_files = ['/nonexistent/path/test.rb']
+
+    error = assert_raises(CI::Queue::LazyLoadError) do
+      capture_io do
+        queue.populate_lazy(
+          test_files: nonexistent_files,
+          random: Random.new(0),
+          config: queue.send(:config),
+        )
+      end
+    end
+
+    assert_match(/Failed to load test file/, error.message)
+  end
+
+  # Note: We can't easily test "no tests found" because Minitest.loaded_tests
+  # returns ALL loaded tests, including from the test framework itself.
+  # The error handling is tested via the lazy_loader_test.rb unit tests instead.
+
+  def test_populated_returns_true_for_lazy_load_mode
+    @redis.flushdb
+    queue = worker(1, lazy_load: true, populate: false, build_id: 'lazy-6')
+    refute_predicate queue, :populated?
+
+    test_files = create_temp_test_files
+    capture_io do
+      queue.populate_lazy(
+        test_files: test_files,
+        random: Random.new(0),
+        config: queue.send(:config),
+      )
+    end
+
+    assert_predicate queue, :populated?
+  ensure
+    cleanup_temp_test_classes
+  end
+
   private
 
   def shuffled_test_list
@@ -301,5 +441,44 @@ class CI::Queue::RedisTest < Minitest::Test
     else
       populate(queue, tests: tests)
     end
+  end
+
+  def create_temp_test_files
+    @temp_test_files ||= []
+
+    file_a = Tempfile.new(['lazy_test_a_', '.rb'])
+    file_a.write(<<~RUBY)
+      class LazyTestA < Minitest::Test
+        def test_one
+          assert true
+        end
+
+        def test_two
+          assert true
+        end
+      end
+    RUBY
+    file_a.close
+    @temp_test_files << file_a
+
+    file_b = Tempfile.new(['lazy_test_b_', '.rb'])
+    file_b.write(<<~RUBY)
+      class LazyTestB < Minitest::Test
+        def test_three
+          assert true
+        end
+      end
+    RUBY
+    file_b.close
+    @temp_test_files << file_b
+
+    [file_a.path, file_b.path]
+  end
+
+  def cleanup_temp_test_classes
+    Object.send(:remove_const, :LazyTestA) if defined?(LazyTestA)
+    Object.send(:remove_const, :LazyTestB) if defined?(LazyTestB)
+    @temp_test_files&.each(&:unlink)
+    @temp_test_files = nil
   end
 end

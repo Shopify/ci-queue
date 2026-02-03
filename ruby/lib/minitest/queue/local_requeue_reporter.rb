@@ -31,6 +31,37 @@ module Minitest
           yellow("#{skips} skips, #{requeues} requeues"),
           'in %.2fs' % total_time,
         ].join(' ')
+
+        print_worker_stats
+      end
+
+      def print_worker_stats
+        queue = Minitest.queue
+        return unless queue.respond_to?(:lazy_load?)
+
+        role = queue.master? ? "leader" : "consumer"
+        files_loaded = queue.files_loaded_count
+        peak_memory = peak_memory_mb
+        lazy_status = queue.lazy_load? ? "lazy loading enabled" : "lazy loading disabled"
+
+        puts
+        puts "Worker stats: #{role}, #{files_loaded} files loaded, #{peak_memory} MB peak memory, #{lazy_status}"
+      end
+
+      def peak_memory_mb
+        if File.exist?("/proc/self/status")
+          status = File.read("/proc/self/status")
+          if (match = status.match(/VmHWM:\s*(\d+)\s*kB/))
+            return match[1].to_i / 1024
+          end
+        end
+
+        rusage = Process.getrusage
+        max_rss = rusage.maxrss
+        # maxrss is bytes on macOS, KB on Linux
+        RUBY_PLATFORM.include?("darwin") ? max_rss / (1024 * 1024) : max_rss / 1024
+      rescue StandardError
+        0
       end
 
       def message_for(test)

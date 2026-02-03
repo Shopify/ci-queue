@@ -44,7 +44,7 @@ module Integration
 
       assert_empty err
       assert_match(/Expected false to be truthy/, normalize(out)) # failure output
-      result = normalize(out.lines.last.strip)
+      result = normalize(find_summary_line(out))
       assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', result
     end
 
@@ -115,7 +115,7 @@ module Integration
 
       assert_empty err
       assert_match(/ATest#test_foo \d+\.\d+ = S/, normalize(out)) # verbose test ouptut
-      result = normalize(out.lines.last.strip)
+      result = normalize(find_summary_line(out))
       assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', result
     end
 
@@ -141,7 +141,7 @@ module Integration
 
       assert_includes File.read(log_file.path), 'INFO -- : Finished \'["exists", "b:c4ca4238:w:1:q"]\': 0'
       assert_empty err
-      result = normalize(out.lines.last.strip)
+      result = normalize(find_summary_line(out))
       assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', result
       end
     end
@@ -166,7 +166,7 @@ module Integration
 
       assert_empty err
       assert_match(/^\^{3} \+{3}$/m, normalize(out)) # reopen failed step
-      output = normalize(out.lines.last.strip)
+      output = normalize(find_summary_line(out))
       assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
     end
 
@@ -189,7 +189,7 @@ module Integration
       end
 
       assert_empty err
-      output = normalize(out.lines.last.strip)
+      output = normalize(find_summary_line(out))
       assert_equal '--- Ran 3 tests, 0 assertions, 0 failures, 2 errors, 0 skips, 1 requeues in X.XXs', output
     end
 
@@ -215,7 +215,7 @@ module Integration
       refute_predicate $?, :success?
       assert_equal 1, $?.exitstatus
       assert_equal 'This worker is exiting early because too many failed tests were encountered.', err.chomp
-      output = normalize(out.lines.last.strip)
+      output = normalize(find_summary_line(out))
       assert_equal 'Ran 47 tests, 47 assertions, 3 failures, 0 errors, 0 skips, 44 requeues in X.XXs', output
 
       # Run the reporter
@@ -250,7 +250,7 @@ module Integration
       expected = <<~EXPECTED
         97 tests weren't run.
       EXPECTED
-      assert_equal expected.strip, normalize(out.lines.last.strip)
+      assert_equal expected.strip, decolorize_output(out.lines.last.strip)
     end
 
     def test_all_workers_died
@@ -296,7 +296,7 @@ module Integration
       end
 
       assert_equal "This worker is exiting early because it encountered too many consecutive test failures, probably because of some corrupted state.\n", err
-      output = normalize(out.lines.last.strip)
+      output = normalize(find_summary_line(out))
       assert_equal 'Ran 3 tests, 3 assertions, 0 failures, 0 errors, 0 skips, 3 requeues in X.XXs', output
     end
 
@@ -318,7 +318,7 @@ module Integration
       end
 
       assert_empty err
-      output = normalize(out.lines.last.strip)
+      output = normalize(find_summary_line(out))
       assert_equal 'Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
 
       out, err = capture_subprocess_io do
@@ -338,7 +338,7 @@ module Integration
       end
 
       assert_empty err
-      output = normalize(out.lines.last.strip)
+      output = normalize(find_summary_line(out))
       assert_equal 'Ran 6 tests, 4 assertions, 2 failures, 1 errors, 0 skips, 3 requeues in X.XXs', output
     end
 
@@ -359,7 +359,7 @@ module Integration
         )
       end
       assert_empty err
-      output = normalize(out.lines.last.strip)
+      output = normalize(find_summary_line(out))
       assert_equal 'Ran 100 tests, 100 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
 
       out, err = capture_subprocess_io do
@@ -378,7 +378,7 @@ module Integration
         )
       end
       assert_empty err
-      output = normalize(out.lines.last.strip)
+      output = decolorize_output(out.lines.last.strip)
       assert_equal 'All tests were ran already', output
     end
 
@@ -399,7 +399,7 @@ module Integration
         )
       end
       assert_empty err
-      output = normalize(out.lines.last.strip)
+      output = normalize(find_summary_line(out))
       assert_equal 'Ran 200 tests, 200 assertions, 100 failures, 0 errors, 0 skips, 100 requeues in X.XXs', output
 
       out, err = capture_subprocess_io do
@@ -419,7 +419,7 @@ module Integration
         )
       end
       assert_empty err
-      output = normalize(out.lines.last.strip)
+      output = decolorize_output(out.lines.last.strip)
       assert_equal 'All tests were ran already', output
     end
 
@@ -440,7 +440,7 @@ module Integration
         )
       end
       assert_empty err
-      output = normalize(out.lines.last.strip)
+      output = normalize(find_summary_line(out))
       assert_equal 'Ran 100 tests, 100 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
 
       one_day = 60 * 60 * 24
@@ -463,7 +463,7 @@ module Integration
         )
       end
       assert_empty err
-      output = normalize(out.lines.last.strip)
+      output = decolorize_output(out.lines.last.strip)
       assert_equal "The test run is too old and can't be retried", output
     end
 
@@ -483,7 +483,7 @@ module Integration
         )
       end
       assert_empty err
-      output = normalize(out.lines.last.strip)
+      output = normalize(find_summary_line(out))
       assert_equal 'Ran 100 tests, 100 assertions, 100 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
 
       # Run the reporter
@@ -538,7 +538,7 @@ module Integration
         )
       end
       assert_empty err
-      output = normalize(out.lines.last.strip)
+      output = decolorize_output(out.lines.last.strip)
       assert_equal 'All tests were ran already', output
 
       # Re-run the reporter
@@ -575,7 +575,7 @@ module Integration
         )
       end
       assert_empty err
-      output = normalize(out.lines.last.strip)
+      output = normalize(find_summary_line(out))
       assert_equal 'Ran 0 tests, 0 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
     end
 
@@ -598,7 +598,7 @@ module Integration
         )
       end
       assert_empty err
-      output = normalize(out.lines.last.strip)
+      output = normalize(find_summary_line(out))
       assert_equal 'Ran 9 tests, 6 assertions, 1 failures, 1 errors, 1 skips, 2 requeues in X.XXs', output
 
       content = File.read(@test_data_path)
@@ -700,7 +700,7 @@ module Integration
         )
       end
       assert_empty err
-      output = normalize(out.lines.last.strip)
+      output = normalize(find_summary_line(out))
       assert_equal 'Ran 9 tests, 6 assertions, 1 failures, 1 errors, 1 skips, 2 requeues in X.XXs', output
 
       # NOTE: To filter the TypeError backtrace below see test/fixtures/test/backtrace_filters.rb
@@ -911,7 +911,7 @@ module Integration
         )
       end
       assert_empty err
-      output = normalize(out.lines.last.strip)
+      output = normalize(find_summary_line(out))
       assert_equal 'Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
 
       Tempfile.open('warnings') do |warnings_file|
@@ -1010,10 +1010,8 @@ module Integration
       end
 
       assert_empty err
-      output = normalize(out.lines.last)
-      assert_equal <<~END, output
-        Ran 1 tests, 1 assertions, 1 failures, 0 errors, 0 skips, 0 requeues in X.XXs
-      END
+      output = normalize(find_summary_line(out))
+      assert_equal 'Ran 1 tests, 1 assertions, 1 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
     end
 
     def test_application_error
