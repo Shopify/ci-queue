@@ -222,17 +222,18 @@ module Minitest
     end
 
     class SingleExample
-      attr_reader :method_name
+      attr_reader :method_name, :file_path
 
-      def initialize(runnable, method_name)
+      def initialize(runnable, method_name, file_path: nil)
         # Store class name as string for DRb serialization
         @runnable_name = runnable.is_a?(String) ? runnable : runnable.to_s
         @method_name = method_name
+        @file_path = file_path
       end
 
       # Returns a ClassProxy that behaves like a Class but marshals safely over DRb
       def runnable
-        @runnable ||= CI::Queue::ClassProxy.new(@runnable_name)
+        @runnable ||= CI::Queue::ClassProxy.new(@runnable_name, file_path: @file_path)
       end
 
       # Provides access to class name as string (for DRb serialization)

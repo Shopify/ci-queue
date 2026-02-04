@@ -191,9 +191,9 @@ module CI
             @lazy_loader.load_class(class_name)
           end
 
-          # Create and return the SingleExample
+          # Create and return the SingleExample with file path for lazy loading in workers
           runnable = @lazy_loader.find_class(class_name)
-          Minitest::Queue::SingleExample.new(runnable, method_name)
+          Minitest::Queue::SingleExample.new(runnable, method_name, file_path: file_path)
         end
 
         def fetch_manifest_for_lazy_load

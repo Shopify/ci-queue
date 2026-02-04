@@ -79,7 +79,7 @@ module Minitest
         begin
           # Connect as client
           DRb.start_service
-          remote_queue = DRbObject.new_from_uri('druby://localhost:9999')
+          remote_queue = DRbObject.new(nil, 'druby://localhost:9999')
 
           # Create example and try to send it over DRb
           example = SingleExample.new(@example_class, 'test_example')
