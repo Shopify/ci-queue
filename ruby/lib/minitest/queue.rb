@@ -2,6 +2,7 @@
 require 'shellwords'
 require 'minitest'
 require 'minitest/reporters'
+require 'ci/queue/class_proxy'
 
 require 'minitest/queue/failure_formatter'
 require 'minitest/queue/error_report'
@@ -229,9 +230,15 @@ module Minitest
         @method_name = method_name
       end
 
-      # External interface unchanged - still returns Class object
+      # Returns a ClassProxy that behaves like a Class but marshals safely over DRb
       def runnable
-        @runnable ||= Object.const_get(@runnable_name)
+        @runnable ||= CI::Queue::ClassProxy.new(@runnable_name)
+      end
+
+      # Provides access to class name as string (for DRb serialization)
+      # Integration layers should use this instead of .runnable when sending over DRb
+      def runnable_class_name
+        @runnable_name
       end
 
       def id
