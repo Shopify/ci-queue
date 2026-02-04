@@ -104,6 +104,8 @@ module CI
           until shutdown_required? || config.circuit_breakers.any?(&:open?) || exhausted? || max_test_failed?
             if test_id = reserve_entry
               attempt = 0
+              # Initialize index if needed (consumers don't run push_streaming_as_leader)
+              @index ||= {}
               # Use index.fetch with fallback - works for both eager and lazy modes
               example = index.fetch(test_id) { load_test_from_entry(test_id) }
               yield example
