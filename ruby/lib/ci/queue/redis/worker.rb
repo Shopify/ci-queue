@@ -28,6 +28,11 @@ module CI
           @id ||= entry.split("\t", 2).last
         end
 
+        # Comparison operator for sorting/shuffling
+        def <=>(other)
+          id <=> other.id
+        end
+
         # Return the original string format for queue storage
         def to_s
           entry
@@ -104,7 +109,12 @@ module CI
           until shutdown_required? || config.circuit_breakers.any?(&:open?) || exhausted? || max_test_failed?
             if test_id = reserve_entry
               attempt = 0
-              example = load_test_from_entry(test_id)
+              # Use @index if available (eager mode), otherwise load on-demand (lazy mode)
+              example = if index
+                index.fetch(test_id)
+              else
+                load_test_from_entry(test_id)
+              end
               yield example
             else
               # Adding exponential backoff to avoid hammering Redis
@@ -146,31 +156,31 @@ module CI
           # Track the full queue_entry for Redis operations
           reserved_tests << queue_entry
 
-          # Map test_id -> queue_entry for acknowledge/requeue
-          @test_id_to_entry ||= {}
-          @test_id_to_entry[test_id] = queue_entry
-
-          # Store file path for lazy loading
-          @pending_file_paths ||= {}
-          @pending_file_paths[test_id] = file_path if file_path
+          # Unified storage: single source of truth per test
+          @pending_tests ||= {}
+          @pending_tests[test_id] = {
+            entry: queue_entry,
+            file: file_path
+          }
 
           test_id
         end
 
         # Get the queue entry for a test_id (used by acknowledge/requeue)
         def queue_entry_for_test(test_id)
-          @test_id_to_entry ||= {}
-          @test_id_to_entry[test_id] || test_id
+          @pending_tests ||= {}
+          pending = @pending_tests[test_id]
+          pending ? pending[:entry] : test_id
         end
 
         # Load a test from a queue entry using the embedded file path or manifest
         def load_test_from_entry(test_id)
           class_name, method_name = LazyLoader.parse_test_id(test_id)
 
-          # Try to get file path from the pending map (streaming mode)
-          # or fall back to manifest (legacy mode)
-          @pending_file_paths ||= {}
-          file_path = @pending_file_paths.delete(test_id)
+          # Get file path from unified pending tests structure
+          @pending_tests ||= {}
+          pending = @pending_tests[test_id]
+          file_path = pending[:file] if pending
 
           if file_path
             # Streaming mode: load file directly
@@ -284,6 +294,11 @@ module CI
 
         attr_reader :index
 
+        # Debug output helper - only prints if CI_QUEUE_DEBUG is set
+        def debug_puts(message)
+          puts message if ENV['CI_QUEUE_DEBUG']
+        end
+
         def reserved_tests
           @reserved_tests ||= Concurrent::Set.new
         end
@@ -297,7 +312,7 @@ module CI
             display_key = test_key || queue_entry
             raise ReservationError, "Acknowledged #{display_key.inspect} but only #{reserved_tests.map(&:inspect).join(", ")} reserved"
           end
-          # Note: We don't delete from @test_id_to_entry here because the test may still
+          # Note: We don't delete from @pending_tests here because the test may still
           # need the mapping if requeue is called before acknowledge. The mapping will
           # naturally be overwritten when the same test_id is reserved again.
         end
@@ -404,8 +419,7 @@ module CI
         # 3. Sets master-status to 'ready' early so workers can start
         # 4. Uses queue entries with embedded file path: "file_path\ttest_id"
         def push_streaming(test_files:, random:, config:)
-          puts "[ci-queue] push_streaming called with #{test_files.size} test files"
-          $stdout.flush
+          debug_puts "[ci-queue] push_streaming called with #{test_files.size} test files"
 
           # Leader election - same as push()
           value = key('setup', worker_id)
@@ -415,12 +429,10 @@ module CI
           end
 
           if @master = (value == status)
-            puts "[ci-queue] Worker #{worker_id} elected as LEADER"
-            $stdout.flush
+            debug_puts "[ci-queue] Worker #{worker_id} elected as LEADER"
             push_streaming_as_leader(test_files: test_files, random: random, config: config)
           else
-            puts "[ci-queue] Worker #{worker_id} is CONSUMER, waiting for leader (status=#{status.inspect})"
-            $stdout.flush
+            debug_puts "[ci-queue] Worker #{worker_id} is CONSUMER, waiting for leader (status=#{status.inspect})"
             # Not the leader - wait for queue to be initialized
             wait_for_streaming_queue(config: config)
           end
@@ -438,8 +450,7 @@ module CI
           queue_initialized = false
           start_time = CI::Queue.time_now
 
-          puts "[ci-queue] Leader starting to load #{test_files.size} test files..."
-          $stdout.flush
+          debug_puts "[ci-queue] Leader starting to load #{test_files.size} test files..."
 
           begin
             # Load each test file and push tests IMMEDIATELY
@@ -475,8 +486,7 @@ module CI
                   if !queue_initialized
                     # First file with tests: initialize queue and set 'ready'
                     elapsed = (CI::Queue.time_now - start_time).round(2)
-                    puts "[ci-queue] First file with tests loaded after #{elapsed}s, initializing queue with #{shuffled_entries.size} tests..."
-                    $stdout.flush
+                    debug_puts "[ci-queue] First file with tests loaded after #{elapsed}s, initializing queue with #{shuffled_entries.size} tests..."
 
                     redis.multi do |transaction|
                       transaction.lpush(key('queue'), shuffled_entries)
@@ -488,8 +498,7 @@ module CI
                       transaction.expire(key('master-status'), config.redis_ttl)
                     end
                     queue_initialized = true
-                    puts "[ci-queue] Queue initialized, master-status set to 'ready'"
-                    $stdout.flush
+                    debug_puts "[ci-queue] Queue initialized, master-status set to 'ready'"
                   else
                     # Subsequent files: just push to queue
                     redis.lpush(key('queue'), shuffled_entries)
@@ -500,8 +509,7 @@ module CI
                   # Progress update every 100 files
                   if files_loaded % 100 == 0
                     elapsed = (CI::Queue.time_now - start_time).round(2)
-                    puts "[ci-queue] Progress: #{files_loaded}/#{test_files.size} files, #{total_pushed} tests pushed (#{elapsed}s elapsed)"
-                    $stdout.flush
+                    debug_puts "[ci-queue] Progress: #{files_loaded}/#{test_files.size} files, #{total_pushed} tests pushed (#{elapsed}s elapsed)"
                   end
                 end
               rescue LoadError => e
@@ -524,8 +532,7 @@ module CI
             end
 
             elapsed = (CI::Queue.time_now - start_time).round(2)
-            puts "[ci-queue] Leader finished: #{files_loaded} files, #{@total} tests in #{elapsed}s"
-            $stdout.flush
+            debug_puts "[ci-queue] Leader finished: #{files_loaded} files, #{@total} tests in #{elapsed}s"
 
             # Build and store manifest for backward compatibility
             manifest = LazyLoader.build_manifest(all_tests)
@@ -548,8 +555,7 @@ module CI
           deadline = CI::Queue.time_now + timeout
           last_status_log = CI::Queue.time_now
 
-          puts "[ci-queue] Consumer waiting for queue (timeout=#{timeout}s)..."
-          $stdout.flush
+          debug_puts "[ci-queue] Consumer waiting for queue (timeout=#{timeout}s)..."
 
           until queue_initialized?
             if CI::Queue.time_now > deadline
@@ -561,16 +567,14 @@ module CI
             if CI::Queue.time_now - last_status_log >= 10
               status = redis.get(key('master-status'))
               elapsed = (CI::Queue.time_now - (deadline - timeout)).round(1)
-              puts "[ci-queue] Still waiting for queue... (#{elapsed}s elapsed, master-status=#{status.inspect})"
-              $stdout.flush
+              debug_puts "[ci-queue] Still waiting for queue... (#{elapsed}s elapsed, master-status=#{status.inspect})"
               last_status_log = CI::Queue.time_now
             end
 
             sleep 0.1
           end
 
-          puts "[ci-queue] Queue ready, consumer can start"
-          $stdout.flush
+          debug_puts "[ci-queue] Queue ready, consumer can start"
         end
 
         def register
