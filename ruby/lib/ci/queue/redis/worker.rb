@@ -40,8 +40,6 @@ module CI
       end
 
       class Worker < Base
-        attr_reader :total
-
         def initialize(redis, config)
           @reserved_tests = Concurrent::Set.new
           @shutdown_required = false
@@ -51,6 +49,15 @@ module CI
 
         def distributed?
           true
+        end
+
+        # Fetch total test count, either from instance variable (if leader)
+        # or from Redis (if non-leader worker)
+        def total
+          @total ||= begin
+            wait_for_master(timeout: config.queue_init_timeout)
+            redis.get(key('total')).to_i
+          end
         end
 
         def populate(tests, random: Random.new)
