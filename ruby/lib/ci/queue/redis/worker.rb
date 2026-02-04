@@ -200,6 +200,11 @@ module CI
 
           # Create and return the SingleExample with file path for lazy loading in workers
           runnable = @lazy_loader.find_class(class_name)
+
+          # Trigger runnable_methods to ensure dynamically generated test methods exist
+          # (e.g., methods created by Shopify's Flags::ToggleHelper and TestTags)
+          runnable.runnable_methods if runnable.respond_to?(:runnable_methods)
+
           Minitest::Queue::SingleExample.new(runnable, method_name, file_path: file_path)
         end
 

@@ -140,6 +140,9 @@ module CI
       # Parse a test identifier into class_name and method_name
       def self.parse_test_id(test_id)
         # Test IDs are in format "ClassName#method_name" or "Module::ClassName#method_name"
+        # Method names may include metadata like "_tag:..." and "_FLAGS:..." which are part of
+        # the actual Ruby method name (dynamically generated via define_method by Shopify's
+        # TestTags and Flags::ToggleHelper modules)
         class_name, method_name = test_id.split('#', 2)
         [class_name, method_name]
       end

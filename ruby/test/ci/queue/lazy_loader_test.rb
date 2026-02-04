@@ -38,6 +38,53 @@ module CI::Queue
       assert_equal 'test_with#hash', method_name
     end
 
+    # === Shopify-specific metadata (FLAGS and tags) ===
+
+    def test_parse_test_id_with_flags_metadata
+      # Shopify's Flags::ToggleHelper adds FLAGS metadata to method names
+      class_name, method_name = LazyLoader.parse_test_id(
+        'FooTest#test_example_FLAGS:f_use_new_api:ON'
+      )
+      assert_equal 'FooTest', class_name
+      assert_equal 'test_example_FLAGS:f_use_new_api:ON', method_name
+    end
+
+    def test_parse_test_id_with_tag_metadata
+      # Shopify's TestTags module adds tag metadata to method names
+      class_name, method_name = LazyLoader.parse_test_id(
+        'FooTest#test_example_tag:slow:true'
+      )
+      assert_equal 'FooTest', class_name
+      assert_equal 'test_example_tag:slow:true', method_name
+    end
+
+    def test_parse_test_id_with_flags_and_tag_metadata
+      # Test IDs can have both FLAGS and tag metadata
+      class_name, method_name = LazyLoader.parse_test_id(
+        'FooTest#test_example_tag:slow:true_FLAGS:f_use_new_api:ON'
+      )
+      assert_equal 'FooTest', class_name
+      assert_equal 'test_example_tag:slow:true_FLAGS:f_use_new_api:ON', method_name
+    end
+
+    def test_parse_test_id_with_multiple_flags
+      class_name, method_name = LazyLoader.parse_test_id(
+        'FooTest#test_example_FLAGS:flag1:ON_FLAGS:flag2:OFF'
+      )
+      assert_equal 'FooTest', class_name
+      assert_equal 'test_example_FLAGS:flag1:ON_FLAGS:flag2:OFF', method_name
+    end
+
+    def test_parse_test_id_preserves_full_method_name
+      # This is critical: we must preserve the FULL method name including metadata
+      # because these are actual Ruby method names created via define_method
+      test_id = 'Sales::OrdersController::MoneyTest#test_call_reverts_product_quantity_limit_script_changes_before_updating_a_line_quantity_FLAGS:f_use_presentment_currency_context:ON'
+      class_name, method_name = LazyLoader.parse_test_id(test_id)
+
+      assert_equal 'Sales::OrdersController::MoneyTest', class_name
+      assert_equal 'test_call_reverts_product_quantity_limit_script_changes_before_updating_a_line_quantity_FLAGS:f_use_presentment_currency_context:ON', method_name
+    end
+
     # === build_test_id ===
 
     def test_build_test_id
@@ -209,15 +256,15 @@ module CI::Queue
     end
 
     def test_load_class_only_loads_file_once
-      test_file = create_temp_test_file('LoadOnceTest', 'test_example')
-      @loader.set_manifest({ 'LoadOnceTest' => test_file })
+      test_file = create_temp_test_file('LazyLoaderLoadOnceTest', 'test_example')
+      @loader.set_manifest({ 'LazyLoaderLoadOnceTest' => test_file })
 
-      @loader.load_class('LoadOnceTest')
-      @loader.load_class('LoadOnceTest')
+      @loader.load_class('LazyLoaderLoadOnceTest')
+      @loader.load_class('LazyLoaderLoadOnceTest')
 
       assert_equal 1, @loader.files_loaded_count
     ensure
-      Object.send(:remove_const, :LoadOnceTest) if defined?(LoadOnceTest)
+      Object.send(:remove_const, :LazyLoaderLoadOnceTest) if defined?(LazyLoaderLoadOnceTest)
     end
 
     # === find_class ===
@@ -259,6 +306,100 @@ module CI::Queue
     def test_instantiate_test
       instance = @loader.instantiate_test('Minitest::Test', 'test_example')
       assert_instance_of Minitest::Test, instance
+    end
+
+    # === Dynamic method generation (Shopify-specific) ===
+
+    def test_dynamic_method_generation_via_runnable_methods
+      # This simulates Shopify's pattern where test methods are generated lazily
+      # via the runnable_methods hook (used by Flags::ToggleHelper and TestTags)
+
+      # Create a test class that generates methods on-demand
+      test_file = Tempfile.new(['test_dynamic_', '.rb'])
+      test_file.write(<<~RUBY)
+        class DynamicMethodTest < Minitest::Test
+          # Simulate Shopify's pattern: methods are defined when runnable_methods is called
+          def self.runnable_methods
+            # Generate a method with FLAGS metadata (like Shopify's ToggleHelper does)
+            define_method('test_example_FLAGS:f_feature:ON') do
+              assert true
+            end
+            super
+          end
+
+          # Regular test method (always exists)
+          def test_regular
+            assert true
+          end
+        end
+      RUBY
+      test_file.close
+
+      # Load the file
+      @loader.set_manifest({ 'DynamicMethodTest' => test_file.path })
+      @loader.load_class('DynamicMethodTest')
+
+      # At this point, the class exists but dynamic methods are NOT yet defined
+      klass = @loader.find_class('DynamicMethodTest')
+
+      # Verify regular method exists
+      assert klass.instance_methods.include?(:test_regular),
+             "Regular method should be defined immediately"
+
+      # Dynamic method does NOT exist yet
+      dynamic_method_name = 'test_example_FLAGS:f_feature:ON'.to_sym
+      refute klass.instance_methods.include?(dynamic_method_name),
+             "Dynamic method should not exist before runnable_methods is called"
+
+      # Call runnable_methods to trigger method generation (this is what worker.rb does)
+      klass.runnable_methods if klass.respond_to?(:runnable_methods)
+
+      # NOW the dynamic method should exist
+      assert klass.instance_methods.include?(dynamic_method_name),
+             "Dynamic method should exist after runnable_methods is called"
+
+      # Verify we can instantiate the test with the dynamically-generated method name
+      instance = @loader.instantiate_test('DynamicMethodTest', 'test_example_FLAGS:f_feature:ON')
+      assert_instance_of DynamicMethodTest, instance
+      assert_equal 'test_example_FLAGS:f_feature:ON', instance.name
+
+    ensure
+      Object.send(:remove_const, :DynamicMethodTest) if defined?(DynamicMethodTest)
+      test_file.unlink if test_file
+    end
+
+    def test_load_test_with_dynamic_method_generation
+      # Integration test: load_test should work even when methods are generated dynamically
+      test_file = Tempfile.new(['test_integration_', '.rb'])
+      test_file.write(<<~RUBY)
+        class IntegrationDynamicTest < Minitest::Test
+          def self.runnable_methods
+            define_method('test_foo_tag:slow:true') do
+              assert true
+            end
+            super
+          end
+        end
+      RUBY
+      test_file.close
+
+      @loader.set_manifest({ 'IntegrationDynamicTest' => test_file.path })
+
+      # Load the class
+      @loader.load_class('IntegrationDynamicTest')
+
+      # Trigger method generation
+      klass = @loader.find_class('IntegrationDynamicTest')
+      klass.runnable_methods if klass.respond_to?(:runnable_methods)
+
+      # Now instantiate - this should work
+      instance = @loader.instantiate_test('IntegrationDynamicTest', 'test_foo_tag:slow:true')
+      assert_instance_of IntegrationDynamicTest, instance
+      assert_equal 'test_foo_tag:slow:true', instance.name
+
+    ensure
+      Object.send(:remove_const, :IntegrationDynamicTest) if defined?(IntegrationDynamicTest)
+      test_file.unlink if test_file
     end
 
     private
