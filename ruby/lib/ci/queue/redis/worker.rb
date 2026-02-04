@@ -104,10 +104,7 @@ module CI
           until shutdown_required? || config.circuit_breakers.any?(&:open?) || exhausted? || max_test_failed?
             if test_id = reserve_entry
               attempt = 0
-              # Initialize index if needed (consumers don't run push_streaming_as_leader)
-              @index ||= {}
-              # Use index.fetch with fallback - works for both eager and lazy modes
-              example = index.fetch(test_id) { load_test_from_entry(test_id) }
+              example = load_test_from_entry(test_id)
               yield example
             else
               # Adding exponential backoff to avoid hammering Redis
@@ -168,9 +165,6 @@ module CI
 
         # Load a test from a queue entry using the embedded file path or manifest
         def load_test_from_entry(test_id)
-          # Check if already in index (memoization)
-          return @index[test_id] if @index && @index[test_id]
-
           class_name, method_name = LazyLoader.parse_test_id(test_id)
 
           # Try to get file path from the pending map (streaming mode)
@@ -187,15 +181,9 @@ module CI
             @lazy_loader.load_class(class_name)
           end
 
-          # Create and cache the SingleExample in index
+          # Create and return the SingleExample
           runnable = @lazy_loader.find_class(class_name)
-          test = Minitest::Queue::SingleExample.new(runnable, method_name)
-
-          # Populate THIS worker's index
-          @index ||= {}
-          @index[test_id] = test
-
-          test
+          Minitest::Queue::SingleExample.new(runnable, method_name)
         end
 
         def fetch_manifest_for_lazy_load
@@ -466,13 +454,11 @@ module CI
                 # Find new tests that were added by this file
                 loaded_tests = Minitest.loaded_tests
                 file_entries = []
-                @index ||= {}  # Initialize index if needed for lazy loading
                 (count_before...loaded_tests.size).each do |i|
                   test = loaded_tests[i]
                   # Queue entry format: "file_path\ttest_id"
                   file_entries << "#{file_path}\t#{test.id}"
                   all_tests << test
-                  @index[test.id] = test  # Build index incrementally
                 end
 
                 files_loaded += 1
