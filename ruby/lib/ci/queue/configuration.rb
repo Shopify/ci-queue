@@ -6,7 +6,7 @@ module CI
       attr_accessor :requeue_tolerance, :namespace, :failing_test, :statsd_endpoint
       attr_accessor :max_test_duration, :max_test_duration_percentile, :track_test_duration
       attr_accessor :max_test_failed, :redis_ttl, :warnings_file, :debug_log, :max_missed_heartbeat_seconds
-      attr_accessor :lazy_load, :test_helpers
+      attr_accessor :lazy_load, :test_helpers, :test_files_path
       attr_reader :circuit_breakers
       attr_writer :seed, :build_id
       attr_writer :queue_init_timeout, :report_timeout, :inactive_workers_timeout
@@ -25,6 +25,7 @@ module CI
             requeue_tolerance: env['CI_QUEUE_REQUEUE_TOLERANCE']&.to_f || 0,
             lazy_load: env['CI_QUEUE_LAZY_LOAD'] == 'true',
             test_helpers: env['CI_QUEUE_TEST_HELPERS'],
+            test_files_path: env['CI_QUEUE_TEST_FILES'],
           )
         end
 
@@ -50,7 +51,7 @@ module CI
         max_test_duration_percentile: 0.5, track_test_duration: false, max_test_failed: nil,
         queue_init_timeout: nil, redis_ttl: 8 * 60 * 60, report_timeout: nil, inactive_workers_timeout: nil,
         export_flaky_tests_file: nil, warnings_file: nil, debug_log: nil, max_missed_heartbeat_seconds: nil,
-        lazy_load: false, test_helpers: nil)
+        lazy_load: false, test_helpers: nil, test_files_path: nil)
         @build_id = build_id
         @circuit_breakers = [CircuitBreaker::Disabled]
         @failure_file = failure_file
@@ -79,6 +80,7 @@ module CI
         @max_missed_heartbeat_seconds = max_missed_heartbeat_seconds
         @lazy_load = lazy_load
         @test_helpers = test_helpers
+        @test_files_path = test_files_path
       end
 
       def queue_init_timeout

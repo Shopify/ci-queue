@@ -392,18 +392,26 @@ module Minitest
       def load_tests
         puts "[ci-queue] load_tests called, lazy_load?=#{queue_config.lazy_load?}, argv.size=#{argv.size}"
         $stdout.flush
+
+        # Determine which test files to use: --test-files option or ARGV
+        test_file_list = if queue_config.test_files_path
+          load_test_files_from_file(queue_config.test_files_path)
+        else
+          argv.sort
+        end
+
         if queue_config.lazy_load?
           # In lazy load mode, only load test helpers, not test files
           # Test files are stored for later use when the leader populates the queue
           load_test_helpers
-          @test_files = argv.sort.map { |f| File.expand_path(f) }
+          @test_files = test_file_list.map { |f| File.expand_path(f) }
           puts "[ci-queue] Set @test_files to #{@test_files.size} files"
           puts "[ci-queue] First 3 test files: #{@test_files.first(3).inspect}"
           $stdout.flush
           validate_test_files!
         else
           # Eager loading mode - load all test files now
-          argv.sort.each do |f|
+          test_file_list.each do |f|
             require File.expand_path(f)
           end
         end
@@ -424,6 +432,26 @@ module Minitest
           end
           require expanded
         end
+      end
+
+      def load_test_files_from_file(path)
+        expanded_path = File.expand_path(path)
+        unless ::File.exist?(expanded_path)
+          abort! "Test files list does not exist: #{path}"
+        end
+        unless ::File.readable?(expanded_path)
+          abort! "Test files list is not readable: #{path}"
+        end
+
+        test_files = ::File.readlines(expanded_path, chomp: true, encoding: 'UTF-8')
+                          .reject(&:empty?)
+                          .map(&:strip)
+
+        if test_files.empty?
+          abort! "Test files list is empty: #{path}"
+        end
+
+        test_files.sort
       end
 
       def test_files
@@ -710,6 +738,17 @@ module Minitest
           opts.separator ""
           opts.on("--test-helpers FILES", help) do |files|
             queue_config.test_helpers = files
+          end
+
+          help = <<~EOS
+            Path to a file containing test file paths to run (one per line).
+            This is useful when you have many test files that would exceed command-line argument limits.
+            When specified, test files are read from this file instead of from positional arguments.
+            Can also be set via CI_QUEUE_TEST_FILES environment variable.
+          EOS
+          opts.separator ""
+          opts.on("--test-files PATH", help) do |path|
+            queue_config.test_files_path = path
           end
 
           opts.separator ""
