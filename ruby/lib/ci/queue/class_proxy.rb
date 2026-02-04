@@ -62,7 +62,7 @@ module CI
       private
 
       def target_class
-        @klass ||= ::Object.const_get(@class_name)
+        @klass ||= @class_name.split('::').reduce(::Object) { |mod, const| mod.const_get(const) }
       end
     end
   end
