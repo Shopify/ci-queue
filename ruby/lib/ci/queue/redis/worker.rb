@@ -13,6 +13,27 @@ module CI
       self.requeue_offset = 42
       self.max_sleep_time = 2
 
+      # Wrapper for lazy loading queue entries that mimics a test object
+      # This allows shufflers and other code to treat "path\ttest_id" strings
+      # as if they were test objects with an .id method
+      class LazyTestEntry
+        attr_reader :entry
+
+        def initialize(entry)
+          @entry = entry
+        end
+
+        # Extract test_id from "file_path\ttest_id" format
+        def id
+          @id ||= entry.split("\t", 2).last
+        end
+
+        # Return the original string format for queue storage
+        def to_s
+          entry
+        end
+      end
+
       class Worker < Base
         attr_reader :total
 
@@ -445,7 +466,11 @@ module CI
                 # Push this file's tests immediately (allows workers to start ASAP)
                 if file_entries.any?
                   # Shuffle entries from this file
-                  shuffled_entries = Queue.shuffle(file_entries, random)
+                  # Wrap entries in LazyTestEntry objects so shufflers can call .id on them
+                  wrapped_entries = file_entries.map { |entry| LazyTestEntry.new(entry) }
+                  shuffled_wrapped = Queue.shuffle(wrapped_entries, random)
+                  # Convert back to string format for queue storage
+                  shuffled_entries = shuffled_wrapped.map(&:to_s)
 
                   if !queue_initialized
                     # First file with tests: initialize queue and set 'ready'
