@@ -221,15 +221,21 @@ module Minitest
     end
 
     class SingleExample
-      attr_reader :runnable, :method_name
+      attr_reader :method_name
 
       def initialize(runnable, method_name)
-        @runnable = runnable
+        # Store class name as string for DRb serialization
+        @runnable_name = runnable.is_a?(String) ? runnable : runnable.to_s
         @method_name = method_name
       end
 
+      # External interface unchanged - still returns Class object
+      def runnable
+        @runnable ||= Object.const_get(@runnable_name)
+      end
+
       def id
-        @id ||= "#{@runnable}##{@method_name}".freeze
+        @id ||= "#{@runnable_name}##{@method_name}".freeze
       end
 
       def <=>(other)
@@ -249,7 +255,7 @@ module Minitest
 
       def run
         with_timestamps do
-          Minitest.run_one_method(@runnable, @method_name)
+          Minitest.run_one_method(runnable, @method_name)
         end
       end
 
@@ -258,7 +264,7 @@ module Minitest
       end
 
       def source_location
-        @runnable.instance_method(@method_name).source_location
+        runnable.instance_method(@method_name).source_location
       rescue NameError, NoMethodError
         nil
       end
