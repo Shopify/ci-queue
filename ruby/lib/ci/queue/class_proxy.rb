@@ -72,6 +72,7 @@ module CI
 
         # Try to resolve the constant
         @klass = resolve_constant(@class_name)
+        @klass = resolve_class_from_file if needs_class_resolution?
       rescue ::NameError => e
         # If constant not found and we have a file path, try loading the file
         if @file_path
@@ -79,6 +80,7 @@ module CI
           # Retry constant lookup after loading
           begin
             @klass = resolve_constant(@class_name)
+            @klass = resolve_class_from_file if needs_class_resolution?
           rescue ::NameError => retry_error
             # File loaded but class still not found - provide helpful error
             ::Kernel.raise ::NameError,
@@ -90,9 +92,31 @@ module CI
         end
       end
 
+       def needs_class_resolution?
+         @klass.is_a?(::Module) && !@klass.is_a?(::Class) && @file_path
+       end
+
       def resolve_constant(class_name)
         class_name.split('::').reduce(::Object) { |mod, const| mod.const_get(const) }
       end
+
+       def resolve_class_from_file
+         file_path = ::File.expand_path(@file_path)
+         short_name = @class_name
+
+         ::ObjectSpace.each_object(::Class) do |klass|
+           next unless klass.name
+           next unless klass.name == short_name || klass.name.end_with?("::#{short_name}")
+
+           source = ::Object.const_source_location(klass.name)&.first
+           next unless source
+
+           return klass if ::File.expand_path(source) == file_path
+         end
+
+         ::Kernel.raise ::NameError,
+           "Expected class #{@class_name} in #{@file_path}, but only a module was found"
+       end
 
       def load_test_file(file_path)
         # Validate file path for security
