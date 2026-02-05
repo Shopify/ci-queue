@@ -108,13 +108,22 @@ module CI
         short_name = @class_name
 
         ::ObjectSpace.each_object(::Class) do |klass|
-          next unless klass.name
-          next unless klass.name == short_name || klass.name.end_with?("::#{short_name}")
+          # ObjectSpace contains classes from the entire process — gems, engines, etc.
+          # Some override .name with non-standard signatures or return values, and
+          # const_source_location can raise on invalid constant paths. Rescue broadly
+          # since we're just scanning and can safely skip any problematic class.
+          begin
+            klass_name = klass.name
+            next unless klass_name
+            next unless klass_name == short_name || klass_name.end_with?("::#{short_name}")
 
-          source = ::Object.const_source_location(klass.name)&.first
-          next unless source
+            source = ::Object.const_source_location(klass_name)&.first
+            next unless source
 
-          return klass if ::File.expand_path(source) == file_path
+            return klass if ::File.expand_path(source) == file_path
+          rescue ::StandardError
+            next
+          end
         end
 
         ::Kernel.raise ::NameError,
