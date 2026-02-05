@@ -204,7 +204,9 @@ module CI
           debug_puts "[ci-queue] Loaded class #{class_name}, calling runnable_methods..."
 
           # Trigger runnable_methods to ensure dynamically generated test methods exist
-          # (e.g., methods created by Shopify's Flags::ToggleHelper and TestTags)
+          # This is standard Minitest behavior - runnable_methods returns the list of test methods.
+          # Any test framework extensions (like Shopify's ToggleHelper) that generate methods
+          # dynamically should handle fork scenarios internally.
           if runnable.respond_to?(:runnable_methods)
             available_methods = runnable.runnable_methods
             debug_puts "[ci-queue] runnable_methods returned #{available_methods.size} methods"
