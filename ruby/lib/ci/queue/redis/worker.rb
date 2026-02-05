@@ -205,20 +205,22 @@ module CI
           # (e.g., methods created by Shopify's Flags::ToggleHelper and TestTags)
           if runnable.respond_to?(:runnable_methods)
             available_methods = runnable.runnable_methods
-            method_sym = method_name.to_sym
 
-            # Verify the method exists after calling runnable_methods
-            unless available_methods.include?(method_sym)
+            # Check both string and symbol versions since runnable_methods may return either
+            method_found = available_methods.include?(method_name.to_sym) ||
+                          available_methods.include?(method_name) ||
+                          available_methods.include?(method_name.to_s)
+
+            unless method_found
               puts "[ci-queue] ERROR: Method #{method_name} not found in #{class_name}"
+              puts "[ci-queue] Method type: #{method_name.class}, Available methods type: #{available_methods.first.class}"
               puts "[ci-queue] Available methods count: #{available_methods.size}"
               puts "[ci-queue] Sample methods: #{available_methods.first(3).join(', ')}"
 
-              # Check if there's a similar method with different FLAGS
-              similar = available_methods.select { |m| m.to_s.start_with?(method_name.split('_FLAGS:').first) }
-              if similar.any?
-                puts "[ci-queue] Similar methods found (different FLAGS values?):"
-                similar.first(3).each { |m| puts "[ci-queue]   - #{m}" }
-              end
+              # Debug: show exact comparison
+              puts "[ci-queue] Exact match check: looking for '#{method_name}' (#{method_name.class})"
+              exact_matches = available_methods.select { |m| m.to_s == method_name.to_s }
+              puts "[ci-queue] Found #{exact_matches.size} exact string matches: #{exact_matches.first(3).join(', ')}" if exact_matches.any?
 
               raise CI::Queue::LazyLoadError,
                     "Method #{method_name} not found in #{class_name}. " \
