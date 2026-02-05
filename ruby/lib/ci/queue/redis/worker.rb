@@ -100,6 +100,16 @@ module CI
           @lazy_load_mode || config.lazy_load?
         end
 
+        # Override base exhausted? to handle streaming mode.
+        # During streaming, the leader pushes tests incrementally. The queue may
+        # be temporarily empty between batches. Without this check, consumers
+        # would exit the poll loop thinking the queue is done.
+        def exhausted?
+          return false if @lazy_load_mode && !streaming_complete?
+
+          super
+        end
+
         def files_loaded_count
           return 0 unless @lazy_loader
 
@@ -183,11 +193,20 @@ module CI
           test_id
         end
 
-        # Get the queue entry for a test_id (used by acknowledge/requeue)
+        # Get the queue entry for a test_id (used by acknowledge/requeue).
+        # In streaming mode, reserved_tests contains "file_path\ttest_id" entries.
+        # If @pending_tests doesn't have a mapping (e.g., after requeue consumed it),
+        # scan reserved_tests for a matching suffix.
         def queue_entry_for_test(test_id)
           @pending_tests ||= {}
           pending = @pending_tests[test_id]
-          pending ? pending[:entry] : test_id
+          return pending[:entry] if pending
+
+          # Fallback: find the matching entry in reserved_tests by test_id suffix.
+          # This handles cases where @pending_tests lost the mapping (e.g., requeue
+          # path consumed it, or acknowledge is called from a different context like DRb).
+          match = reserved_tests.find { |entry| parse_queue_entry(entry).last == test_id }
+          match || test_id
         end
 
         # Load a test from a queue entry using the embedded file path or manifest
@@ -243,7 +262,10 @@ module CI
         def retry_queue
           failures = build.failed_tests.to_set
           log = redis.lrange(key('worker', worker_id, 'queue'), 0, -1)
-          log.select! { |id| failures.include?(id) }
+          # Worker queue stores full entries ("file_path\ttest_id" in streaming mode).
+          # failed_tests returns plain test_ids (from error-reports). Extract test_id
+          # for comparison but keep the full entry for the retry queue.
+          log.select! { |entry| failures.include?(parse_queue_entry(entry).last) }
           log.uniq!
           log.reverse!
           Retry.new(log, config, redis: redis)
@@ -310,6 +332,14 @@ module CI
         private
 
         attr_reader :index
+
+        # Check if the leader has finished pushing all tests in streaming mode.
+        # Memoize true (streaming complete is permanent) but re-check Redis if false.
+        def streaming_complete?
+          return true if @streaming_complete
+
+          @streaming_complete = redis.get(key('streaming-complete')) == '1'
+        end
 
         # Debug output helper - only prints if CI_QUEUE_DEBUG is set
         def debug_puts(message)
@@ -525,13 +555,17 @@ module CI
             @files_loaded_by_leader = files_loaded
             @total = total_pushed
 
-            # Set the total count only once all files are loaded.
-            # This avoids a race condition where workers read a partial total
-            # during streaming and memoize a stale value.
+            # Set the total count and mark streaming as complete.
+            # total is only set once all files are loaded to avoid consumers
+            # memoizing a partial count. streaming-complete signals that the
+            # queue will not receive more tests, so exhausted? can return true.
             redis.multi do |transaction|
               transaction.set(key('total'), @total)
+              transaction.set(key('streaming-complete'), '1')
               transaction.expire(key('total'), config.redis_ttl)
+              transaction.expire(key('streaming-complete'), config.redis_ttl)
             end
+            @streaming_complete = true
 
             elapsed = (CI::Queue.time_now - start_time).round(2)
             debug_puts "[ci-queue] Leader finished: #{files_loaded} files, #{@total} tests in #{elapsed}s"

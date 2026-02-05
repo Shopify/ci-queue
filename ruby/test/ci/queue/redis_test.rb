@@ -397,6 +397,64 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_match(/Failed to load test file/, error.message)
   end
 
+  def test_acknowledge_works_when_pending_tests_mapping_lost
+    # Reproduces the DRb scenario: a test is reserved (stored in reserved_tests
+    # as "file_path\ttest_id"), but by the time acknowledge is called, the
+    # @pending_tests mapping is gone (e.g., consumed by requeue, or acknowledge
+    # is called from a DRb thread with a reconstructed SingleExample).
+    # queue_entry_for_test should fall back to scanning reserved_tests by suffix.
+    @redis.flushdb
+    queue = worker(1, lazy_load: true, populate: false, build_id: 'lazy-ack-1')
+    test_files = create_temp_test_files
+
+    capture_io do
+      queue.populate_lazy(
+        test_files: test_files,
+        random: Random.new(0),
+        config: queue.send(:config),
+        file_loader: method(:lazy_file_loader),
+        test_factory: method(:lazy_test_factory),
+      )
+    end
+
+    # Reserve a test (this populates @pending_tests and reserved_tests)
+    test_id = queue.send(:reserve_entry)
+    assert test_id, "Should have reserved a test"
+
+    # Simulate the @pending_tests mapping being lost (as happens in DRb/requeue scenarios)
+    queue.instance_variable_get(:@pending_tests).clear
+
+    # acknowledge should still work by finding the entry in reserved_tests via suffix scan
+    assert queue.acknowledge(test_id), "Should acknowledge even without @pending_tests mapping"
+  ensure
+    cleanup_temp_test_classes
+  end
+
+  def test_acknowledge_with_pending_tests_mapping_present
+    # Verify the normal happy path: @pending_tests has the mapping
+    @redis.flushdb
+    queue = worker(1, lazy_load: true, populate: false, build_id: 'lazy-ack-2')
+    test_files = create_temp_test_files
+
+    capture_io do
+      queue.populate_lazy(
+        test_files: test_files,
+        random: Random.new(0),
+        config: queue.send(:config),
+        file_loader: method(:lazy_file_loader),
+        test_factory: method(:lazy_test_factory),
+      )
+    end
+
+    test_id = queue.send(:reserve_entry)
+    assert test_id, "Should have reserved a test"
+
+    # @pending_tests mapping is intact — normal path
+    assert queue.acknowledge(test_id), "Should acknowledge with mapping present"
+  ensure
+    cleanup_temp_test_classes
+  end
+
   def test_populated_returns_true_for_lazy_load_mode
     @redis.flushdb
     queue = worker(1, lazy_load: true, populate: false, build_id: 'lazy-6')
