@@ -201,11 +201,38 @@ module CI
           # Create and return the SingleExample with file path for lazy loading in workers
           runnable = @lazy_loader.find_class(class_name)
 
+          debug_puts "[ci-queue] Loaded class #{class_name}, calling runnable_methods..."
+
           # Trigger runnable_methods to ensure dynamically generated test methods exist
           # (e.g., methods created by Shopify's Flags::ToggleHelper and TestTags)
-          # Since workers use require() to load files, classes are only processed once per worker,
-          # ensuring consistent method generation without needing to clear internal state.
-          runnable.runnable_methods if runnable.respond_to?(:runnable_methods)
+          if runnable.respond_to?(:runnable_methods)
+            available_methods = runnable.runnable_methods
+            debug_puts "[ci-queue] runnable_methods returned #{available_methods.size} methods"
+
+            # Verify the method exists
+            method_found = available_methods.include?(method_name.to_sym) ||
+                          available_methods.include?(method_name) ||
+                          available_methods.include?(method_name.to_s)
+
+            unless method_found
+              puts "\n[ci-queue] ERROR: Method not found after calling runnable_methods"
+              puts "[ci-queue] Class: #{class_name}"
+              puts "[ci-queue] Looking for: #{method_name}"
+              puts "[ci-queue] Available methods: #{available_methods.size} total"
+              puts "[ci-queue] First 5 methods: #{available_methods.first(5).join(', ')}"
+
+              # Check if there are ANY methods with FLAGS
+              with_flags = available_methods.select { |m| m.to_s.include?('_FLAGS:') }
+              puts "[ci-queue] Methods with FLAGS: #{with_flags.size}"
+              puts "[ci-queue] Sample FLAGS methods: #{with_flags.first(3).join(', ')}" if with_flags.any?
+
+              # Check for base method name
+              base_name = method_name.split('_FLAGS:').first.split('_tag:').first
+              base_matches = available_methods.select { |m| m.to_s.start_with?(base_name) }
+              puts "[ci-queue] Methods matching base '#{base_name}': #{base_matches.size}"
+              puts "[ci-queue] Matches: #{base_matches.first(3).join(', ')}" if base_matches.any?
+            end
+          end
 
           Minitest::Queue::SingleExample.new(runnable, method_name, file_path: file_path)
         end
