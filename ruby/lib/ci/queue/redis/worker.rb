@@ -203,7 +203,29 @@ module CI
 
           # Trigger runnable_methods to ensure dynamically generated test methods exist
           # (e.g., methods created by Shopify's Flags::ToggleHelper and TestTags)
-          runnable.runnable_methods if runnable.respond_to?(:runnable_methods)
+          if runnable.respond_to?(:runnable_methods)
+            available_methods = runnable.runnable_methods
+            method_sym = method_name.to_sym
+
+            # Verify the method exists after calling runnable_methods
+            unless available_methods.include?(method_sym)
+              puts "[ci-queue] ERROR: Method #{method_name} not found in #{class_name}"
+              puts "[ci-queue] Available methods count: #{available_methods.size}"
+              puts "[ci-queue] Sample methods: #{available_methods.first(3).join(', ')}"
+
+              # Check if there's a similar method with different FLAGS
+              similar = available_methods.select { |m| m.to_s.start_with?(method_name.split('_FLAGS:').first) }
+              if similar.any?
+                puts "[ci-queue] Similar methods found (different FLAGS values?):"
+                similar.first(3).each { |m| puts "[ci-queue]   - #{m}" }
+              end
+
+              raise CI::Queue::LazyLoadError,
+                    "Method #{method_name} not found in #{class_name}. " \
+                    "This may indicate FLAGS values differ between test discovery and execution, " \
+                    "or the test file content has changed."
+            end
+          end
 
           Minitest::Queue::SingleExample.new(runnable, method_name, file_path: file_path)
         end
