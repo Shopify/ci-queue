@@ -50,7 +50,7 @@ module CI
         self
       end
 
-      def populate_lazy(test_files:, random:, config:)
+      def populate_lazy(test_files:, random:, config:, file_loader:, test_factory:)
         raise NotImplementedError, "Lazy loading is not supported for static queues. " \
                                    "Use a Redis queue (redis://) for lazy loading support."
       end

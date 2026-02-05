@@ -5,11 +5,6 @@ require 'tempfile'
 module CI
   module Queue
     class ClassProxyTest < Minitest::Test
-      def setup
-        # Clear loaded files tracking between tests
-        ClassProxy.class_variable_set(:@@loaded_files, Set.new)
-      end
-
       def test_acts_like_a_class
         proxy = ClassProxy.new('String')
 
@@ -53,34 +48,9 @@ module CI
 
         # Accessing proxy should trigger file load
         assert_equal 'LazyLoadTest', proxy.name
-
-        cleanup_test_file(test_file)
-      end
-
-      def test_loads_file_only_once
-        load_counter = 0
-        test_file = create_test_file('LoadOnceTest', <<~RUBY)
-          class LoadOnceTest
-            @@load_count ||= 0
-            @@load_count += 1
-            def self.load_count
-              @@load_count
-            end
-          end
-        RUBY
-
-        # Create two proxies for same class
-        proxy1 = ClassProxy.new('LoadOnceTest', file_path: test_file.path)
-        proxy2 = ClassProxy.new('LoadOnceTest', file_path: test_file.path)
-
-        # Access both
-        count1 = proxy1.load_count
-        count2 = proxy2.load_count
-
-        # File should only be loaded once
-        assert_equal 1, count2
-
-        cleanup_test_file(test_file)
+      ensure
+        remove_const_if_defined(:LazyLoadTest)
+        test_file&.unlink
       end
 
       def test_raises_load_error_for_missing_file
@@ -106,7 +76,7 @@ module CI
       end
 
       def test_raises_helpful_error_when_class_not_defined_in_file
-        test_file = create_test_file('WrongClass', 'class WrongClass; end')
+        test_file = create_test_file('WrongClassProxy', 'class WrongClassProxy; end')
 
         proxy = ClassProxy.new('ExpectedClass', file_path: test_file.path)
 
@@ -115,9 +85,10 @@ module CI
         end
 
         assert_match(/ExpectedClass not found after loading/, error.message)
-        assert_match(/#{test_file.path}/, error.message)
-
-        cleanup_test_file(test_file)
+        assert_match(/#{Regexp.escape(test_file.path)}/, error.message)
+      ensure
+        remove_const_if_defined(:WrongClassProxy)
+        test_file&.unlink
       end
 
       def test_thread_safety
@@ -134,8 +105,9 @@ module CI
 
         assert_equal 10, results.size
         assert results.all? { |r| r == 'ThreadSafeClass' }
-
-        cleanup_test_file(test_file)
+      ensure
+        remove_const_if_defined(:ThreadSafeClass)
+        test_file&.unlink
       end
 
       def test_equality_with_actual_class
@@ -196,8 +168,9 @@ module CI
         proxy = ClassProxy.new('Nested::LazyClass', file_path: test_file.path)
 
         assert_equal 'it works', proxy.test_method
-
-        cleanup_test_file(test_file)
+      ensure
+        remove_const_if_defined(:Nested)
+        test_file&.unlink
       end
 
       private
@@ -209,14 +182,10 @@ module CI
         file
       end
 
-      def cleanup_test_file(file)
-        # Remove the constant if it was defined
-        parts = file.path.match(/test_class.*\.rb/)[0].split('::')
-        Object.send(:remove_const, parts.first.to_sym) if Object.const_defined?(parts.first)
-      rescue
-        # Ignore cleanup errors
-      ensure
-        file.unlink
+      def remove_const_if_defined(const_name)
+        Object.send(:remove_const, const_name) if Object.const_defined?(const_name)
+      rescue NameError
+        # Ignore - constant may not be at top level
       end
     end
   end

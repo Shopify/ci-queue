@@ -6,10 +6,6 @@ module CI
     # This allows Class objects to be sent over DRb in lazy loading scenarios where the
     # actual Class object can't be marshaled.
     class ClassProxy < BasicObject
-      # Track loaded files across all ClassProxy instances to prevent duplicate loads
-      @@loaded_files = ::Set.new
-      @@load_mutex = ::Mutex.new
-
       def initialize(klass_or_name, file_path: nil)
         @class_name = klass_or_name.is_a?(::String) ? klass_or_name : klass_or_name.to_s
         @file_path = file_path
@@ -73,6 +69,7 @@ module CI
         # Try to resolve the constant
         @klass = resolve_constant(@class_name)
         @klass = resolve_class_from_file if needs_class_resolution?
+        @klass
       rescue ::NameError => e
         # If constant not found and we have a file path, try loading the file
         if @file_path
@@ -81,6 +78,7 @@ module CI
           begin
             @klass = resolve_constant(@class_name)
             @klass = resolve_class_from_file if needs_class_resolution?
+            @klass
           rescue ::NameError => retry_error
             # File loaded but class still not found - provide helpful error
             ::Kernel.raise ::NameError,
@@ -92,31 +90,36 @@ module CI
         end
       end
 
-       def needs_class_resolution?
-         @klass.is_a?(::Module) && !@klass.is_a?(::Class) && @file_path
-       end
+      def needs_class_resolution?
+        @klass.is_a?(::Module) && !@klass.is_a?(::Class) && @file_path
+      end
 
       def resolve_constant(class_name)
         class_name.split('::').reduce(::Object) { |mod, const| mod.const_get(const) }
       end
 
-       def resolve_class_from_file
-         file_path = ::File.expand_path(@file_path)
-         short_name = @class_name
+      # NOTE: This method uses ObjectSpace.each_object(Class) which can be expensive
+      # in large processes. It's only called when a constant resolves to a Module
+      # instead of a Class (i.e. namespaced test classes where the short name matches
+      # a module). Consider fixing the manifest to use fully-qualified class names
+      # to avoid this path.
+      def resolve_class_from_file
+        file_path = ::File.expand_path(@file_path)
+        short_name = @class_name
 
-         ::ObjectSpace.each_object(::Class) do |klass|
-           next unless klass.name
-           next unless klass.name == short_name || klass.name.end_with?("::#{short_name}")
+        ::ObjectSpace.each_object(::Class) do |klass|
+          next unless klass.name
+          next unless klass.name == short_name || klass.name.end_with?("::#{short_name}")
 
-           source = ::Object.const_source_location(klass.name)&.first
-           next unless source
+          source = ::Object.const_source_location(klass.name)&.first
+          next unless source
 
-           return klass if ::File.expand_path(source) == file_path
-         end
+          return klass if ::File.expand_path(source) == file_path
+        end
 
-         ::Kernel.raise ::NameError,
-           "Expected class #{@class_name} in #{@file_path}, but only a module was found"
-       end
+        ::Kernel.raise ::NameError,
+          "Expected class #{@class_name} in #{@file_path}, but only a module was found"
+      end
 
       def load_test_file(file_path)
         # Validate file path for security
@@ -129,16 +132,16 @@ module CI
           ::Kernel.raise ::LoadError, "Test file not found: #{file_path}"
         end
 
-        # Thread-safe file loading with deduplication
-        return if @@loaded_files.include?(file_path)
-
-        @@load_mutex.synchronize do
-          # Double-check inside mutex to prevent race condition
-          return if @@loaded_files.include?(file_path)
-
-          ::Kernel.load(file_path)
-          @@loaded_files.add(file_path)
-        end
+        # Use load (not require) for fork safety. After fork, child processes
+        # inherit $LOADED_FEATURES but not class definitions from files loaded
+        # post-fork in the parent. require would see the file in $LOADED_FEATURES
+        # and skip it, leaving the class undefined. load always re-executes.
+        #
+        # Dedup is not needed here: load_test_file is only called when
+        # resolve_constant fails (class not yet defined). Once the file is
+        # loaded, subsequent ClassProxy instances for the same class will
+        # resolve the constant on the first try without reaching this method.
+        ::Kernel.load(::File.expand_path(file_path))
       end
     end
   end

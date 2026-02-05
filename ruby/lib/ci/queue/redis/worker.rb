@@ -52,9 +52,13 @@ module CI
         end
 
         # Fetch total test count, either from instance variable (if leader)
-        # or from Redis (if non-leader worker)
+        # or from Redis (if non-leader worker).
+        # In streaming mode, total may not be finalized yet, so we avoid
+        # caching a zero value.
         def total
-          @total ||= begin
+          return @total if @total && @total > 0
+
+          @total = begin
             wait_for_master(timeout: config.queue_init_timeout)
             redis.get(key('total')).to_i
           end
@@ -74,11 +78,17 @@ module CI
         # Queue entry format: "file_path\ttest_id"
         # This embeds the file path so workers can load files on-demand without
         # waiting for a manifest.
-        def populate_lazy(test_files:, random:, config:)
+        #
+        # file_loader: a callable that takes a file_path and returns an array of
+        #   objects responding to #id (the test identifier string).
+        # test_factory: a callable that takes (class_name, method_name, file_path)
+        #   and returns a test example object suitable for yielding from poll.
+        def populate_lazy(test_files:, random:, config:, file_loader:, test_factory:)
           @lazy_load_mode = true
           @lazy_loader ||= LazyLoader.new
+          @test_factory = test_factory
 
-          push_streaming(test_files: test_files, random: random, config: config)
+          push_streaming(test_files: test_files, random: random, config: config, file_loader: file_loader)
           self
         end
 
@@ -198,45 +208,14 @@ module CI
             @lazy_loader.load_class(class_name)
           end
 
-          # Create and return the SingleExample with file path for lazy loading in workers
           runnable = @lazy_loader.find_class(class_name)
 
-          debug_puts "[ci-queue] Loaded class #{class_name}, calling runnable_methods..."
-
           # Trigger runnable_methods to ensure dynamically generated test methods exist
-          # This is standard Minitest behavior - runnable_methods returns the list of test methods.
-          # Any test framework extensions (like Shopify's ToggleHelper) that generate methods
-          # dynamically should handle fork scenarios internally.
           if runnable.respond_to?(:runnable_methods)
-            available_methods = runnable.runnable_methods
-            debug_puts "[ci-queue] runnable_methods returned #{available_methods.size} methods"
-
-            # Verify the method exists
-            method_found = available_methods.include?(method_name.to_sym) ||
-                          available_methods.include?(method_name) ||
-                          available_methods.include?(method_name.to_s)
-
-            unless method_found
-              puts "\n[ci-queue] ERROR: Method not found after calling runnable_methods"
-              puts "[ci-queue] Class: #{class_name}"
-              puts "[ci-queue] Looking for: #{method_name}"
-              puts "[ci-queue] Available methods: #{available_methods.size} total"
-              puts "[ci-queue] First 5 methods: #{available_methods.first(5).join(', ')}"
-
-              # Check if there are ANY methods with FLAGS
-              with_flags = available_methods.select { |m| m.to_s.include?('_FLAGS:') }
-              puts "[ci-queue] Methods with FLAGS: #{with_flags.size}"
-              puts "[ci-queue] Sample FLAGS methods: #{with_flags.first(3).join(', ')}" if with_flags.any?
-
-              # Check for base method name
-              base_name = method_name.split('_FLAGS:').first.split('_tag:').first
-              base_matches = available_methods.select { |m| m.to_s.start_with?(base_name) }
-              puts "[ci-queue] Methods matching base '#{base_name}': #{base_matches.size}"
-              puts "[ci-queue] Matches: #{base_matches.first(3).join(', ')}" if base_matches.any?
-            end
+            runnable.runnable_methods
           end
 
-          Minitest::Queue::SingleExample.new(runnable, method_name, file_path: file_path)
+          @test_factory.call(class_name, method_name, file_path)
         end
 
         def fetch_manifest_for_lazy_load
@@ -245,11 +224,6 @@ module CI
 
           @lazy_loader.fetch_manifest(redis, key('manifest'))
           @manifest_fetched = true
-        end
-
-        def load_test_lazily(test_id)
-          # Deprecated: use load_test_from_entry instead
-          load_test_from_entry(test_id)
         end
 
         if ::Redis.method_defined?(:exists?)
@@ -355,9 +329,6 @@ module CI
             display_key = test_key || queue_entry
             raise ReservationError, "Acknowledged #{display_key.inspect} but only #{reserved_tests.map(&:inspect).join(", ")} reserved"
           end
-          # Note: We don't delete from @pending_tests here because the test may still
-          # need the mapping if requeue is called before acknowledge. The mapping will
-          # naturally be overwritten when the same test_id is reserved again.
         end
 
         def reserve
@@ -457,11 +428,11 @@ module CI
 
         # Streaming queue population for lazy loading.
         # Unlike push(), this method:
-        # 1. Loads test files one at a time
+        # 1. Loads test files one at a time via the file_loader callback
         # 2. Pushes tests to queue immediately after loading each file
         # 3. Sets master-status to 'ready' early so workers can start
         # 4. Uses queue entries with embedded file path: "file_path\ttest_id"
-        def push_streaming(test_files:, random:, config:)
+        def push_streaming(test_files:, random:, config:, file_loader:)
           debug_puts "[ci-queue] push_streaming called with #{test_files.size} test files"
 
           # Leader election - same as push()
@@ -473,7 +444,7 @@ module CI
 
           if @master = (value == status)
             debug_puts "[ci-queue] Worker #{worker_id} elected as LEADER"
-            push_streaming_as_leader(test_files: test_files, random: random, config: config)
+            push_streaming_as_leader(test_files: test_files, random: random, config: config, file_loader: file_loader)
           else
             debug_puts "[ci-queue] Worker #{worker_id} is CONSUMER, waiting for leader (status=#{status.inspect})"
             # Not the leader - wait for queue to be initialized
@@ -486,7 +457,7 @@ module CI
           raise if @master
         end
 
-        def push_streaming_as_leader(test_files:, random:, config:)
+        def push_streaming_as_leader(test_files:, random:, config:, file_loader:)
           all_tests = []
           files_loaded = 0
           total_pushed = 0
@@ -500,44 +471,31 @@ module CI
             # This ensures workers can start as soon as possible
             test_files.each do |file_path|
               begin
-                # Track count before loading to efficiently find new tests
-                count_before = Minitest.loaded_tests.size
+                # Use the file_loader callback to load a file and discover tests.
+                # Returns an array of objects responding to #id.
+                new_tests = file_loader.call(file_path)
+                all_tests.concat(new_tests)
 
-                require(file_path)
-
-                # Find new tests that were added by this file
-                loaded_tests = Minitest.loaded_tests
-                file_entries = []
-                (count_before...loaded_tests.size).each do |i|
-                  test = loaded_tests[i]
-                  # Queue entry format: "file_path\ttest_id"
-                  file_entries << "#{file_path}\t#{test.id}"
-                  all_tests << test
-                end
+                file_entries = new_tests.map { |test| "#{file_path}\t#{test.id}" }
 
                 files_loaded += 1
 
                 # Push this file's tests immediately (allows workers to start ASAP)
                 if file_entries.any?
                   # Shuffle entries from this file
-                  # Wrap entries in LazyTestEntry objects so shufflers can call .id on them
                   wrapped_entries = file_entries.map { |entry| LazyTestEntry.new(entry) }
                   shuffled_wrapped = Queue.shuffle(wrapped_entries, random)
-                  # Convert back to string format for queue storage
                   shuffled_entries = shuffled_wrapped.map(&:to_s)
 
                   if !queue_initialized
-                    # First file with tests: initialize queue and set 'ready'
                     elapsed = (CI::Queue.time_now - start_time).round(2)
                     debug_puts "[ci-queue] First file with tests loaded after #{elapsed}s, initializing queue with #{shuffled_entries.size} tests..."
 
                     redis.multi do |transaction|
                       transaction.lpush(key('queue'), shuffled_entries)
-                      transaction.set(key('total'), shuffled_entries.size)
                       transaction.set(key('master-status'), 'ready')
 
                       transaction.expire(key('queue'), config.redis_ttl)
-                      transaction.expire(key('total'), config.redis_ttl)
                       transaction.expire(key('master-status'), config.redis_ttl)
                     end
                     queue_initialized = true
@@ -561,14 +519,15 @@ module CI
             end
 
             if total_pushed == 0
-              raise LazyLoadError, "No tests found after loading #{test_files.size} test files. " \
-                                   "Ensure test files define Minitest::Test subclasses."
+              raise LazyLoadError, "No tests found after loading #{test_files.size} test files."
             end
 
             @files_loaded_by_leader = files_loaded
             @total = total_pushed
 
-            # Finalize: set the actual total count
+            # Set the total count only once all files are loaded.
+            # This avoids a race condition where workers read a partial total
+            # during streaming and memoize a stale value.
             redis.multi do |transaction|
               transaction.set(key('total'), @total)
               transaction.expire(key('total'), config.redis_ttl)

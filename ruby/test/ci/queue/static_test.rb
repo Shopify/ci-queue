@@ -16,7 +16,10 @@ class CI::Queue::StaticTest < Minitest::Test
     queue = build_queue
 
     error = assert_raises(NotImplementedError) do
-      queue.populate_lazy(test_files: [], random: Random.new, config: config)
+      queue.populate_lazy(
+        test_files: [], random: Random.new, config: config,
+        file_loader: ->(_) { [] }, test_factory: ->(*) { nil },
+      )
     end
 
     assert_match(/not supported for static queues/, error.message)

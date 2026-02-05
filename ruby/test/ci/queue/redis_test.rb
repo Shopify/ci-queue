@@ -298,6 +298,8 @@ class CI::Queue::RedisTest < Minitest::Test
         test_files: test_files,
         random: Random.new(0),
         config: queue.send(:config),
+        file_loader: method(:lazy_file_loader),
+        test_factory: method(:lazy_test_factory),
       )
     end
 
@@ -316,6 +318,8 @@ class CI::Queue::RedisTest < Minitest::Test
         test_files: test_files,
         random: Random.new(0),
         config: queue.send(:config),
+        file_loader: method(:lazy_file_loader),
+        test_factory: method(:lazy_test_factory),
       )
     end
 
@@ -345,6 +349,8 @@ class CI::Queue::RedisTest < Minitest::Test
         test_files: test_files,
         random: Random.new(0),
         config: leader.send(:config),
+        file_loader: method(:lazy_file_loader),
+        test_factory: method(:lazy_test_factory),
       )
     end
 
@@ -359,6 +365,8 @@ class CI::Queue::RedisTest < Minitest::Test
         test_files: test_files,
         random: Random.new(0),
         config: consumer.send(:config),
+        file_loader: method(:lazy_file_loader),
+        test_factory: method(:lazy_test_factory),
       )
     end
 
@@ -380,16 +388,14 @@ class CI::Queue::RedisTest < Minitest::Test
           test_files: nonexistent_files,
           random: Random.new(0),
           config: queue.send(:config),
+          file_loader: method(:lazy_file_loader),
+          test_factory: method(:lazy_test_factory),
         )
       end
     end
 
     assert_match(/Failed to load test file/, error.message)
   end
-
-  # Note: We can't easily test "no tests found" because Minitest.loaded_tests
-  # returns ALL loaded tests, including from the test framework itself.
-  # The error handling is tested via the lazy_loader_test.rb unit tests instead.
 
   def test_populated_returns_true_for_lazy_load_mode
     @redis.flushdb
@@ -402,6 +408,8 @@ class CI::Queue::RedisTest < Minitest::Test
         test_files: test_files,
         random: Random.new(0),
         config: queue.send(:config),
+        file_loader: method(:lazy_file_loader),
+        test_factory: method(:lazy_test_factory),
       )
     end
 
@@ -441,6 +449,19 @@ class CI::Queue::RedisTest < Minitest::Test
     else
       populate(queue, tests: tests)
     end
+  end
+
+  # File loader callback for lazy loading tests - loads a file and returns new test examples
+  def lazy_file_loader(file_path)
+    count_before = Minitest.loaded_tests.size
+    load(file_path)
+    loaded_tests = Minitest.loaded_tests
+    (count_before...loaded_tests.size).map { |i| loaded_tests[i] }
+  end
+
+  # Test factory callback for lazy loading tests
+  def lazy_test_factory(class_name, method_name, file_path)
+    Minitest::Queue::SingleExample.new(class_name, method_name, file_path: file_path)
   end
 
   def create_temp_test_files

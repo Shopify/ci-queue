@@ -21,14 +21,8 @@ module Minitest
       end
 
       def initialize(argv)
-        debug_puts "[ci-queue] Runner.initialize called with #{argv.size} args"
-        debug_puts "[ci-queue] First 5 args: #{argv.first(5).inspect}"
-        debug_puts "[ci-queue] Last 5 args: #{argv.last(5).inspect}"
         @queue_config = CI::Queue::Configuration.from_env(ENV)
         @command, @argv = parse(argv)
-        debug_puts "[ci-queue] After parsing: command=#{@command.inspect}, argv has #{@argv.size} items"
-        debug_puts "[ci-queue] First 5 remaining args: #{@argv.first(5).inspect}"
-        debug_puts "[ci-queue] lazy_load? = #{@queue_config.lazy_load?}"
         if Minitest.respond_to?(:seed=)
           Minitest.seed = @queue_config.seed.to_i
         end
@@ -330,11 +324,6 @@ module Minitest
       attr_writer :queue_url
       attr_accessor :queue, :grind_list, :grind_count, :load_paths, :verbose
 
-      # Debug output helper - only prints if CI_QUEUE_DEBUG is set
-      def debug_puts(message)
-        puts message if ENV['CI_QUEUE_DEBUG']
-      end
-
       def require_worker_id!
         if queue.distributed?
           invalid_usage!("build-id couldn't be inferred from ENV and wasn't set via --build") unless queue_config.build_id
@@ -371,17 +360,32 @@ module Minitest
 
       def populate_queue
         if queue_config.lazy_load?
-          # In lazy load mode, pass test_files to the queue
-          # The leader will load files, build manifest, and populate
-          # Workers will load files on-demand
           Minitest.queue.populate_lazy(
             test_files: test_files,
             random: ordering_seed,
             config: queue_config,
+            file_loader: method(:load_and_discover_tests),
+            test_factory: method(:create_single_example),
           )
         else
           Minitest.queue.populate(Minitest.loaded_tests, random: ordering_seed)
         end
+      end
+
+      # Load a test file and return newly discovered test examples.
+      # Uses `load` (not `require`) for fork safety - forked workers inherit
+      # $LOADED_FEATURES but need to re-execute files in their own address space.
+      def load_and_discover_tests(file_path)
+        count_before = Minitest.loaded_tests.size
+        load(file_path)
+        loaded_tests = Minitest.loaded_tests
+        (count_before...loaded_tests.size).map { |i| loaded_tests[i] }
+      end
+
+      # Create a SingleExample test object from class name, method name, and file path.
+      # Used by the worker to create test objects during lazy loading.
+      def create_single_example(class_name, method_name, file_path)
+        SingleExample.new(class_name, method_name, file_path: file_path)
       end
 
       def set_load_path
@@ -393,8 +397,6 @@ module Minitest
       end
 
       def load_tests
-        debug_puts "[ci-queue] load_tests called, lazy_load?=#{queue_config.lazy_load?}, argv.size=#{argv.size}"
-
         # Determine which test files to use: --test-files option or ARGV
         test_file_list = if queue_config.test_files_path
           load_test_files_from_file(queue_config.test_files_path)
@@ -403,12 +405,10 @@ module Minitest
         end
 
         if queue_config.lazy_load?
-          # In lazy load mode, only load test helpers, not test files
-          # Test files are stored for later use when the leader populates the queue
+          # In lazy load mode, only load test helpers, not test files.
+          # Test files are stored for later use when the leader populates the queue.
           load_test_helpers
           @test_files = test_file_list.map { |f| File.expand_path(f) }
-          debug_puts "[ci-queue] Set @test_files to #{@test_files.size} files"
-          debug_puts "[ci-queue] First 3 test files: #{@test_files.first(3).inspect}"
           validate_test_files!
         else
           # Eager loading mode - load all test files now

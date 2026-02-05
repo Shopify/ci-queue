@@ -56,10 +56,9 @@ module Minitest
           end
         end
 
-        rusage = Process.getrusage
-        max_rss = rusage.maxrss
-        # maxrss is bytes on macOS, KB on Linux
-        RUBY_PLATFORM.include?("darwin") ? max_rss / (1024 * 1024) : max_rss / 1024
+        # macOS and other Unix: use ps to get current RSS in KB
+        rss_kb = `ps -o rss= -p #{Process.pid}`.strip.to_i
+        rss_kb / 1024
       rescue StandardError
         0
       end
