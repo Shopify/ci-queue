@@ -108,13 +108,13 @@ module CI
 
       # Load a file directly by path (used in streaming mode where file path is embedded in queue entry)
       def load_file_directly(file_path)
-        # Use `load` instead of `require` - classes may be partially defined
-        # (constant exists but methods missing due to autoloader/parent class).
-        # Ruby's require checks $LOADED_FEATURES and may skip re-execution,
-        # whereas load always executes the file.
-        # We track loaded files ourselves to prevent duplicate loading.
+        # Use `require` to load files - workers are independent processes with fresh Ruby VMs,
+        # so require's built-in loading and caching is appropriate and prevents issues with
+        # dynamically generated test methods (e.g., Shopify's ToggleHelper which uses
+        # @toggle_helper_processed to prevent duplicate method generation).
+        # We track loaded files ourselves for consistency with our internal bookkeeping.
         unless @loaded_files.include?(file_path)
-          load(file_path)
+          require(file_path)
           @loaded_files.add(file_path)
         end
       end

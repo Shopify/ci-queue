@@ -112,7 +112,7 @@ module CI
           # Double-check inside mutex to prevent race condition
           return if @@loaded_files.include?(file_path)
 
-          ::Kernel.load(file_path)
+          ::Kernel.require(file_path)
           @@loaded_files.add(file_path)
         end
       end

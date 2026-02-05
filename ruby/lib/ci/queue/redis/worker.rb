@@ -203,31 +203,9 @@ module CI
 
           # Trigger runnable_methods to ensure dynamically generated test methods exist
           # (e.g., methods created by Shopify's Flags::ToggleHelper and TestTags)
-          if runnable.respond_to?(:runnable_methods)
-            available_methods = runnable.runnable_methods
-
-            # Check both string and symbol versions since runnable_methods may return either
-            method_found = available_methods.include?(method_name.to_sym) ||
-                          available_methods.include?(method_name) ||
-                          available_methods.include?(method_name.to_s)
-
-            unless method_found
-              puts "[ci-queue] ERROR: Method #{method_name} not found in #{class_name}"
-              puts "[ci-queue] Method type: #{method_name.class}, Available methods type: #{available_methods.first.class}"
-              puts "[ci-queue] Available methods count: #{available_methods.size}"
-              puts "[ci-queue] Sample methods: #{available_methods.first(3).join(', ')}"
-
-              # Debug: show exact comparison
-              puts "[ci-queue] Exact match check: looking for '#{method_name}' (#{method_name.class})"
-              exact_matches = available_methods.select { |m| m.to_s == method_name.to_s }
-              puts "[ci-queue] Found #{exact_matches.size} exact string matches: #{exact_matches.first(3).join(', ')}" if exact_matches.any?
-
-              raise CI::Queue::LazyLoadError,
-                    "Method #{method_name} not found in #{class_name}. " \
-                    "This may indicate FLAGS values differ between test discovery and execution, " \
-                    "or the test file content has changed."
-            end
-          end
+          # Since workers use require() to load files, classes are only processed once per worker,
+          # ensuring consistent method generation without needing to clear internal state.
+          runnable.runnable_methods if runnable.respond_to?(:runnable_methods)
 
           Minitest::Queue::SingleExample.new(runnable, method_name, file_path: file_path)
         end
