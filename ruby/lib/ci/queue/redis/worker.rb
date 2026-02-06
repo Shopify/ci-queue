@@ -549,6 +549,11 @@ module CI
                 end
               rescue LoadError => e
                 raise LazyLoadError, "Failed to load test file #{file_path}: #{e.message}"
+              rescue => e
+                # Skip files that fail to load (e.g., StrictWarning from constant
+                # redefinition in support files loaded via `load()`). Log and continue
+                # so the leader can finish populating the queue.
+                debug_puts "[ci-queue] WARNING: Skipping #{file_path}: #{e.class}: #{e.message}"
               end
             end
 

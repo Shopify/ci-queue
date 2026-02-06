@@ -375,11 +375,19 @@ module Minitest
       # Load a test file and return newly discovered test examples.
       # Uses `load` (not `require`) for fork safety - forked workers inherit
       # $LOADED_FEATURES but need to re-execute files in their own address space.
+      #
+      # Instead of calling Minitest.loaded_tests (which rebuilds the entire list
+      # and triggers ToggleHelper on every class), we track runnables before/after
+      # and only process newly added ones.
       def load_and_discover_tests(file_path)
-        count_before = Minitest.loaded_tests.size
+        runnables_before = Minitest::Test.runnables.dup
         load(file_path)
-        loaded_tests = Minitest.loaded_tests
-        (count_before...loaded_tests.size).map { |i| loaded_tests[i] }
+        new_runnables = Minitest::Test.runnables - runnables_before
+        new_runnables.flat_map do |runnable|
+          runnable.runnable_methods.map do |method_name|
+            SingleExample.new(runnable, method_name)
+          end
+        end
       end
 
       # Create a SingleExample test object from class name, method name, and file path.
