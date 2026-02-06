@@ -262,6 +262,12 @@ module Minitest
       end
 
       def run
+        # Trigger runnable_methods before running the test to ensure dynamically
+        # generated methods exist (e.g., ToggleHelper FLAGS variants). In lazy
+        # loading mode, the test file is loaded by ClassProxy but runnable_methods
+        # may not have been called yet.
+        runnable.runnable_methods if runnable.respond_to?(:runnable_methods)
+
         with_timestamps do
           Minitest.run_one_method(runnable, @method_name)
         end
