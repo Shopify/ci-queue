@@ -9,12 +9,14 @@ module CI
       def initialize(klass_or_name, file_path: nil)
         @class_name = klass_or_name.is_a?(::String) ? klass_or_name : klass_or_name.to_s
         @file_path = file_path
+        @expanded_file_path = ::File.expand_path(file_path) if file_path
         @klass = nil
       end
 
-      # Delegate all method calls to the actual class
-      def method_missing(method, *args, &block)
-        target_class.public_send(method, *args, &block)
+      # Delegate all method calls to the actual class.
+      # Uses ... forwarding (Ruby 2.7+) to properly forward keyword arguments.
+      def method_missing(method, ...)
+        target_class.public_send(method, ...)
       end
 
       def respond_to_missing?(method, include_private = false)
@@ -58,6 +60,7 @@ module CI
       def marshal_load(data)
         @class_name = data[:class_name]
         @file_path = data[:file_path]
+        @expanded_file_path = ::File.expand_path(@file_path) if @file_path
         @klass = nil
       end
 
@@ -66,56 +69,83 @@ module CI
       def target_class
         return @klass if @klass
 
-        # Try to resolve the constant first. If it exists and the file was
-        # already loaded (e.g., leader loaded via require), we can skip
-        # load_test_file and avoid re-executing the file (which would cause
-        # "method already defined" errors from the test DSL).
-        begin
-          @klass = resolve_constant(@class_name)
-          @klass = resolve_class_from_file if needs_class_resolution?
-          return @klass
+        # Step 1: Try to resolve the constant without loading any files.
+        resolved = begin
+          resolve_constant(@class_name)
         rescue ::NameError
-          # Constant not found — load the file and retry
+          nil
         end
 
+        # Step 2: If resolved, handle Module-vs-Class (needs_class_resolution).
+        if resolved
+          if resolved.is_a?(::Module) && !resolved.is_a?(::Class) && @file_path
+            resolved = find_class_from_file
+          end
+        end
+
+        # Step 3: If we have a file_path, verify the resolved class actually
+        # comes from the expected file. Without this, a top-level "OrderTest"
+        # (app class) could shadow a test class with the same short name.
+        # NOTE: Do NOT set @klass until verification passes (P0 fix).
+        if resolved && @expanded_file_path
+          if !class_from_expected_file?(resolved)
+            resolved = nil
+          end
+        end
+
+        # Step 4: If class is correct, cache and return.
+        if resolved
+          @klass = resolved
+          return @klass
+        end
+
+        # Step 5: Class not found or wrong class — load the file and resolve.
         if @file_path
           load_test_file(@file_path)
-          begin
-            @klass = resolve_constant(@class_name)
-            @klass = resolve_class_from_file if needs_class_resolution?
-            @klass
-          rescue ::NameError => retry_error
-            ::Kernel.raise ::NameError,
-              "Class #{@class_name} not found after loading #{@file_path}. " \
-              "The file may not define the expected class. Original error: #{retry_error.message}"
+
+          resolved = begin
+            resolve_constant(@class_name)
+          rescue ::NameError
+            nil
           end
+
+          # After loading, use file-based lookup if resolve_constant found the
+          # wrong class again (P1 fix: second source-location check).
+          if resolved && @expanded_file_path && !class_from_expected_file?(resolved)
+            resolved = find_class_from_file
+          end
+
+          if resolved
+            @klass = resolved
+            return @klass
+          end
+
+          ::Kernel.raise ::NameError,
+            "Class #{@class_name} not found after loading #{@file_path}. " \
+            "The file may not define the expected class."
         else
           ::Kernel.raise ::NameError, "uninitialized constant #{@class_name}"
         end
       end
 
-      def needs_class_resolution?
-        @klass.is_a?(::Module) && !@klass.is_a?(::Class) && @file_path
+      # Check if a resolved class was defined in the expected file.
+      def class_from_expected_file?(klass)
+        source = begin
+          ::Object.const_source_location(klass.name)&.first
+        rescue ::StandardError, ::NotImplementedError
+          return true # Can't determine source — assume correct
+        end
+        return true unless source # No source info — assume correct
+
+        ::File.expand_path(source) == @expanded_file_path
       end
 
-      def resolve_constant(class_name)
-        class_name.split('::').reduce(::Object) { |mod, const| mod.const_get(const) }
-      end
-
-      # NOTE: This method uses ObjectSpace.each_object(Class) which can be expensive
-      # in large processes. It's only called when a constant resolves to a Module
-      # instead of a Class (i.e. namespaced test classes where the short name matches
-      # a module). Consider fixing the manifest to use fully-qualified class names
-      # to avoid this path.
-      def resolve_class_from_file
-        file_path = ::File.expand_path(@file_path)
+      # Find a class by name that was defined in @file_path.
+      # Uses ObjectSpace scan as a last resort when const_get finds the wrong class.
+      def find_class_from_file
         short_name = @class_name
 
         ::ObjectSpace.each_object(::Class) do |klass|
-          # ObjectSpace contains classes from the entire process — gems, engines, etc.
-          # Some override .name with non-standard signatures or return values, and
-          # const_source_location can raise on invalid constant paths. Rescue broadly
-          # since we're just scanning and can safely skip any problematic class.
           begin
             klass_name = klass.name
             next unless klass_name
@@ -124,14 +154,17 @@ module CI
             source = ::Object.const_source_location(klass_name)&.first
             next unless source
 
-            return klass if ::File.expand_path(source) == file_path
+            return klass if ::File.expand_path(source) == @expanded_file_path
           rescue ::StandardError, ::NotImplementedError
             next
           end
         end
 
-        ::Kernel.raise ::NameError,
-          "Expected class #{@class_name} in #{@file_path}, but only a module was found"
+        nil
+      end
+
+      def resolve_constant(class_name)
+        class_name.split('::').reduce(::Object) { |mod, const| mod.const_get(const) }
       end
 
       # Per-process tracking of loaded files. Uses a class-level hash keyed by
@@ -147,16 +180,13 @@ module CI
       end
 
       def load_test_file(file_path)
-        # Validate file path for security
         unless file_path.end_with?('.rb')
           ::Kernel.raise ::ArgumentError, "Invalid test file path (must end with .rb): #{file_path}"
         end
 
-        expanded = ::File.expand_path(file_path)
+        expanded = @expanded_file_path || ::File.expand_path(file_path)
 
         # Dedup: skip if already loaded in this process.
-        # target_class calls load_test_file for every ClassProxy instance,
-        # so multiple tests from the same file would re-execute it without this check.
         return if ::CI::Queue::ClassProxy.loaded_files_for_pid[expanded]
 
         unless ::File.exist?(expanded)
