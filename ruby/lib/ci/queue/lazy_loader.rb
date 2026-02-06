@@ -43,9 +43,10 @@ module CI
 
           next if class_name.nil? || source_location.nil?
 
-          # Warn about duplicate class names - only one file path will be used
+          # Log duplicate class names (only one file path will be used).
+          # Use puts instead of warn to avoid triggering StrictWarning in Shopify's monolith.
           if manifest.key?(class_name) && manifest[class_name] != source_location
-            warn "[ci-queue] WARNING: Duplicate class name '#{class_name}' found in multiple files:\n" \
+            puts "[ci-queue] WARNING: Duplicate class name '#{class_name}' found in multiple files:\n" \
                  "  - #{manifest[class_name]}\n" \
                  "  - #{source_location}\n" \
                  "Only one will be used for lazy loading. Rename one class to avoid test failures."
@@ -108,11 +109,15 @@ module CI
 
       # Load a file directly by path (used in streaming mode where file path is embedded in queue entry)
       def load_file_directly(file_path)
-        # Use `load` instead of `require` because workers are forked from parent process
-        # and inherit $LOADED_FEATURES. Using load() ensures files are re-executed in worker.
-        # We track loaded files ourselves to prevent duplicate loading within a worker.
         unless @loaded_files.include?(file_path)
-          load(file_path)
+          # Use `require` for the parent process (which calls this during poll).
+          # The parent doesn't fork after this point — workers were already forked
+          # and receive classes via DRb ClassProxy. Using require avoids StrictWarning
+          # errors from re-executing files that were already loaded via autoloading.
+          #
+          # Workers that need to load files post-fork use ClassProxy.load_test_file
+          # which uses Kernel.load for fork safety.
+          require(File.expand_path(file_path))
           @loaded_files.add(file_path)
         end
       end
