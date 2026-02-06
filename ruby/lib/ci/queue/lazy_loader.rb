@@ -117,7 +117,7 @@ module CI
           #
           # Workers that need to load files post-fork use ClassProxy.load_test_file
           # which uses Kernel.load for fork safety.
-          require(File.expand_path(file_path))
+          require(::File.expand_path(file_path))
           @loaded_files.add(file_path)
         end
       end
