@@ -8,6 +8,16 @@ module CI
           false
         end
 
+        # Override base exhausted? to handle streaming mode.
+        # During streaming, the leader pushes tests incrementally. The queue may
+        # be temporarily empty while the leader is still loading files. Without
+        # this check, the report would declare "tests weren't run" prematurely.
+        def exhausted?
+          return false unless streaming_complete?
+
+          super
+        end
+
         def total
           wait_for_master(timeout: config.queue_init_timeout)
           raw = redis.get(key('total'))
@@ -58,6 +68,17 @@ module CI
         attr_reader :time_left, :time_left_with_no_workers
 
         private
+
+        # Check if the leader has finished pushing all tests in streaming mode.
+        # Returns true if streaming-complete is set or if streaming mode is not in use
+        # (non-lazy builds don't set this key, so we fall back to true).
+        def streaming_complete?
+          return true if @streaming_complete
+
+          result = redis.get(key('streaming-complete'))
+          # If key is nil (not set), this build may not use streaming mode — treat as complete
+          @streaming_complete = result.nil? || result == '1'
+        end
 
         def active_workers?
           # if there are running jobs we assume there are still agents active
