@@ -6,15 +6,17 @@ module Minitest
   module Queue
     class LocalRequeueReporter < Minitest::Reporters::DefaultReporter
       include ::CI::Queue::OutputHelpers
-      attr_accessor :requeues
+      attr_accessor :requeues, :ignored
 
       def initialize(*)
         self.requeues = 0
+        self.ignored = 0
         super
       end
 
       def report
         self.requeues = results.count(&:requeued?)
+        self.ignored = 0
         super
         print_report
       end
@@ -28,7 +30,7 @@ module Minitest
         step [
           'Ran %d tests, %d assertions,' % [count, assertions],
           success ? green(failures_count) : red(failures_count),
-          yellow("#{skips} skips, #{requeues} requeues"),
+          yellow("#{skips} skips, #{requeues} requeues, #{ignored} ignored"),
           'in %.2fs' % total_time,
         ].join(' ')
       end

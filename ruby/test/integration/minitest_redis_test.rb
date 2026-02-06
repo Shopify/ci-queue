@@ -45,7 +45,7 @@ module Integration
       assert_empty err
       assert_match(/Expected false to be truthy/, normalize(out)) # failure output
       result = normalize(out.lines.last.strip)
-      assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', result
+      assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues, 0 ignored in X.XXs', result
     end
 
     def test_lost_test_with_heartbeat_monitor
@@ -88,7 +88,7 @@ module Integration
 
         assert_empty err
         result = normalize(out.lines[1].strip)
-        assert_equal "Ran 1 tests, 0 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)", result
+        assert_equal "Ran 1 tests, 0 assertions, 0 failures, 0 errors, 0 skips, 0 requeues, 1 ignored in X.XXs (aggregated)", result
         warnings = JSON.parse(warnings_file.read)
         assert_equal 1, warnings.size
       end
@@ -116,7 +116,7 @@ module Integration
       assert_empty err
       assert_match(/ATest#test_foo \d+\.\d+ = S/, normalize(out)) # verbose test ouptut
       result = normalize(out.lines.last.strip)
-      assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', result
+      assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues, 0 ignored in X.XXs', result
     end
 
     def test_debug_log
@@ -142,7 +142,7 @@ module Integration
       assert_includes File.read(log_file.path), 'INFO -- : Finished \'["exists", "b:c4ca4238:w:1:q"]\': 0'
       assert_empty err
       result = normalize(out.lines.last.strip)
-      assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', result
+      assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues, 0 ignored in X.XXs', result
       end
     end
 
@@ -167,7 +167,7 @@ module Integration
       assert_empty err
       assert_match(/^\^{3} \+{3}$/m, normalize(out)) # reopen failed step
       output = normalize(out.lines.last.strip)
-      assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
+      assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues, 0 ignored in X.XXs', output
     end
 
     def test_custom_requeue
@@ -190,7 +190,7 @@ module Integration
 
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal '--- Ran 3 tests, 0 assertions, 0 failures, 2 errors, 0 skips, 1 requeues in X.XXs', output
+      assert_equal '--- Ran 3 tests, 0 assertions, 0 failures, 2 errors, 0 skips, 1 requeues, 0 ignored in X.XXs', output
     end
 
     def test_max_test_failed
@@ -216,7 +216,7 @@ module Integration
       assert_equal 1, $?.exitstatus
       assert_equal 'This worker is exiting early because too many failed tests were encountered.', err.chomp
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 47 tests, 47 assertions, 3 failures, 0 errors, 0 skips, 44 requeues in X.XXs', output
+      assert_equal 'Ran 47 tests, 47 assertions, 3 failures, 0 errors, 0 skips, 44 requeues, 0 ignored in X.XXs', output
 
       # Run the reporter
       out, err = capture_subprocess_io do
@@ -240,7 +240,7 @@ module Integration
       EXPECTED
       assert_equal expected.strip, normalize(out.lines[0..1].join.strip)
       expected = <<~EXPECTED
-        Ran 3 tests, 47 assertions, 3 failures, 0 errors, 0 skips, 44 requeues in X.XXs (aggregated)
+        Ran 3 tests, 47 assertions, 3 failures, 0 errors, 0 skips, 44 requeues, 0 ignored in X.XXs (aggregated)
       EXPECTED
       assert_equal expected.strip, normalize(out.lines[134].strip)
       expected = <<~EXPECTED
@@ -297,7 +297,7 @@ module Integration
 
       assert_equal "This worker is exiting early because it encountered too many consecutive test failures, probably because of some corrupted state.\n", err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 3 tests, 3 assertions, 0 failures, 0 errors, 0 skips, 3 requeues in X.XXs', output
+      assert_equal 'Ran 3 tests, 3 assertions, 0 failures, 0 errors, 0 skips, 3 requeues, 0 ignored in X.XXs', output
     end
 
     def test_redis_runner
@@ -319,7 +319,7 @@ module Integration
 
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
+      assert_equal 'Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues, 0 ignored in X.XXs', output
 
       out, err = capture_subprocess_io do
         system(
@@ -339,7 +339,7 @@ module Integration
 
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 6 tests, 4 assertions, 2 failures, 1 errors, 0 skips, 3 requeues in X.XXs', output
+      assert_equal 'Ran 6 tests, 4 assertions, 2 failures, 1 errors, 0 skips, 3 requeues, 0 ignored in X.XXs', output
     end
 
     def test_retry_success
@@ -360,7 +360,7 @@ module Integration
       end
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 100 tests, 100 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
+      assert_equal 'Ran 100 tests, 100 assertions, 0 failures, 0 errors, 0 skips, 0 requeues, 0 ignored in X.XXs', output
 
       out, err = capture_subprocess_io do
         system(
@@ -400,7 +400,7 @@ module Integration
       end
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 200 tests, 200 assertions, 100 failures, 0 errors, 0 skips, 100 requeues in X.XXs', output
+      assert_equal 'Ran 200 tests, 200 assertions, 100 failures, 0 errors, 0 skips, 100 requeues, 0 ignored in X.XXs', output
 
       out, err = capture_subprocess_io do
         system(
@@ -441,7 +441,7 @@ module Integration
       end
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 100 tests, 100 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
+      assert_equal 'Ran 100 tests, 100 assertions, 0 failures, 0 errors, 0 skips, 0 requeues, 0 ignored in X.XXs', output
 
       one_day = 60 * 60 * 24
       key = CI::Queue::Redis::KeyShortener.key("1", "created-at")
@@ -484,7 +484,7 @@ module Integration
       end
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 100 tests, 100 assertions, 100 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
+      assert_equal 'Ran 100 tests, 100 assertions, 100 failures, 0 errors, 0 skips, 0 requeues, 0 ignored in X.XXs', output
 
       # Run the reporter
       out, err = capture_subprocess_io do
@@ -498,7 +498,7 @@ module Integration
         )
       end
       assert_empty err
-      expect = 'Ran 100 tests, 100 assertions, 100 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)'
+      expect = 'Ran 100 tests, 100 assertions, 100 failures, 0 errors, 0 skips, 0 requeues, 0 ignored in X.XXs (aggregated)'
       assert_equal expect, normalize(out.strip.lines[1].strip)
 
       # Simulate another worker successfuly retrying all errors (very hard to reproduce properly)
@@ -519,6 +519,7 @@ module Integration
           'failures' => 0,
           'skips' => 0,
           'requeues' => 0,
+          'ignored' => 0,
           'total_time' => index + 1,
         })
       end
@@ -553,7 +554,7 @@ module Integration
         )
       end
       assert_empty err
-      expect = 'Ran 100 tests, 100 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)'
+      expect = 'Ran 100 tests, 0 assertions, 0 failures, 0 errors, 0 skips, 0 requeues, 1 ignored in X.XXs (aggregated)'
       assert_equal expect, normalize(out.strip.lines[1].strip)
     end
 
@@ -576,7 +577,7 @@ module Integration
       end
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 0 tests, 0 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
+      assert_equal 'Ran 0 tests, 0 assertions, 0 failures, 0 errors, 0 skips, 0 requeues, 0 ignored in X.XXs', output
     end
 
     def test_test_data_reporter
@@ -599,7 +600,7 @@ module Integration
       end
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 9 tests, 6 assertions, 1 failures, 1 errors, 1 skips, 2 requeues in X.XXs', output
+      assert_equal 'Ran 9 tests, 6 assertions, 1 failures, 1 errors, 1 skips, 2 requeues, 0 ignored in X.XXs', output
 
       content = File.read(@test_data_path)
       failures = JSON.parse(content, symbolize_names: true)
@@ -701,7 +702,7 @@ module Integration
       end
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 9 tests, 6 assertions, 1 failures, 1 errors, 1 skips, 2 requeues in X.XXs', output
+      assert_equal 'Ran 9 tests, 6 assertions, 1 failures, 1 errors, 1 skips, 2 requeues, 0 ignored in X.XXs', output
 
       # NOTE: To filter the TypeError backtrace below see test/fixtures/test/backtrace_filters.rb
 
@@ -912,7 +913,7 @@ module Integration
       end
       assert_empty err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
+      assert_equal 'Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues, 0 ignored in X.XXs', output
 
       Tempfile.open('warnings') do |warnings_file|
         out, err = capture_subprocess_io do
@@ -951,7 +952,7 @@ module Integration
           REQUEUE
           BTest#test_bar (requeued 1 times)
 
-          Ran 7 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs (aggregated)
+          Ran 7 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues, 0 ignored in X.XXs (aggregated)
 
 
 
@@ -1012,7 +1013,7 @@ module Integration
       assert_empty err
       output = normalize(out.lines.last)
       assert_equal <<~END, output
-        Ran 1 tests, 1 assertions, 1 failures, 0 errors, 0 skips, 0 requeues in X.XXs
+        Ran 1 tests, 1 assertions, 1 failures, 0 errors, 0 skips, 0 requeues, 0 ignored in X.XXs
       END
     end
 

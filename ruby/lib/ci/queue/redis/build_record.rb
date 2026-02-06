@@ -63,17 +63,26 @@ module CI
             # if another worker already acknowledged the test, we don't need to update the global stats or increment the test failed count
             record_stats(stats)
             @queue.increment_test_failed
+          else
+            record_stats({"ignored" => 1})
           end
           nil
         end
 
         def record_success(id, stats: nil, skip_flaky_record: false)
-          _, error_reports_deleted_count, requeued_count, _ = redis.multi do |transaction|
+          acknowledged, error_reports_deleted_count, requeued_count, _ = redis.multi do |transaction|
             @queue.acknowledge(id, pipeline: transaction)
             transaction.hdel(key('error-reports'), id)
             transaction.hget(key('requeues-count'), id)
-            record_stats(stats, pipeline: transaction)
           end
+
+          # if another worker already acknowledged the test, we don't need to update the global stats or increment the test failed count
+          if acknowledged
+            record_stats(stats)
+          else
+            record_stats({"ignored" => 1})
+          end
+
           record_flaky(id) if !skip_flaky_record && (error_reports_deleted_count.to_i > 0 || requeued_count.to_i > 0)
           nil
         end

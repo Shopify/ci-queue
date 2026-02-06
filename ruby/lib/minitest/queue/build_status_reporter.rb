@@ -201,6 +201,10 @@ module Minitest
         fetch_summary['requeues'].to_i
       end
 
+      def ignored
+        fetch_summary['ignored'].to_i
+      end
+
       def total_time
         fetch_summary['total_time'].to_f
       end
@@ -273,7 +277,7 @@ module Minitest
         step([
           'Ran %d tests, %d assertions,' % [progress, assertions],
           success ? green(failures_count) : red(failures_count),
-          yellow("#{skips} skips, #{requeues} requeues"),
+          yellow("#{skips} skips, #{requeues} requeues, #{ignored} ignored"),
           'in %.2fs (aggregated)' % total_time,
         ].join(' '), collapsed: success)
       end

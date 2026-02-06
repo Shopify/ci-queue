@@ -10,6 +10,7 @@ module Minitest
         failures
         skips
         requeues
+        ignored
         total_time
       ).freeze
 
@@ -18,7 +19,7 @@ module Minitest
       end
       self.failure_formatter = FailureFormatter
 
-      attr_accessor :requeues
+      attr_accessor :requeues, :ignored
 
       def initialize(build:, **options)
         super(options)
@@ -28,6 +29,7 @@ module Minitest
         self.errors = 0
         self.skips = 0
         self.requeues = 0
+        self.ignored = 0
       end
 
       def report

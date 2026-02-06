@@ -40,11 +40,12 @@ module Minitest::Queue
       reserve(second_queue, "h")
       second_reporter.record(result('h', skipped: true, requeued: true))
 
-      assert_equal 9, summary.assertions
+      assert_equal 8, summary.assertions
       assert_equal 3, summary.failures
       assert_equal 3, summary.errors
-      assert_equal 2, summary.skips
+      assert_equal 1, summary.skips
       assert_equal 1, summary.requeues
+      assert_equal 1, summary.ignored
       assert_equal 5, summary.error_reports.size
       assert_equal 0, summary.flaky_reports.size
     end
@@ -105,6 +106,7 @@ module Minitest::Queue
       second_reporter.record(result("a", failure: "Something went wrong"))
       assert_equal 0, summary.error_reports.size
       assert_equal 0, @queue.test_failed
+      assert_equal 1, summary.ignored
     end
 
     def test_static_queue_record_success
