@@ -308,7 +308,7 @@ class CI::Queue::RedisTest < Minitest::Test
     cleanup_temp_test_classes
   end
 
-  def test_populate_lazy_leader_loads_files_and_builds_manifest
+  def test_populate_lazy_leader_loads_files_and_pushes_tests
     @redis.flushdb
     queue = worker(1, lazy_load: true, populate: false, build_id: 'lazy-2')
     test_files = create_temp_test_files
@@ -328,12 +328,11 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_match(/test files/, output)
     assert_match(/tests/, output)
 
-    # Verify manifest was stored in Redis
-    manifest_key = CI::Queue::Redis::KeyShortener.key('lazy-2', 'manifest')
-    manifest = @redis.hgetall(manifest_key)
-    refute_empty manifest
-    assert manifest.key?('LazyTestA')
-    assert manifest.key?('LazyTestB')
+    # Verify tests were pushed to the queue and total was set
+    assert_operator queue.total, :>, 0
+    # Verify streaming-complete was set
+    complete_key = CI::Queue::Redis::KeyShortener.key('lazy-2', 'streaming-complete')
+    assert_equal '1', @redis.get(complete_key)
   ensure
     cleanup_temp_test_classes
   end

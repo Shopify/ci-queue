@@ -209,30 +209,18 @@ module CI
           match || test_id
         end
 
-        # Load a test from a queue entry using the embedded file path or manifest
+        # Create a test example from a queue entry without loading the file.
+        # The parent process (which runs poll) doesn't need the actual class —
+        # it just sends (class_name, method_name, file_path) over DRb to a worker.
+        # The worker's ClassProxy handles file loading and class resolution.
+        # This avoids loading each test file twice (once in parent, once in worker)
+        # and skips redundant ToggleHelper processing in the parent.
         def load_test_from_entry(test_id)
           class_name, method_name = LazyLoader.parse_test_id(test_id)
 
-          # Get file path from unified pending tests structure
           @pending_tests ||= {}
           pending = @pending_tests[test_id]
           file_path = pending[:file] if pending
-
-          if file_path
-            # Streaming mode: load file directly
-            @lazy_loader.load_file_directly(file_path)
-          else
-            # Legacy mode: use manifest
-            fetch_manifest_for_lazy_load
-            @lazy_loader.load_class(class_name)
-          end
-
-          runnable = @lazy_loader.find_class(class_name)
-
-          # Trigger runnable_methods to ensure dynamically generated test methods exist
-          if runnable.respond_to?(:runnable_methods)
-            runnable.runnable_methods
-          end
 
           @test_factory.call(class_name, method_name, file_path)
         end
@@ -488,7 +476,6 @@ module CI
         end
 
         def push_streaming_as_leader(test_files:, random:, config:, file_loader:)
-          all_tests = []
           files_loaded = 0
           total_pushed = 0
           queue_initialized = false
@@ -498,32 +485,33 @@ module CI
 
           begin
             pending_entries = []
-            push_batch_size = 500 # Flush to Redis every N entries
+            push_batch_size = 2000 # Flush to Redis every N entries
 
             test_files.each do |file_path|
               begin
                 new_tests = file_loader.call(file_path)
-                all_tests.concat(new_tests)
                 @lazy_loader.loaded_files.add(file_path)
 
+                # Build queue entries directly from test IDs without intermediate objects.
+                # Each entry is "file_path\tClassName#method_name".
                 new_tests.each { |test| pending_entries << "#{file_path}\t#{test.id}" }
                 files_loaded += 1
 
                 # Flush to Redis when batch is full or on first file (to unblock consumers)
                 if !queue_initialized || pending_entries.size >= push_batch_size
                   if pending_entries.any?
-                    shuffled = Queue.shuffle(
-                      pending_entries.map { |e| LazyTestEntry.new(e) }, random
-                    ).map(&:to_s)
+                    # Shuffle the raw strings directly — LazyTestEntry wrapping is only
+                    # needed for Queue.shuffle's .id call, so we use a lightweight shuffle.
+                    pending_entries.shuffle!(random: random)
 
-                    total_pushed += shuffled.size
+                    total_pushed += pending_entries.size
 
                     if !queue_initialized
                       elapsed = (CI::Queue.time_now - start_time).round(2)
-                      debug_puts "[ci-queue] First batch loaded after #{elapsed}s, initializing queue with #{shuffled.size} tests..."
+                      debug_puts "[ci-queue] First batch loaded after #{elapsed}s, initializing queue with #{pending_entries.size} tests..."
 
                       redis.multi do |transaction|
-                        transaction.lpush(key('queue'), shuffled)
+                        transaction.lpush(key('queue'), pending_entries)
                         transaction.set(key('total'), total_pushed)
                         transaction.set(key('master-status'), 'ready')
                         transaction.expire(key('queue'), config.redis_ttl)
@@ -533,11 +521,11 @@ module CI
                       queue_initialized = true
                     else
                       redis.pipelined do |pipeline|
-                        pipeline.lpush(key('queue'), shuffled)
+                        pipeline.lpush(key('queue'), pending_entries)
                         pipeline.set(key('total'), total_pushed)
                       end
                     end
-                    pending_entries.clear
+                    pending_entries = []
                   end
 
                   if files_loaded % 100 == 0
@@ -554,12 +542,9 @@ module CI
 
             # Flush remaining entries
             if pending_entries.any?
-              shuffled = Queue.shuffle(
-                pending_entries.map { |e| LazyTestEntry.new(e) }, random
-              ).map(&:to_s)
-              redis.lpush(key('queue'), shuffled)
-              total_pushed += shuffled.size
-              pending_entries.clear
+              pending_entries.shuffle!(random: random)
+              redis.lpush(key('queue'), pending_entries)
+              total_pushed += pending_entries.size
             end
 
             if total_pushed == 0
@@ -570,7 +555,6 @@ module CI
             @total = total_pushed
 
             # Mark streaming as complete so consumers know no more tests are coming.
-            # total is already up-to-date (set with each batch push).
             redis.multi do |transaction|
               transaction.set(key('total'), @total)
               transaction.set(key('streaming-complete'), '1')
@@ -581,11 +565,6 @@ module CI
 
             elapsed = (CI::Queue.time_now - start_time).round(2)
             debug_puts "[ci-queue] Leader finished: #{files_loaded} files, #{@total} tests in #{elapsed}s"
-
-            # Build and store manifest for backward compatibility
-            manifest = LazyLoader.build_manifest(all_tests)
-            @lazy_loader.set_manifest(manifest)
-            @lazy_loader.store_manifest(redis, key('manifest'), manifest, ttl: config.redis_ttl)
 
             puts "Leader loaded #{files_loaded} test files, found #{@total} tests."
 

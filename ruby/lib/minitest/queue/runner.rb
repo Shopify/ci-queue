@@ -372,23 +372,35 @@ module Minitest
         end
       end
 
-      # Load a test file and return newly discovered test examples.
+      # Lightweight test identifier for the leader's file_loader callback.
+      # Only needs .id — avoids creating full SingleExample objects (588K allocations).
+      TestId = Struct.new(:id)
+
+      # Load a test file and return newly discovered test identifiers.
       #
       # Uses `require` (not `load`) for the leader — the leader doesn't fork,
       # so Bootsnap's require cache makes this significantly faster. Workers
       # use `load` via ClassProxy/LazyLoader separately for fork safety.
       #
-      # Tracks runnables count via array slicing instead of dup + set difference.
+      # Returns lightweight TestId structs instead of SingleExample objects
+      # since the leader only needs .id for building queue entries.
+      #
+      # Calls runnable_methods once per class to trigger ToggleHelper flag
+      # variant generation, then caches the result. Subsequent files that
+      # reopen the same class won't re-trigger the expensive processing.
       def load_and_discover_tests(file_path)
         runnables = Minitest::Test.runnables
         count_before = runnables.size
-        require(File.expand_path(file_path))
+        require(::File.expand_path(file_path))
         new_runnables = runnables[count_before..]
         return [] if new_runnables.nil? || new_runnables.empty?
 
         new_runnables.flat_map do |runnable|
+          class_name = runnable.name
+          # runnable_methods triggers ToggleHelper processing (once per class per PID).
+          # The result includes both base methods and FLAGS variants.
           runnable.runnable_methods.map do |method_name|
-            SingleExample.new(runnable, method_name)
+            TestId.new("#{class_name}##{method_name}".freeze)
           end
         end
       end
