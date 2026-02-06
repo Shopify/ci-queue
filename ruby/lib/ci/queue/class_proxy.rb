@@ -107,16 +107,7 @@ module CI
         file_path = ::File.expand_path(@file_path)
         short_name = @class_name
 
-        $stderr.puts "[ClassProxy] resolve_class_from_file called: class_name=#{@class_name}, file_path=#{@file_path}"
-        $stderr.puts "[ClassProxy] rescue ::StandardError ancestor check: #{::StandardError.ancestors.first(5).inspect}"
-        $stderr.puts "[ClassProxy] NotImplementedError < StandardError? #{::NotImplementedError < ::StandardError}"
-        $stderr.flush
-
-        classes_scanned = 0
-        errors_rescued = 0
-
         ::ObjectSpace.each_object(::Class) do |klass|
-          classes_scanned += 1
           # ObjectSpace contains classes from the entire process — gems, engines, etc.
           # Some override .name with non-standard signatures or return values, and
           # const_source_location can raise on invalid constant paths. Rescue broadly
@@ -129,30 +120,11 @@ module CI
             source = ::Object.const_source_location(klass_name)&.first
             next unless source
 
-            if ::File.expand_path(source) == file_path
-              $stderr.puts "[ClassProxy] Found match after scanning #{classes_scanned} classes (#{errors_rescued} errors rescued): #{klass_name}"
-              $stderr.flush
-              return klass
-            end
-          rescue ::StandardError => scan_error
-            errors_rescued += 1
-            if errors_rescued <= 3
-              $stderr.puts "[ClassProxy] Rescued #{scan_error.class}: #{scan_error.message} (from #{klass.inspect rescue 'uninspectable'})"
-              $stderr.flush
-            end
-            next
-          rescue ::Exception => fatal_error
-            $stderr.puts "[ClassProxy] UNEXPECTED non-StandardError exception scanning ObjectSpace!"
-            $stderr.puts "[ClassProxy] Exception class: #{fatal_error.class}, ancestors: #{fatal_error.class.ancestors.first(5).inspect}"
-            $stderr.puts "[ClassProxy] Message: #{fatal_error.message}"
-            $stderr.puts "[ClassProxy] Is StandardError? #{fatal_error.is_a?(::StandardError)}"
-            $stderr.flush
+            return klass if ::File.expand_path(source) == file_path
+          rescue ::StandardError
             next
           end
         end
-
-        $stderr.puts "[ClassProxy] No match found after scanning #{classes_scanned} classes (#{errors_rescued} errors rescued)"
-        $stderr.flush
 
         ::Kernel.raise ::NameError,
           "Expected class #{@class_name} in #{@file_path}, but only a module was found"

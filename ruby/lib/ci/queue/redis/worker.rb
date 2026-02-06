@@ -506,6 +506,10 @@ module CI
                 new_tests = file_loader.call(file_path)
                 all_tests.concat(new_tests)
 
+                # Track that this file was loaded so load_file_directly
+                # won't re-execute it when the leader polls its own tests.
+                @lazy_loader.loaded_files.add(file_path)
+
                 file_entries = new_tests.map { |test| "#{file_path}\t#{test.id}" }
 
                 files_loaded += 1

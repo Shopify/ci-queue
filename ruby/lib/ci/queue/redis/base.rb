@@ -148,7 +148,7 @@ module CI
         end
 
         def progress
-          total - size
+          [total - size, 0].max
         end
 
         def wait_for_master(timeout: 30)

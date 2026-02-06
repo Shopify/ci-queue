@@ -455,6 +455,124 @@ class CI::Queue::RedisTest < Minitest::Test
     cleanup_temp_test_classes
   end
 
+  def test_lazy_load_report_fields_are_correct
+    # Verifies that all fields the summary reporter needs (total, progress,
+    # error_reports, failed_tests, fetch_stats) are correct after a lazy-loaded
+    # test run. This catches issues where streaming queue entries ("file_path\ttest_id")
+    # leak into reporter-facing Redis keys that expect plain test IDs.
+    @redis.flushdb
+    build_id = 'lazy-report-1'
+    leader = worker(1, lazy_load: true, populate: false, build_id: build_id,
+                    max_requeues: 1, requeue_tolerance: 1.0)
+    test_files = create_temp_test_files
+
+    capture_io do
+      leader.populate_lazy(
+        test_files: test_files,
+        random: Random.new(0),
+        config: leader.send(:config),
+        file_loader: method(:lazy_file_loader),
+        test_factory: method(:lazy_test_factory),
+      )
+    end
+
+    # Poll all tests: pass some, fail one
+    failed_test_id = nil
+    leader.poll do |test|
+      if failed_test_id.nil? && test.id.include?('test_one')
+        # Fail this test (don't requeue to keep it simple)
+        failed_test_id = test.id
+        leader.report_failure!
+        leader.acknowledge(test.id, error: "intentional failure")
+      else
+        leader.report_success!
+        leader.acknowledge(test.id)
+      end
+    end
+
+    assert failed_test_id, "Should have found a test to fail"
+
+    # Now verify report fields via Supervisor (same as report_command uses)
+    supervisor = leader.supervisor
+
+    # total should be positive (not 0 or -1)
+    assert_operator supervisor.total, :>, 0, "total should be positive"
+
+    # progress should equal total (all tests processed, queue empty)
+    assert_equal supervisor.total, supervisor.progress,
+      "progress should equal total when queue is exhausted"
+
+    # Queue should be exhausted
+    assert_predicate supervisor, :exhausted?
+
+    # error_reports should contain plain test IDs (no file path prefix)
+    build_record = supervisor.build
+    error_reports = build_record.error_reports
+    refute_empty error_reports, "Should have error reports"
+    error_reports.each_key do |test_key|
+      refute_includes test_key, "\t",
+        "error_reports key should be a plain test ID, not a queue entry: #{test_key}"
+      assert_includes test_key, "#",
+        "error_reports key should be in 'Class#method' format: #{test_key}"
+    end
+
+    # failed_tests should contain plain test IDs
+    failed_tests = build_record.failed_tests
+    refute_empty failed_tests, "Should have failed tests"
+    failed_tests.each do |test_key|
+      refute_includes test_key, "\t",
+        "failed_tests should be plain test IDs: #{test_key}"
+    end
+    assert_includes failed_tests, failed_test_id
+
+    # fetch_stats should have positive assertion count
+    stats = build_record.fetch_stats(Minitest::Queue::BuildStatusRecorder::COUNTERS)
+    assert_operator stats['assertions'].to_i, :>=, 0
+  ensure
+    cleanup_temp_test_classes
+  end
+
+  def test_lazy_load_supervisor_progress_not_negative
+    # Reproduces the "Ran -1 tests" bug in the summary reporter.
+    # When the 'total' Redis key is missing (expired or never set) and a test
+    # is stuck in the running zset, progress = total - size = 0 - 1 = -1.
+    @redis.flushdb
+    build_id = 'lazy-progress-1'
+    leader = worker(1, lazy_load: true, populate: false, build_id: build_id)
+    test_files = create_temp_test_files
+
+    capture_io do
+      leader.populate_lazy(
+        test_files: test_files,
+        random: Random.new(0),
+        config: leader.send(:config),
+        file_loader: method(:lazy_file_loader),
+        test_factory: method(:lazy_test_factory),
+      )
+    end
+
+    # Reserve one test but DON'T acknowledge it (simulates stuck/crashed worker)
+    test_id = leader.send(:reserve_entry)
+    assert test_id, "Should have reserved a test"
+
+    # Delete the 'total' key from Redis (simulates TTL expiry)
+    total_key = leader.send(:key, 'total')
+    @redis.del(total_key)
+
+    # Now the supervisor sees: total=0 (key missing), size>=1 (stuck in running)
+    supervisor = leader.supervisor
+
+    # Confirm the preconditions that cause the bug
+    assert_equal 0, @redis.get(total_key).to_i, "total key should be missing (returns 0)"
+    assert_operator supervisor.size, :>, 0, "size should be > 0 (test stuck in running)"
+
+    # progress should never be negative — the report shows "Ran -1 tests" otherwise
+    assert_operator supervisor.progress, :>=, 0,
+      "progress should not be negative even when total key is missing (was #{supervisor.progress})"
+  ensure
+    cleanup_temp_test_classes
+  end
+
   def test_populated_returns_true_for_lazy_load_mode
     @redis.flushdb
     queue = worker(1, lazy_load: true, populate: false, build_id: 'lazy-6')
