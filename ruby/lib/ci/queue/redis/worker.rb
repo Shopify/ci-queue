@@ -516,22 +516,27 @@ module CI
                       pending_entries.map { |e| LazyTestEntry.new(e) }, random
                     ).map(&:to_s)
 
+                    total_pushed += shuffled.size
+
                     if !queue_initialized
                       elapsed = (CI::Queue.time_now - start_time).round(2)
                       debug_puts "[ci-queue] First batch loaded after #{elapsed}s, initializing queue with #{shuffled.size} tests..."
 
                       redis.multi do |transaction|
                         transaction.lpush(key('queue'), shuffled)
+                        transaction.set(key('total'), total_pushed)
                         transaction.set(key('master-status'), 'ready')
                         transaction.expire(key('queue'), config.redis_ttl)
+                        transaction.expire(key('total'), config.redis_ttl)
                         transaction.expire(key('master-status'), config.redis_ttl)
                       end
                       queue_initialized = true
                     else
-                      redis.lpush(key('queue'), shuffled)
+                      redis.pipelined do |pipeline|
+                        pipeline.lpush(key('queue'), shuffled)
+                        pipeline.set(key('total'), total_pushed)
+                      end
                     end
-
-                    total_pushed += shuffled.size
                     pending_entries.clear
                   end
 
@@ -564,10 +569,8 @@ module CI
             @files_loaded_by_leader = files_loaded
             @total = total_pushed
 
-            # Set the total count and mark streaming as complete.
-            # total is only set once all files are loaded to avoid consumers
-            # memoizing a partial count. streaming-complete signals that the
-            # queue will not receive more tests, so exhausted? can return true.
+            # Mark streaming as complete so consumers know no more tests are coming.
+            # total is already up-to-date (set with each batch push).
             redis.multi do |transaction|
               transaction.set(key('total'), @total)
               transaction.set(key('streaming-complete'), '1')
