@@ -141,15 +141,15 @@ module CI::Queue
         FakeTest.new('DuplicateTest', 'test_bar', '/path/to/file2.rb'),
       ]
 
-      warning_output = capture_io do
+      stdout_output = capture_io do
         manifest = LazyLoader.build_manifest(tests)
         # Last one wins
         assert_equal '/path/to/file2.rb', manifest['DuplicateTest']
-      end[1] # stderr
+      end[0] # stdout (puts, not warn — avoids StrictWarning in Shopify)
 
-      assert_includes warning_output, "WARNING: Duplicate class name 'DuplicateTest'"
-      assert_includes warning_output, '/path/to/file1.rb'
-      assert_includes warning_output, '/path/to/file2.rb'
+      assert_includes stdout_output, "WARNING: Duplicate class name 'DuplicateTest'"
+      assert_includes stdout_output, '/path/to/file1.rb'
+      assert_includes stdout_output, '/path/to/file2.rb'
     end
 
     def test_build_manifest_no_warning_for_same_file
@@ -159,11 +159,11 @@ module CI::Queue
         FakeTest.new('TestA', 'test_bar', '/path/to/test_a.rb'),
       ]
 
-      warning_output = capture_io do
+      stdout_output = capture_io do
         LazyLoader.build_manifest(tests)
-      end[1] # stderr
+      end[0] # stdout
 
-      refute_includes warning_output, 'WARNING'
+      refute_includes stdout_output, 'WARNING'
     end
 
     # === set_manifest ===

@@ -66,25 +66,22 @@ module CI
       def target_class
         return @klass if @klass
 
-        # Try to resolve the constant
+        # Always load the test file first if we have a file_path.
+        # This is necessary because the constant may already exist in the process
+        # (e.g., a top-level CheckoutTest loaded during boot) but without the test
+        # methods (which are only defined when the test FILE is loaded). Loading
+        # the file ensures test methods exist before we resolve the constant.
+        load_test_file(@file_path) if @file_path
+
         @klass = resolve_constant(@class_name)
         @klass = resolve_class_from_file if needs_class_resolution?
         @klass
       rescue ::NameError => e
-        # If constant not found and we have a file path, try loading the file
         if @file_path
-          load_test_file(@file_path)
-          # Retry constant lookup after loading
-          begin
-            @klass = resolve_constant(@class_name)
-            @klass = resolve_class_from_file if needs_class_resolution?
-            @klass
-          rescue ::NameError => retry_error
-            # File loaded but class still not found - provide helpful error
-            ::Kernel.raise ::NameError,
-              "Class #{@class_name} not found after loading #{@file_path}. " \
-              "The file may not define the expected class. Original error: #{retry_error.message}"
-          end
+          # File was already loaded above but constant still not found
+          ::Kernel.raise ::NameError,
+            "Class #{@class_name} not found after loading #{@file_path}. " \
+            "The file may not define the expected class. Original error: #{e.message}"
         else
           ::Kernel.raise e
         end

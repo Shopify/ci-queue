@@ -76,8 +76,9 @@ module CI::Queue
         puts "\n=== LazyLoader Test ==="
         puts "Leader generated: #{flags_method}"
 
-        # Clear the constant to simulate fresh worker process
+        # Clear the constant and $LOADED_FEATURES to simulate fresh worker process
         Object.send(:remove_const, 'SimulatedToggleTest')
+        $LOADED_FEATURES.delete(test_file.path)
 
         # Now use LazyLoader like a worker would
         @loader.set_manifest({ 'SimulatedToggleTest' => test_file.path })

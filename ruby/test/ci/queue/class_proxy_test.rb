@@ -32,12 +32,17 @@ module CI
       end
 
       def test_marshaling_with_file_path
-        proxy = ClassProxy.new('String', file_path: '/tmp/test.rb')
+        # Use a real file so load_test_file doesn't raise LoadError
+        test_file = create_test_file('MarshalFilePathTest', 'class MarshalFilePathTest; end')
+        proxy = ClassProxy.new('MarshalFilePathTest', file_path: test_file.path)
 
         marshaled = Marshal.dump(proxy)
         unmarshaled = Marshal.load(marshaled)
 
-        assert_equal 'String', unmarshaled.name
+        assert_equal 'MarshalFilePathTest', unmarshaled.name
+      ensure
+        remove_const_if_defined(:MarshalFilePathTest)
+        test_file&.unlink
       end
 
       def test_lazy_loads_file_when_constant_not_found

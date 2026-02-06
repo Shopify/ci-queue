@@ -266,15 +266,14 @@ module Integration
         )
       end
 
-      # Verify manifest was stored in Redis
-      manifest_key = CI::Queue::Redis::KeyShortener.key('lazy-manifest-1', 'manifest')
-      manifest = @redis.hgetall(manifest_key)
+      # Verify total was set in Redis (manifest is no longer built in streaming mode)
+      total_key = CI::Queue::Redis::KeyShortener.key('lazy-manifest-1', 'total')
+      total = @redis.get(total_key).to_i
+      assert_operator total, :>, 0, "Total should be set in Redis"
 
-      refute_empty manifest, "Manifest should be stored in Redis"
-      assert manifest.key?('ATest'), "Manifest should contain ATest"
-      assert manifest.key?('BTest'), "Manifest should contain BTest"
-      assert_match(/dummy_test\.rb/, manifest['ATest'])
-      assert_match(/dummy_test\.rb/, manifest['BTest'])
+      # Verify streaming-complete was set
+      complete_key = CI::Queue::Redis::KeyShortener.key('lazy-manifest-1', 'streaming-complete')
+      assert_equal '1', @redis.get(complete_key), "streaming-complete should be set"
     end
 
     def test_lazy_load_invalid_test_file_path
