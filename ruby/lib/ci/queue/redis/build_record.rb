@@ -56,31 +56,27 @@ module CI
           redis.rpush(key('warnings'), Marshal.dump([type, attributes]))
         end
 
-        def record_error(id, payload, stats: nil)
-          acknowledged, _ = redis.pipelined do |pipeline|
+        def record_error(id, payload)
+          acknowledged = redis.pipelined do |pipeline|
             @queue.acknowledge(id, error: payload, pipeline: pipeline)
-            record_stats(stats, pipeline: pipeline)
-          end
+          end.first
 
           @queue.increment_test_failed if acknowledged == 1
-          nil
+          acknowledged == 1
         end
 
-        def record_success(id, stats: nil, skip_flaky_record: false)
-          _, error_reports_deleted_count, requeued_count, _ = redis.multi do |transaction|
+        def record_success(id, skip_flaky_record: false)
+          acknowledged, error_reports_deleted_count, requeued_count = redis.multi do |transaction|
             @queue.acknowledge(id, pipeline: transaction)
             transaction.hdel(key('error-reports'), id)
             transaction.hget(key('requeues-count'), id)
-            record_stats(stats, pipeline: transaction)
           end
           record_flaky(id) if !skip_flaky_record && (error_reports_deleted_count.to_i > 0 || requeued_count.to_i > 0)
-          nil
+          acknowledged == 1
         end
 
-        def record_requeue(id, stats: nil)
-          redis.pipelined do |pipeline|
-           record_stats(stats, pipeline: pipeline)
-          end
+        def record_requeue(id)
+          true
         end
 
         def record_flaky(id, stats: nil)
@@ -126,10 +122,6 @@ module CI
           end
         end
 
-        private
-
-        attr_reader :config, :redis
-
         def record_stats(stats, pipeline: redis)
           return unless stats
           stats.each do |stat_name, stat_value|
@@ -137,6 +129,10 @@ module CI
             pipeline.expire(key(stat_name), config.redis_ttl)
           end
         end
+
+        private
+
+        attr_reader :config, :redis
 
         def key(*args)
           KeyShortener.key(config.build_id, *args)

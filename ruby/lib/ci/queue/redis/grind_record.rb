@@ -10,20 +10,23 @@ module CI
           @config = config
         end
 
-        def record_error(payload, stats: nil)
+        def record_error(payload)
           redis.pipelined do |pipeline|
             pipeline.lpush(
               key('error-reports'),
               payload,
             )
             pipeline.expire(key('error-reports'), config.redis_ttl)
-            record_stats(stats, pipeline: pipeline)
           end
-          nil
+          true
         end
 
-        def record_success(stats: nil)
-          record_stats(stats)
+        def record_success
+          true
+        end
+
+        def record_requeue
+          true
         end
 
         def record_warning(_,_)
@@ -47,20 +50,20 @@ module CI
 
         alias failed_tests error_reports
 
-        private
-
-        attr_reader :redis, :config
-
-        def key(*args)
-          KeyShortener.key(config.build_id, *args)
-        end
-
         def record_stats(stats, pipeline: redis)
           return unless stats
           stats.each do |stat_name, stat_value|
             pipeline.hset(key(stat_name), config.worker_id, stat_value)
             pipeline.expire(key(stat_name), config.redis_ttl)
           end
+        end
+
+        private
+
+        attr_reader :redis, :config
+
+        def key(*args)
+          KeyShortener.key(config.build_id, *args)
         end
       end
     end

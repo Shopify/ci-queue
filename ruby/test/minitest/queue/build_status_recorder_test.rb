@@ -119,6 +119,52 @@ module Minitest::Queue
       assert_equal 0, static_reporter.errors
       assert_equal 0, static_reporter.skips
       assert_equal 0, static_reporter.requeues
+      assert_equal 0, static_reporter.ignored
+    end
+
+    def test_success_then_failure_doesnt_increment_counters
+      yielded = false
+
+      test = nil
+
+      @queue.poll do |_test|
+        test = _test
+        assert_equal "a", test.method_name
+        @reporter.record(result(test.method_name))
+
+        assert_equal 0, summary.error_reports.size
+        assert_equal 0, @reporter.failures
+        assert_equal 0, @reporter.errors
+        assert_equal 0, @reporter.ignored
+
+        yielded = true
+        break
+      end
+
+      assert yielded, "@queue.poll didn't yield"
+
+      second_queue = worker(2)
+      second_reporter = BuildStatusRecorder.new(build: second_queue.build)
+      second_reporter.start
+
+      # pretend we reserved the same test again
+      reserve(second_queue, "a")
+      second_reporter.record(result("a", failure: "Something went wrong"))
+
+      # Error report should not be recorded
+      assert_equal 0, summary.error_reports.size
+      # Test failed count should not increment (was already acknowledged as success)
+      assert_equal 0, @queue.test_failed
+      # Second reporter's failure counter should NOT be incremented since test wasn't acknowledged
+      assert_equal 0, second_reporter.failures
+      assert_equal 0, second_reporter.errors
+      # But the ignored counter SHOULD be incremented
+      assert_equal 1, second_reporter.ignored
+      # Stats should not show failures either
+      assert_equal 0, summary.failures
+      assert_equal 0, summary.errors
+      # But stats should show the ignored test
+      assert_equal 1, summary.ignored
     end
 
     private

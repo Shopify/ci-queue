@@ -513,12 +513,14 @@ module Integration
 
       error_reports.keys.each_with_index do |test_id, index|
         queue.instance_variable_set(:@reserved_tests, Concurrent::Set.new([test_id]))
-        queue.build.record_success(test_id.dup, stats: {
+        queue.build.record_success(test_id.dup)
+        queue.build.record_stats({
           'assertions' => index + 1,
           'errors' => 0,
           'failures' => 0,
           'skips' => 0,
           'requeues' => 0,
+          'ignored' => 0,
           'total_time' => index + 1,
         })
       end

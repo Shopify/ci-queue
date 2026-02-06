@@ -32,12 +32,12 @@ module Minitest
       private
 
       def record_test(test)
-        stats = self.class.counters
         if (test.failure || test.error?) && !test.skipped?
-          build.record_error(dump(test), stats: stats)
+          build.record_error(dump(test))
         else
-          build.record_success(stats: stats)
+          build.record_success
         end
+        build.record_stats(self.class.counters)
       end
 
       def increment_counter(test)
