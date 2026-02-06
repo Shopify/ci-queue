@@ -66,24 +66,31 @@ module CI
       def target_class
         return @klass if @klass
 
-        # Always load the test file first if we have a file_path.
-        # This is necessary because the constant may already exist in the process
-        # (e.g., a top-level CheckoutTest loaded during boot) but without the test
-        # methods (which are only defined when the test FILE is loaded). Loading
-        # the file ensures test methods exist before we resolve the constant.
-        load_test_file(@file_path) if @file_path
+        # Try to resolve the constant first. If it exists and the file was
+        # already loaded (e.g., leader loaded via require), we can skip
+        # load_test_file and avoid re-executing the file (which would cause
+        # "method already defined" errors from the test DSL).
+        begin
+          @klass = resolve_constant(@class_name)
+          @klass = resolve_class_from_file if needs_class_resolution?
+          return @klass
+        rescue ::NameError
+          # Constant not found — load the file and retry
+        end
 
-        @klass = resolve_constant(@class_name)
-        @klass = resolve_class_from_file if needs_class_resolution?
-        @klass
-      rescue ::NameError => e
         if @file_path
-          # File was already loaded above but constant still not found
-          ::Kernel.raise ::NameError,
-            "Class #{@class_name} not found after loading #{@file_path}. " \
-            "The file may not define the expected class. Original error: #{e.message}"
+          load_test_file(@file_path)
+          begin
+            @klass = resolve_constant(@class_name)
+            @klass = resolve_class_from_file if needs_class_resolution?
+            @klass
+          rescue ::NameError => retry_error
+            ::Kernel.raise ::NameError,
+              "Class #{@class_name} not found after loading #{@file_path}. " \
+              "The file may not define the expected class. Original error: #{retry_error.message}"
+          end
         else
-          ::Kernel.raise e
+          ::Kernel.raise ::NameError, "uninitialized constant #{@class_name}"
         end
       end
 
