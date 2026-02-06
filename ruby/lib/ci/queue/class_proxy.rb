@@ -127,27 +127,40 @@ module CI
           "Expected class #{@class_name} in #{@file_path}, but only a module was found"
       end
 
+      # Per-process tracking of loaded files. Uses a class-level hash keyed by
+      # PID to automatically reset after fork (child gets parent's hash but
+      # checks PID mismatch and rebuilds).
+      def self.loaded_files_for_pid
+        current_pid = ::Process.pid
+        if @loaded_files_pid != current_pid
+          @loaded_files_pid = current_pid
+          @loaded_files = {}
+        end
+        @loaded_files ||= {}
+      end
+
       def load_test_file(file_path)
         # Validate file path for security
         unless file_path.end_with?('.rb')
           ::Kernel.raise ::ArgumentError, "Invalid test file path (must end with .rb): #{file_path}"
         end
 
-        # Check if file exists
-        unless ::File.exist?(file_path)
+        expanded = ::File.expand_path(file_path)
+
+        # Dedup: skip if already loaded in this process.
+        # target_class calls load_test_file for every ClassProxy instance,
+        # so multiple tests from the same file would re-execute it without this check.
+        return if ::CI::Queue::ClassProxy.loaded_files_for_pid[expanded]
+
+        unless ::File.exist?(expanded)
           ::Kernel.raise ::LoadError, "Test file not found: #{file_path}"
         end
 
         # Use load (not require) for fork safety. After fork, child processes
         # inherit $LOADED_FEATURES but not class definitions from files loaded
-        # post-fork in the parent. require would see the file in $LOADED_FEATURES
-        # and skip it, leaving the class undefined. load always re-executes.
-        #
-        # Dedup is not needed here: load_test_file is only called when
-        # resolve_constant fails (class not yet defined). Once the file is
-        # loaded, subsequent ClassProxy instances for the same class will
-        # resolve the constant on the first try without reaching this method.
-        ::Kernel.load(::File.expand_path(file_path))
+        # post-fork in the parent. load always re-executes.
+        ::Kernel.load(expanded)
+        ::CI::Queue::ClassProxy.loaded_files_for_pid[expanded] = true
       end
     end
   end
