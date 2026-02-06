@@ -497,51 +497,44 @@ module CI
           debug_puts "[ci-queue] Leader starting to load #{test_files.size} test files..."
 
           begin
-            # Load each test file and push tests IMMEDIATELY
-            # This ensures workers can start as soon as possible
+            pending_entries = []
+            push_batch_size = 500 # Flush to Redis every N entries
+
             test_files.each do |file_path|
               begin
-                # Use the file_loader callback to load a file and discover tests.
-                # Returns an array of objects responding to #id.
                 new_tests = file_loader.call(file_path)
                 all_tests.concat(new_tests)
-
-                # Track that this file was loaded so load_file_directly
-                # won't re-execute it when the leader polls its own tests.
                 @lazy_loader.loaded_files.add(file_path)
 
-                file_entries = new_tests.map { |test| "#{file_path}\t#{test.id}" }
-
+                new_tests.each { |test| pending_entries << "#{file_path}\t#{test.id}" }
                 files_loaded += 1
 
-                # Push this file's tests immediately (allows workers to start ASAP)
-                if file_entries.any?
-                  # Shuffle entries from this file
-                  wrapped_entries = file_entries.map { |entry| LazyTestEntry.new(entry) }
-                  shuffled_wrapped = Queue.shuffle(wrapped_entries, random)
-                  shuffled_entries = shuffled_wrapped.map(&:to_s)
+                # Flush to Redis when batch is full or on first file (to unblock consumers)
+                if !queue_initialized || pending_entries.size >= push_batch_size
+                  if pending_entries.any?
+                    shuffled = Queue.shuffle(
+                      pending_entries.map { |e| LazyTestEntry.new(e) }, random
+                    ).map(&:to_s)
 
-                  if !queue_initialized
-                    elapsed = (CI::Queue.time_now - start_time).round(2)
-                    debug_puts "[ci-queue] First file with tests loaded after #{elapsed}s, initializing queue with #{shuffled_entries.size} tests..."
+                    if !queue_initialized
+                      elapsed = (CI::Queue.time_now - start_time).round(2)
+                      debug_puts "[ci-queue] First batch loaded after #{elapsed}s, initializing queue with #{shuffled.size} tests..."
 
-                    redis.multi do |transaction|
-                      transaction.lpush(key('queue'), shuffled_entries)
-                      transaction.set(key('master-status'), 'ready')
-
-                      transaction.expire(key('queue'), config.redis_ttl)
-                      transaction.expire(key('master-status'), config.redis_ttl)
+                      redis.multi do |transaction|
+                        transaction.lpush(key('queue'), shuffled)
+                        transaction.set(key('master-status'), 'ready')
+                        transaction.expire(key('queue'), config.redis_ttl)
+                        transaction.expire(key('master-status'), config.redis_ttl)
+                      end
+                      queue_initialized = true
+                    else
+                      redis.lpush(key('queue'), shuffled)
                     end
-                    queue_initialized = true
-                    debug_puts "[ci-queue] Queue initialized, master-status set to 'ready'"
-                  else
-                    # Subsequent files: just push to queue
-                    redis.lpush(key('queue'), shuffled_entries)
+
+                    total_pushed += shuffled.size
+                    pending_entries.clear
                   end
 
-                  total_pushed += shuffled_entries.size
-
-                  # Progress update every 100 files
                   if files_loaded % 100 == 0
                     elapsed = (CI::Queue.time_now - start_time).round(2)
                     debug_puts "[ci-queue] Progress: #{files_loaded}/#{test_files.size} files, #{total_pushed} tests pushed (#{elapsed}s elapsed)"
@@ -550,11 +543,18 @@ module CI
               rescue LoadError => e
                 raise LazyLoadError, "Failed to load test file #{file_path}: #{e.message}"
               rescue => e
-                # Skip files that fail to load (e.g., StrictWarning from constant
-                # redefinition in support files loaded via `load()`). Log and continue
-                # so the leader can finish populating the queue.
                 debug_puts "[ci-queue] WARNING: Skipping #{file_path}: #{e.class}: #{e.message}"
               end
+            end
+
+            # Flush remaining entries
+            if pending_entries.any?
+              shuffled = Queue.shuffle(
+                pending_entries.map { |e| LazyTestEntry.new(e) }, random
+              ).map(&:to_s)
+              redis.lpush(key('queue'), shuffled)
+              total_pushed += shuffled.size
+              pending_entries.clear
             end
 
             if total_pushed == 0

@@ -373,16 +373,19 @@ module Minitest
       end
 
       # Load a test file and return newly discovered test examples.
-      # Uses `load` (not `require`) for fork safety - forked workers inherit
-      # $LOADED_FEATURES but need to re-execute files in their own address space.
       #
-      # Instead of calling Minitest.loaded_tests (which rebuilds the entire list
-      # and triggers ToggleHelper on every class), we track runnables before/after
-      # and only process newly added ones.
+      # Uses `require` (not `load`) for the leader — the leader doesn't fork,
+      # so Bootsnap's require cache makes this significantly faster. Workers
+      # use `load` via ClassProxy/LazyLoader separately for fork safety.
+      #
+      # Tracks runnables count via array slicing instead of dup + set difference.
       def load_and_discover_tests(file_path)
-        runnables_before = Minitest::Test.runnables.dup
-        load(file_path)
-        new_runnables = Minitest::Test.runnables - runnables_before
+        runnables = Minitest::Test.runnables
+        count_before = runnables.size
+        require(File.expand_path(file_path))
+        new_runnables = runnables[count_before..]
+        return [] if new_runnables.nil? || new_runnables.empty?
+
         new_runnables.flat_map do |runnable|
           runnable.runnable_methods.map do |method_name|
             SingleExample.new(runnable, method_name)
