@@ -121,7 +121,7 @@ module CI
             next unless source
 
             return klass if ::File.expand_path(source) == file_path
-          rescue ::StandardError
+          rescue ::StandardError, ::NotImplementedError
             next
           end
         end
