@@ -10,7 +10,18 @@ module CI
 
         def total
           wait_for_master(timeout: config.queue_init_timeout)
-          redis.get(key('total')).to_i
+          raw = redis.get(key('total'))
+          value = raw.to_i
+          if value <= 0 && ENV['CI_QUEUE_DEBUG']
+            ttl = redis.ttl(key('total'))
+            streaming_complete = redis.get(key('streaming-complete'))
+            master_status = redis.get(key('master-status'))
+            processed_count = redis.scard(key('processed'))
+            puts "[ci-queue] Supervisor#total: raw=#{raw.inspect}, value=#{value}, " \
+              "key=#{key('total')}, ttl=#{ttl}, streaming_complete=#{streaming_complete.inspect}, " \
+              "master_status=#{master_status.inspect}, processed_count=#{processed_count}"
+          end
+          value
         end
 
         def build
