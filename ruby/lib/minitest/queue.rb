@@ -271,6 +271,18 @@ module Minitest
         with_timestamps do
           Minitest.run_one_method(runnable, @method_name)
         end
+      rescue => error
+        # If running a test raises an unhandled exception (e.g., NameError from
+        # wrong class resolution, or a reporter crashing in before_test), produce
+        # a synthetic error result instead of letting the exception propagate up
+        # and kill the worker process. This ensures the queue loop continues
+        # processing remaining tests.
+        result = Minitest::Result.new(@method_name)
+        result.klass = @runnable_name
+        result.source_location = source_location || ["unknown", 0]
+        result.failures << Minitest::UnexpectedError.new(error)
+        result.time = 0
+        result
       end
 
       def flaky?

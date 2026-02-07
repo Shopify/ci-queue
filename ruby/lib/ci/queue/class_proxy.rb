@@ -129,7 +129,11 @@ module CI
           # For short names, verify source location after loading.
           if resolved && @expanded_file_path && !@class_name.include?('::') && !class_from_expected_file?(resolved)
             better = find_class_from_file
-            resolved = better if better # Keep original if ObjectSpace can't find a better match
+            # If ObjectSpace found a better match, use it. Otherwise set resolved
+            # to nil so force_load_test_file runs (which may define the correct class
+            # in a forked worker). Do NOT keep the wrong class — it would crash the
+            # worker when the test method doesn't exist.
+            resolved = better
           end
 
           # If require didn't help AND resolve_constant failed (forked worker
