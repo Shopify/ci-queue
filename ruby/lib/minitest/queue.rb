@@ -277,9 +277,15 @@ module Minitest
         # a synthetic error result instead of letting the exception propagate up
         # and kill the worker process. This ensures the queue loop continues
         # processing remaining tests.
+        #
+        # IMPORTANT: Do NOT call source_location here — it accesses `runnable`
+        # which triggers ClassProxy.target_class, which may re-load the file that
+        # just raised this error, causing the same exception to escape this rescue
+        # block and crash the worker. Use @file_path instead (already stored from
+        # the queue entry).
         result = Minitest::Result.new(@method_name)
         result.klass = @runnable_name
-        result.source_location = source_location || ["unknown", 0]
+        result.source_location = @file_path ? [@file_path, 0] : ["unknown", 0]
         result.failures << Minitest::UnexpectedError.new(error)
         result.time = 0
         result
@@ -291,7 +297,7 @@ module Minitest
 
       def source_location
         runnable.instance_method(@method_name).source_location
-      rescue NameError, NoMethodError
+      rescue NameError, NoMethodError, LoadError
         nil
       end
 
