@@ -493,8 +493,13 @@ module CI
                 @lazy_loader.loaded_files.add(file_path)
 
                 # Build queue entries directly from test IDs without intermediate objects.
-                # Each entry is "file_path\tClassName#method_name".
-                new_tests.each { |test| pending_entries << "#{file_path}\t#{test.id}" }
+                # Each entry is "source_file\tClassName#method_name".
+                # Use test.source_file if available (correct file for transitive requires),
+                # otherwise fall back to file_path.
+                new_tests.each do |test|
+                  src = test.respond_to?(:source_file) && test.source_file ? test.source_file : file_path
+                  pending_entries << "#{src}\t#{test.id}"
+                end
                 files_loaded += 1
 
                 # Flush to Redis when batch is full or on first file (to unblock consumers)

@@ -373,8 +373,8 @@ module Minitest
       end
 
       # Lightweight test identifier for the leader's file_loader callback.
-      # Only needs .id — avoids creating full SingleExample objects (588K allocations).
-      TestId = Struct.new(:id)
+      # Includes .id and optional .source_file for correct queue entry attribution.
+      TestId = Struct.new(:id, :source_file)
 
       # Load a test file and return newly discovered test identifiers.
       #
@@ -398,14 +398,29 @@ module Minitest
 
         results = []
 
-        new_runnables.flat_map do |runnable|
+        new_runnables.each do |runnable|
           class_name = runnable.name
-          runnable.runnable_methods.map do |method_name|
-            results << TestId.new("#{class_name}##{method_name}".freeze)
+          # Get the actual source file for this runnable (may differ from file_path
+          # if the class was loaded via a transitive require).
+          source = source_file_for_runnable(runnable, expanded)
+          runnable.runnable_methods.each do |method_name|
+            results << TestId.new("#{class_name}##{method_name}".freeze, source)
           end
         end
 
         results
+      end
+
+      # Return the actual source file for a runnable, falling back to the
+      # file being loaded. This ensures queue entries have the correct file
+      # path even for classes discovered via transitive requires.
+      def source_file_for_runnable(runnable, fallback)
+        source = begin
+          Object.const_source_location(runnable.name)&.first
+        rescue StandardError
+          nil
+        end
+        source ? ::File.expand_path(source) : fallback
       end
 
       # Create a SingleExample test object from class name, method name, and file path.

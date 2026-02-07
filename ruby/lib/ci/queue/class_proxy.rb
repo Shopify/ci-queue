@@ -107,6 +107,17 @@ module CI
         # (forked worker where $LOADED_FEATURES is inherited but classes aren't),
         # fall back to Kernel.load which re-executes the file.
         if @file_path
+          if ::ENV['CI_QUEUE_DEBUG']
+            source = begin
+              resolved_before = resolve_constant(@class_name) rescue nil
+              resolved_before ? ::Object.const_source_location(resolved_before.name)&.first : nil
+            rescue; nil
+            end
+            $stderr.puts "[ClassProxy] Step 5: class=#{@class_name}, file=#{@file_path}, " \
+              "resolved_before=#{resolved_before&.name.inspect}, source=#{source.inspect}, " \
+              "short_name=#{!@class_name.include?('::')}, pid=#{::Process.pid}"
+            $stderr.flush
+          end
           load_test_file(@file_path)
 
           resolved = begin
@@ -126,6 +137,10 @@ module CI
           # Do NOT force-load if we have a resolved class — that would re-execute
           # the file and cause "already defined" errors.
           if resolved.nil?
+            if ::ENV['CI_QUEUE_DEBUG']
+              $stderr.puts "[ClassProxy] Step 5 force_load: class=#{@class_name}, file=#{@file_path}, pid=#{::Process.pid}"
+              $stderr.flush
+            end
             force_load_test_file(@file_path)
 
             resolved = begin
