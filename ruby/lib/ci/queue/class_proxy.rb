@@ -203,7 +203,13 @@ module CI
       end
 
       def resolve_constant(class_name)
-        class_name.split('::').reduce(::Object) { |mod, const| mod.const_get(const) }
+        # Use inherit=false to only search constants defined directly on each module.
+        # With the default inherit=true, const_get searches the ancestor chain including
+        # Object, which means GraphApi::Admin.const_get("DraftOrderTest") can find a
+        # top-level DraftOrderTest instead of raising NameError. This caused wrong-class
+        # resolution when a short-named class (e.g., DraftOrderTest) shadowed a namespaced
+        # one (e.g., GraphApi::Admin::DraftOrderTest).
+        class_name.split('::').reduce(::Object) { |mod, const| mod.const_get(const, false) }
       end
 
       # Per-process tracking of loaded files. Uses a class-level hash keyed by

@@ -206,6 +206,16 @@ module CI
           # This handles cases where @pending_tests lost the mapping (e.g., requeue
           # path consumed it, or acknowledge is called from a different context like DRb).
           match = reserved_tests.find { |entry| parse_queue_entry(entry).last == test_id }
+          return match if match
+
+          # Fallback: match when Minitest::Result.klass returns a short class name
+          # (e.g., "DraftOrderTest#method") but the queue entry has the fully-qualified
+          # name (e.g., "GraphApi::Admin::DraftOrderTest#method"). This can happen when
+          # Ruby's Class#name returns the first-assigned name rather than the namespaced one.
+          match = reserved_tests.find do |entry|
+            _, entry_test_id = parse_queue_entry(entry)
+            entry_test_id.end_with?("::#{test_id}")
+          end
           match || test_id
         end
 
