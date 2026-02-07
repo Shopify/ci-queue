@@ -391,14 +391,25 @@ module Minitest
       def load_and_discover_tests(file_path)
         runnables = Minitest::Test.runnables
         count_before = runnables.size
-        require(::File.expand_path(file_path))
+        expanded = ::File.expand_path(file_path)
+        require(expanded)
         new_runnables = runnables[count_before..]
         return [] if new_runnables.nil? || new_runnables.empty?
 
         new_runnables.flat_map do |runnable|
+          # Verify the runnable actually comes from this file, not from a
+          # transitive require. Without this check, classes loaded as side
+          # effects get incorrectly attributed to this file_path in the queue.
+          source = begin
+            Object.const_source_location(runnable.name)&.first
+          rescue StandardError
+            nil
+          end
+          if source && ::File.expand_path(source) != expanded
+            next [] # Skip — this class came from a transitive require
+          end
+
           class_name = runnable.name
-          # runnable_methods triggers ToggleHelper processing (once per class per PID).
-          # The result includes both base methods and FLAGS variants.
           runnable.runnable_methods.map do |method_name|
             TestId.new("#{class_name}##{method_name}".freeze)
           end
