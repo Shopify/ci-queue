@@ -83,11 +83,14 @@ module CI
           end
         end
 
-        # Step 3: If we have a file_path, verify the resolved class actually
-        # comes from the expected file. Without this, a top-level "OrderTest"
-        # (app class) could shadow a test class with the same short name.
+        # Step 3: For short class names (no ::), verify the resolved class
+        # actually comes from the expected file. Without this, a top-level
+        # "OrderTest" (app class) could shadow a test class with the same name.
+        # Fully-qualified names (e.g., "GraphApi::Admin::ShopTest") don't need
+        # this check — resolve_constant walked the full namespace and found
+        # the right class.
         # NOTE: Do NOT set @klass until verification passes (P0 fix).
-        if resolved && @expanded_file_path
+        if resolved && @expanded_file_path && !@class_name.include?('::')
           if !class_from_expected_file?(resolved)
             resolved = nil
           end
@@ -112,13 +115,16 @@ module CI
             nil
           end
 
-          # After loading, use file-based lookup if resolve_constant found the
-          # wrong class again (P1 fix: second source-location check).
-          if resolved && @expanded_file_path && !class_from_expected_file?(resolved)
-            resolved = find_class_from_file
+          # For short names, verify source location after loading.
+          if resolved && @expanded_file_path && !@class_name.include?('::') && !class_from_expected_file?(resolved)
+            better = find_class_from_file
+            resolved = better if better # Keep original if ObjectSpace can't find a better match
           end
 
-          # If require didn't help (forked worker), force re-execute with Kernel.load
+          # If require didn't help AND resolve_constant failed (forked worker
+          # where class truly doesn't exist), force re-execute with Kernel.load.
+          # Do NOT force-load if we have a resolved class — that would re-execute
+          # the file and cause "already defined" errors.
           if resolved.nil?
             force_load_test_file(@file_path)
 
@@ -126,10 +132,6 @@ module CI
               resolve_constant(@class_name)
             rescue ::NameError
               nil
-            end
-
-            if resolved && @expanded_file_path && !class_from_expected_file?(resolved)
-              resolved = find_class_from_file
             end
           end
 
