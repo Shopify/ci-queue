@@ -100,6 +100,9 @@ module CI
         end
 
         # Step 5: Class not found or wrong class — load the file and resolve.
+        # Try require first (safe, idempotent). If that doesn't surface the class
+        # (forked worker where $LOADED_FEATURES is inherited but classes aren't),
+        # fall back to Kernel.load which re-executes the file.
         if @file_path
           load_test_file(@file_path)
 
@@ -113,6 +116,21 @@ module CI
           # wrong class again (P1 fix: second source-location check).
           if resolved && @expanded_file_path && !class_from_expected_file?(resolved)
             resolved = find_class_from_file
+          end
+
+          # If require didn't help (forked worker), force re-execute with Kernel.load
+          if resolved.nil?
+            force_load_test_file(@file_path)
+
+            resolved = begin
+              resolve_constant(@class_name)
+            rescue ::NameError
+              nil
+            end
+
+            if resolved && @expanded_file_path && !class_from_expected_file?(resolved)
+              resolved = find_class_from_file
+            end
           end
 
           if resolved
@@ -193,9 +211,20 @@ module CI
           ::Kernel.raise ::LoadError, "Test file not found: #{file_path}"
         end
 
-        # Use load (not require) for fork safety. After fork, child processes
-        # inherit $LOADED_FEATURES but not class definitions from files loaded
-        # post-fork in the parent. load always re-executes.
+        # Try require first (idempotent, safe for non-forked processes).
+        # If the file is in $LOADED_FEATURES, require is a no-op.
+        # For forked workers where $LOADED_FEATURES is inherited but class
+        # definitions aren't, require will be a no-op and the caller (target_class)
+        # will call force_load_test_file as a fallback.
+        ::Kernel.require(expanded)
+        ::CI::Queue::ClassProxy.loaded_files_for_pid[expanded] = true
+      end
+
+      # Force re-execute a file with Kernel.load. Used as a fallback when
+      # require was a no-op (file in $LOADED_FEATURES from parent) but the
+      # class doesn't exist (forked worker without class definitions).
+      def force_load_test_file(file_path)
+        expanded = @expanded_file_path || ::File.expand_path(file_path)
         ::Kernel.load(expanded)
         ::CI::Queue::ClassProxy.loaded_files_for_pid[expanded] = true
       end

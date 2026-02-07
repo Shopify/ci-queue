@@ -396,24 +396,46 @@ module Minitest
         new_runnables = runnables[count_before..]
         return [] if new_runnables.nil? || new_runnables.empty?
 
-        new_runnables.flat_map do |runnable|
-          # Verify the runnable actually comes from this file, not from a
-          # transitive require. Without this check, classes loaded as side
-          # effects get incorrectly attributed to this file_path in the queue.
+        # Track deferred classes from transitive requires so they can be
+        # emitted with the correct file_path when their source file is loaded.
+        @deferred_runnables ||= {}
+
+        results = []
+
+        new_runnables.each do |runnable|
+          # Check if this runnable actually comes from this file or from a
+          # transitive require. Attribute it to its real source file.
           source = begin
             Object.const_source_location(runnable.name)&.first
           rescue StandardError
             nil
           end
-          if source && ::File.expand_path(source) != expanded
-            next [] # Skip — this class came from a transitive require
+          actual_file = source ? ::File.expand_path(source) : expanded
+
+          if actual_file != expanded
+            # Defer — this class came from a transitive require.
+            # Store it keyed by its actual source file.
+            (@deferred_runnables[actual_file] ||= []) << runnable
+            next
           end
 
           class_name = runnable.name
-          runnable.runnable_methods.map do |method_name|
-            TestId.new("#{class_name}##{method_name}".freeze)
+          runnable.runnable_methods.each do |method_name|
+            results << TestId.new("#{class_name}##{method_name}".freeze)
           end
         end
+
+        # Check if any previously deferred runnables belong to this file
+        if (deferred = @deferred_runnables.delete(expanded))
+          deferred.each do |runnable|
+            class_name = runnable.name
+            runnable.runnable_methods.each do |method_name|
+              results << TestId.new("#{class_name}##{method_name}".freeze)
+            end
+          end
+        end
+
+        results
       end
 
       # Create a SingleExample test object from class name, method name, and file path.
