@@ -22,6 +22,18 @@ module CI
     attr_accessor :shuffler, :requeueable
 
     Error = Class.new(StandardError)
+    ClassNotFoundError = Class.new(Error)
+
+    class FileLoadError < Error
+      attr_reader :file_path, :original_error
+
+      def initialize(file_path, original_error)
+        @file_path = file_path
+        @original_error = original_error
+        super("Failed to load #{file_path}: #{original_error.class}: #{original_error.message}")
+        set_backtrace(original_error.backtrace)
+      end
+    end
 
     module Warnings
       RESERVED_LOST_TEST = :RESERVED_LOST_TEST
@@ -65,3 +77,7 @@ module CI
     end
   end
 end
+
+require 'ci/queue/queue_entry'
+require 'ci/queue/class_resolver'
+require 'ci/queue/file_loader'

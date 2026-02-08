@@ -49,12 +49,17 @@ module Minitest
         end
 
         stats = COUNTERS.zip(COUNTERS.map { |c| send(c) }).to_h
-        if (test.failure || test.error?) && !test.skipped?
-          build.record_error("#{test.klass}##{test.name}", dump(test), stats: stats)
-        elsif test.requeued?
-          build.record_requeue("#{test.klass}##{test.name}", stats: stats)
+        test_id = if test.respond_to?(:queue_id) && test.queue_id
+          test.queue_id
         else
-          build.record_success("#{test.klass}##{test.name}", stats: stats, skip_flaky_record: test.skipped?)
+          "#{test.klass}##{test.name}"
+        end
+        if (test.failure || test.error?) && !test.skipped?
+          build.record_error(test_id, dump(test), stats: stats)
+        elsif test.requeued?
+          build.record_requeue(test_id, stats: stats)
+        else
+          build.record_success(test_id, stats: stats, skip_flaky_record: test.skipped?)
         end
       end
 

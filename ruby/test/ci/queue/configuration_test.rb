@@ -143,5 +143,39 @@ module CI::Queue
       assert_equal 45, config.report_timeout
     end
 
+    def test_lazy_load_defaults
+      config = Configuration.new
+      refute config.lazy_load
+      assert_equal 2000, config.stream_batch_size
+    end
+
+    def test_lazy_load_from_env
+      config = Configuration.from_env(
+        "CI_QUEUE_LAZY_LOAD" => "true",
+        "CI_QUEUE_STREAM_BATCH_SIZE" => "1500",
+      )
+      assert config.lazy_load
+      assert_equal 1500, config.stream_batch_size
+    end
+
+    def test_lazy_load_from_env_false
+      config = Configuration.from_env(
+        "CI_QUEUE_LAZY_LOAD" => "false",
+      )
+      refute config.lazy_load
+    end
+
+    def test_streaming_timeout_defaults
+      config = Configuration.new
+      assert_equal 300, config.streaming_timeout
+    end
+
+    def test_streaming_timeout_from_env
+      config = Configuration.from_env(
+        "CI_QUEUE_STREAM_TIMEOUT" => "120",
+      )
+      assert_equal 120, config.streaming_timeout
+    end
+
   end
 end

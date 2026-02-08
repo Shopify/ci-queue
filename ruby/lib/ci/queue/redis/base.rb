@@ -144,19 +144,26 @@ module CI
         end
 
         def to_a
-          test_ids.reverse.map { |k| index.fetch(k) }
+          test_ids.reverse.map do |entry|
+            index.fetch(entry) do
+              test_id = CI::Queue::QueueEntry.parse(entry).fetch(:test_id)
+              index.fetch(test_id)
+            end
+          end
         end
 
         def progress
-          total - size
+          progress = total - size
+          progress < 0 ? 0 : progress
         end
 
-        def wait_for_master(timeout: 30)
+        def wait_for_master(timeout: 30, allow_streaming: false)
           return true if master?
           return true if queue_initialized?
+          return true if allow_streaming && streaming?
 
           (timeout * 10 + 1).to_i.times do
-            if queue_initialized?
+            if queue_initialized? || (allow_streaming && streaming?)
               return true
             else
               sleep 0.1
@@ -175,6 +182,10 @@ module CI
             status = master_status
             status == 'ready' || status == 'finished'
           end
+        end
+
+        def streaming?
+          master_status == 'streaming'
         end
 
         def queue_initializing?

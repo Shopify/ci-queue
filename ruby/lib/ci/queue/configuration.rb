@@ -6,12 +6,16 @@ module CI
       attr_accessor :requeue_tolerance, :namespace, :failing_test, :statsd_endpoint
       attr_accessor :max_test_duration, :max_test_duration_percentile, :track_test_duration
       attr_accessor :max_test_failed, :redis_ttl, :warnings_file, :debug_log, :max_missed_heartbeat_seconds
+      attr_accessor :lazy_load, :stream_batch_size
+      attr_accessor :streaming_timeout
       attr_reader :circuit_breakers
       attr_writer :seed, :build_id
       attr_writer :queue_init_timeout, :report_timeout, :inactive_workers_timeout
 
       class << self
         def from_env(env)
+          lazy_load_value = env['CI_QUEUE_LAZY_LOAD']
+          lazy_load = lazy_load_value && !lazy_load_value.strip.empty? && !%w(0 false).include?(lazy_load_value.strip.downcase)
           new(
             build_id: env['CIRCLE_BUILD_URL'] || env['BUILDKITE_BUILD_ID'] || env['TRAVIS_BUILD_ID'] || env['HEROKU_TEST_RUN_ID'] || env['SEMAPHORE_PIPELINE_ID'],
             worker_id: env['CIRCLE_NODE_INDEX'] || env['BUILDKITE_PARALLEL_JOB'] || env['CI_NODE_INDEX'] || env['SEMAPHORE_JOB_ID'],
@@ -22,6 +26,9 @@ module CI
             debug_log: env['CI_QUEUE_DEBUG_LOG'],
             max_requeues: env['CI_QUEUE_MAX_REQUEUES']&.to_i || 0,
             requeue_tolerance: env['CI_QUEUE_REQUEUE_TOLERANCE']&.to_f || 0,
+            lazy_load: lazy_load || false,
+            stream_batch_size: env['CI_QUEUE_STREAM_BATCH_SIZE']&.to_i,
+            streaming_timeout: env['CI_QUEUE_STREAM_TIMEOUT']&.to_i,
           )
         end
 
@@ -46,7 +53,8 @@ module CI
         grind_count: nil, max_duration: nil, failure_file: nil, max_test_duration: nil,
         max_test_duration_percentile: 0.5, track_test_duration: false, max_test_failed: nil,
         queue_init_timeout: nil, redis_ttl: 8 * 60 * 60, report_timeout: nil, inactive_workers_timeout: nil,
-        export_flaky_tests_file: nil, warnings_file: nil, debug_log: nil, max_missed_heartbeat_seconds: nil)
+        export_flaky_tests_file: nil, warnings_file: nil, debug_log: nil, max_missed_heartbeat_seconds: nil,
+        lazy_load: false, stream_batch_size: 2000, streaming_timeout: nil)
         @build_id = build_id
         @circuit_breakers = [CircuitBreaker::Disabled]
         @failure_file = failure_file
@@ -73,6 +81,9 @@ module CI
         @warnings_file = warnings_file
         @debug_log = debug_log
         @max_missed_heartbeat_seconds = max_missed_heartbeat_seconds
+        @lazy_load = lazy_load
+        @stream_batch_size = stream_batch_size || 2000
+        @streaming_timeout = streaming_timeout
       end
 
       def queue_init_timeout
@@ -81,6 +92,14 @@ module CI
 
       def report_timeout
         @report_timeout || timeout
+      end
+
+      def streaming_timeout
+        if @streaming_timeout && @streaming_timeout > 0
+          @streaming_timeout
+        else
+          [queue_init_timeout, 300].max
+        end
       end
 
       def inactive_workers_timeout

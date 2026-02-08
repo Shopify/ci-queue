@@ -13,7 +13,7 @@ module CI
       self.max_sleep_time = 2
 
       class Worker < Base
-        attr_reader :total
+        attr_accessor :entry_resolver
 
         def initialize(redis, config)
           @reserved_tests = Concurrent::Set.new
@@ -27,13 +27,63 @@ module CI
 
         def populate(tests, random: Random.new)
           @index = tests.map { |t| [t.id, t] }.to_h
-          tests = Queue.shuffle(tests, random)
-          push(tests.map(&:id))
+          entries = Queue.shuffle(tests, random).map { |test| queue_entry_for(test) }
+          push(entries)
           self
+        end
+
+        def stream_populate(tests, random: Random.new, batch_size: 2000)
+          batch_size = batch_size.to_i
+          batch_size = 1 if batch_size < 1
+
+          value = key('setup', worker_id)
+          _, status = redis.pipelined do |pipeline|
+            pipeline.set(key('master-status'), value, nx: true)
+            pipeline.get(key('master-status'))
+          end
+
+          if @master = (value == status)
+            @total = 0
+            puts "Worker elected as leader, streaming tests to the queue."
+            puts
+
+            duration = measure do
+              start_streaming!
+              buffer = []
+
+              tests.each do |test|
+                buffer << test
+
+                if buffer.size >= batch_size
+                  push_batch(buffer, random)
+                  buffer.clear
+                end
+              end
+
+              push_batch(buffer, random) unless buffer.empty?
+              finalize_streaming
+            end
+
+            puts "Finished streaming #{@total} tests to the queue in #{duration.round(2)}s."
+          end
+
+          register
+          redis.expire(key('workers'), config.redis_ttl)
+          self
+        rescue *CONNECTION_ERRORS
+          raise if @master
         end
 
         def populated?
           !!defined?(@index)
+        end
+
+        def total
+          return @total if defined?(@total) && @total
+
+          redis.get(key('total')).to_i
+        rescue *CONNECTION_ERRORS
+          @total || 0
         end
 
         def shutdown!
@@ -51,13 +101,18 @@ module CI
         DEFAULT_SLEEP_SECONDS = 0.5
 
         def poll
-          wait_for_master
+          wait_for_master(timeout: config.queue_init_timeout, allow_streaming: true)
           attempt = 0
           until shutdown_required? || config.circuit_breakers.any?(&:open?) || exhausted? || max_test_failed?
-            if test = reserve
+            if entry = reserve
               attempt = 0
-              yield index.fetch(test)
+              yield resolve_entry(entry)
             else
+              if still_streaming?
+                raise LostMaster, "Streaming stalled for more than #{config.streaming_timeout}s" if streaming_stale?
+                sleep 0.1
+                next
+              end
               # Adding exponential backoff to avoid hammering Redis
               # we just stay online here in case a test gets retried or times out so we can afford to wait
               sleep_time = [DEFAULT_SLEEP_SECONDS * (2 ** attempt), Redis.max_sleep_time].min
@@ -89,6 +144,7 @@ module CI
         def retry_queue
           failures = build.failed_tests.to_set
           log = redis.lrange(key('worker', worker_id, 'queue'), 0, -1)
+          log = log.map { |entry| queue_entry_test_id(entry) }
           log.select! { |id| failures.include?(id) }
           log.uniq!
           log.reverse!
@@ -103,23 +159,32 @@ module CI
           @build ||= CI::Queue::Redis::BuildRecord.new(self, redis, config)
         end
 
+        def file_loader
+          @file_loader ||= CI::Queue::FileLoader.new
+        end
+
         def report_worker_error(error)
           build.report_worker_error(error)
         end
 
         def acknowledge(test_key, error: nil, pipeline: redis)
-          raise_on_mismatching_test(test_key)
+          test_id = normalize_test_id(test_key)
+          assert_reserved!(test_id)
+          entry = reserved_entries.fetch(test_id, queue_entry_for(test_key))
+          unreserve_entry(test_id)
           eval_script(
             :acknowledge,
             keys: [key('running'), key('processed'), key('owners'), key('error-reports')],
-            argv: [test_key, error.to_s, config.redis_ttl],
+            argv: [entry, test_id, error.to_s, config.redis_ttl],
             pipeline: pipeline,
           ) == 1
         end
 
         def requeue(test, offset: Redis.requeue_offset)
-          test_key = test.id
-          raise_on_mismatching_test(test_key)
+          test_id = normalize_test_id(test)
+          assert_reserved!(test_id)
+          entry = reserved_entries.fetch(test_id, queue_entry_for(test))
+          unreserve_entry(test_id)
           global_max_requeues = config.global_max_requeues(total)
 
           requeued = config.max_requeues > 0 && global_max_requeues > 0 && eval_script(
@@ -133,10 +198,13 @@ module CI
               key('owners'),
               key('error-reports'),
             ],
-            argv: [config.max_requeues, global_max_requeues, test_key, offset],
+            argv: [config.max_requeues, global_max_requeues, entry, test_id, offset],
           ) == 1
 
-          reserved_tests << test_key unless requeued
+          unless requeued
+            reserved_tests << test_id
+            reserved_entries[test_id] = entry
+          end
           requeued
         end
 
@@ -157,19 +225,116 @@ module CI
           @reserved_tests ||= Concurrent::Set.new
         end
 
+        def reserved_entries
+          @reserved_entries ||= {}
+        end
+
         def worker_id
           config.worker_id
         end
 
-        def raise_on_mismatching_test(test)
-          unless reserved_tests.delete?(test)
-            raise ReservationError, "Acknowledged #{test.inspect} but only #{reserved_tests.map(&:inspect).join(", ")} reserved"
+        def assert_reserved!(test_id)
+          unless reserved_tests.include?(test_id)
+            raise ReservationError, "Acknowledged #{test_id.inspect} but only #{reserved_tests.map(&:inspect).join(", ")} reserved"
+          end
+        end
+
+        def reserve_entry(entry)
+          test_id = queue_entry_test_id(entry)
+          reserved_tests << test_id
+          reserved_entries[test_id] = entry
+        end
+
+        def unreserve_entry(test_id)
+          reserved_tests.delete(test_id)
+          reserved_entries.delete(test_id)
+        end
+
+        def normalize_test_id(test_key)
+          key = test_key.respond_to?(:id) ? test_key.id : test_key
+          queue_entry_test_id(key)
+        end
+
+        def queue_entry_test_id(entry)
+          CI::Queue::QueueEntry.parse(entry).fetch(:test_id)
+        end
+
+        def queue_entry_for(test)
+          return test.queue_entry if test.respond_to?(:queue_entry)
+          return test.id if test.respond_to?(:id)
+
+          test
+        end
+
+        def resolve_entry(entry)
+          test_id = queue_entry_test_id(entry)
+          return index.fetch(test_id) if populated?
+
+          if entry_resolver
+            entry_resolver.call(entry)
+          else
+            entry
+          end
+        end
+
+        def still_streaming?
+          master_status == 'streaming'
+        end
+
+        def streaming_stale?
+          timeout = config.streaming_timeout.to_i
+          updated_at = redis.get(key('streaming-updated-at'))
+          return true unless updated_at
+
+          (CI::Queue.time_now.to_f - updated_at.to_f) > timeout
+        rescue *CONNECTION_ERRORS
+          false
+        end
+
+        def start_streaming!
+          timeout = config.streaming_timeout.to_i
+          with_redis_timeout(5) do
+            redis.multi do |transaction|
+              transaction.set(key('total'), 0)
+              transaction.set(key('master-status'), 'streaming')
+              transaction.set(key('streaming-updated-at'), CI::Queue.time_now.to_f)
+              transaction.expire(key('streaming-updated-at'), timeout)
+              transaction.expire(key('queue'), config.redis_ttl)
+              transaction.expire(key('total'), config.redis_ttl)
+              transaction.expire(key('master-status'), config.redis_ttl)
+            end
+          end
+        end
+
+        def push_batch(tests, random)
+          entries = Queue.shuffle(tests, random).map { |test| queue_entry_for(test) }
+          return if entries.empty?
+
+          @total += entries.size
+          timeout = config.streaming_timeout.to_i
+          redis.multi do |transaction|
+            transaction.lpush(key('queue'), entries)
+            transaction.incrby(key('total'), entries.size)
+            transaction.set(key('master-status'), 'streaming')
+            transaction.set(key('streaming-updated-at'), CI::Queue.time_now.to_f)
+            transaction.expire(key('streaming-updated-at'), timeout)
+            transaction.expire(key('queue'), config.redis_ttl)
+            transaction.expire(key('total'), config.redis_ttl)
+            transaction.expire(key('master-status'), config.redis_ttl)
+          end
+        end
+
+        def finalize_streaming
+          redis.multi do |transaction|
+            transaction.set(key('master-status'), 'ready')
+            transaction.expire(key('master-status'), config.redis_ttl)
+            transaction.del(key('streaming-updated-at'))
           end
         end
 
         def reserve
-          (try_to_reserve_lost_test || try_to_reserve_test).tap do |test|
-            reserved_tests << test if test
+          (try_to_reserve_lost_test || try_to_reserve_test).tap do |entry|
+            reserve_entry(entry) if entry
           end
         end
 
@@ -208,8 +373,8 @@ module CI
           lost_test
         end
 
-        def push(tests)
-          @total = tests.size
+        def push(entries)
+          @total = entries.size
 
           # We set a unique value (worker_id) and read it back to make "SET if Not eXists" idempotent in case of a retry.
           value = key('setup', worker_id)
@@ -227,7 +392,7 @@ module CI
               with_redis_timeout(5) do
                 redis.without_reconnect do
                   redis.multi do |transaction|
-                    transaction.lpush(key('queue'), tests) unless tests.empty?
+                    transaction.lpush(key('queue'), entries) unless entries.empty?
                     transaction.set(key('total'), @total)
                     transaction.set(key('master-status'), 'ready')
 

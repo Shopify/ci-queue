@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 require 'optparse'
 require 'json'
+require 'set'
 require 'minitest/queue'
 require 'ci/queue'
 require 'digest/md5'
@@ -321,7 +322,7 @@ module Minitest
 
       attr_reader :queue_config, :options, :command, :argv
       attr_writer :queue_url
-      attr_accessor :queue, :grind_list, :grind_count, :load_paths, :verbose
+      attr_accessor :queue, :grind_list, :grind_count, :load_paths, :verbose, :test_files_file
 
       def require_worker_id!
         if queue.distributed?
@@ -358,7 +359,12 @@ module Minitest
       end
 
       def populate_queue
-        Minitest.queue.populate(Minitest.loaded_tests, random: ordering_seed)
+        if queue_config.lazy_load && queue.respond_to?(:stream_populate)
+          configure_lazy_queue
+          Minitest.queue.stream_populate(lazy_test_enumerator, random: ordering_seed, batch_size: queue_config.stream_batch_size)
+        else
+          Minitest.queue.populate(Minitest.loaded_tests, random: ordering_seed)
+        end
       end
 
       def set_load_path
@@ -370,8 +376,126 @@ module Minitest
       end
 
       def load_tests
-        argv.sort.each do |f|
+        return if queue_config.lazy_load && queue.respond_to?(:stream_populate)
+
+        test_file_list.sort.each do |f|
           require File.expand_path(f)
+        end
+      end
+
+      def configure_lazy_queue
+        return unless queue.respond_to?(:entry_resolver=)
+
+        queue.entry_resolver = lazy_entry_resolver
+      end
+
+      def lazy_entry_resolver
+        loader = queue.respond_to?(:file_loader) ? queue.file_loader : CI::Queue::FileLoader.new
+        resolver = CI::Queue::ClassResolver
+
+        lambda do |entry|
+          parsed = CI::Queue::QueueEntry.parse(entry)
+          class_name, method_name = parsed.fetch(:test_id).split('#', 2)
+          if CI::Queue::QueueEntry.load_error_payload?(parsed[:file_path])
+            payload = CI::Queue::QueueEntry.decode_load_error(parsed[:file_path])
+            if payload
+              error = StandardError.new("#{payload['error_class']}: #{payload['error_message']}")
+              error.set_backtrace(payload['backtrace']) if payload['backtrace']
+              load_error = CI::Queue::FileLoadError.new(payload['file_path'], error)
+              return Minitest::Queue::LazySingleExample.new(
+                class_name,
+                method_name,
+                payload['file_path'],
+                loader: loader,
+                resolver: resolver,
+                load_error: load_error,
+                queue_entry: entry,
+              )
+            end
+          end
+          Minitest::Queue::LazySingleExample.new(
+            class_name,
+            method_name,
+            parsed[:file_path],
+            loader: loader,
+            resolver: resolver,
+            queue_entry: entry,
+          )
+        end
+      end
+
+      def lazy_test_enumerator
+        loader = queue.respond_to?(:file_loader) ? queue.file_loader : CI::Queue::FileLoader.new
+        resolver = CI::Queue::ClassResolver
+        files = test_file_list.sort
+
+        Enumerator.new do |yielder|
+          load_tests_lazy(files, loader, resolver) do |test|
+            yielder << test
+          end
+        end
+      end
+
+      # Returns the list of test files to process. Prefers --test-files FILE
+      # (reads paths from a file, one per line) over positional argv arguments.
+      # --test-files avoids ARG_MAX limits for large test suites (36K+ files).
+      def test_file_list
+        if test_files_file
+          File.readlines(test_files_file, chomp: true).reject { |f| f.strip.empty? }
+        else
+          argv
+        end
+      end
+
+      def load_tests_lazy(files, loader, resolver)
+        seen = Set.new
+        known_runnables = Set.new(Minitest::Test.runnables)
+
+        files.each do |file|
+          file_path = File.expand_path(file)
+          begin
+            loader.load_file(file_path)
+          rescue CI::Queue::FileLoadError => error
+            method_name = "load_file_#{file_path.hash.abs}"
+            class_name = "CIQueue::FileLoadError"
+            test_id = "#{class_name}##{method_name}"
+            entry = CI::Queue::QueueEntry.format(
+              test_id,
+              CI::Queue::QueueEntry.encode_load_error(file_path, error),
+            )
+            test = Minitest::Queue::LazySingleExample.new(
+              class_name,
+              method_name,
+              file_path,
+              loader: loader,
+              resolver: resolver,
+              load_error: error,
+              queue_entry: entry,
+            )
+            yield test
+            next
+          end
+
+          current_runnables = Minitest::Test.runnables
+          new_runnables = current_runnables - known_runnables.to_a
+          new_runnables.each do |runnable|
+            runnable.runnable_methods.each do |method_name|
+              test_id = "#{runnable.name}##{method_name}"
+              next if seen.include?(test_id)
+
+              seen.add(test_id)
+              yield Minitest::Queue::LazySingleExample.new(
+                runnable.name,
+                method_name,
+                file_path,
+                loader: loader,
+                resolver: resolver,
+              )
+            rescue NameError, NoMethodError
+              next
+            end
+          end
+          known_runnables.merge(new_runnables)
         end
       end
 
@@ -484,6 +608,41 @@ module Minitest
           opts.separator ""
           opts.on('-IPATHS', help) do |paths|
             self.load_paths = [load_paths, paths].compact.join(':')
+          end
+
+          help = <<~EOS
+            Load test files on demand instead of eagerly loading all tests.
+          EOS
+          opts.separator ""
+          opts.on('--lazy-load', help) do
+            queue_config.lazy_load = true
+          end
+
+          help = <<~EOS
+            Batch size for streaming tests to Redis in lazy mode.
+            Defaults to 2000.
+          EOS
+          opts.separator ""
+          opts.on('--stream-batch-size SIZE', Integer, help) do |size|
+            queue_config.stream_batch_size = size
+          end
+
+          help = <<~EOS
+            Read test file paths from FILE (one per line) instead of positional arguments.
+            Useful for large test suites to avoid ARG_MAX limits.
+          EOS
+          opts.separator ""
+          opts.on('--test-files FILE', help) do |file|
+            self.test_files_file = file
+          end
+
+          help = <<~EOS
+            Timeout in seconds without new streamed batches before failing.
+            Defaults to the max of --queue-init-timeout and 300 seconds.
+          EOS
+          opts.separator ""
+          opts.on('--stream-timeout SECONDS', Integer, help) do |seconds|
+            queue_config.streaming_timeout = seconds
           end
 
           help = <<~EOS
