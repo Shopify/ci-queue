@@ -107,10 +107,20 @@ module Minitest
           end
         end
 
-        at_exit {
+        if queue_config.lazy_load
+          # In lazy-load mode, run minitest explicitly instead of relying on
+          # minitest/autorun's at_exit hook, which may not be registered since
+          # test files haven't been loaded yet. exit! prevents double-execution
+          # if minitest/autorun was loaded by the leader during streaming.
+          passed = Minitest.run []
           verify_reporters!(reporters)
-        }
-        # Let minitest's at_exit hook trigger
+          exit!(passed ? 0 : 1)
+        else
+          at_exit {
+            verify_reporters!(reporters)
+          }
+          # Let minitest's at_exit hook trigger
+        end
       end
 
       def verify_reporters!(reporters)
@@ -378,27 +388,16 @@ module Minitest
       def load_tests
         if queue_config.lazy_load && queue.respond_to?(:stream_populate)
           # In lazy-load mode, test files are loaded on-demand by the entry resolver.
-          # Load only test helpers (e.g., test/test_helper.rb) to boot the app and
-          # register minitest's at_exit hook for all workers. Set via CI_QUEUE_TEST_HELPERS.
-          load_test_helpers
+          # Load test helpers (e.g., test/test_helper.rb via CI_QUEUE_TEST_HELPERS)
+          # to boot the app for all workers.
+          queue_config.test_helper_paths.each do |helper_path|
+            require File.expand_path(helper_path)
+          end
           return
         end
 
         test_file_list.sort.each do |f|
           require File.expand_path(f)
-        end
-      end
-
-      def load_test_helpers
-        helpers = queue_config.test_helper_paths
-        if helpers.empty?
-          # Fallback: ensure minitest runs even without explicit test helpers.
-          require 'minitest/autorun'
-          return
-        end
-
-        helpers.each do |helper_path|
-          require File.expand_path(helper_path)
         end
       end
 
