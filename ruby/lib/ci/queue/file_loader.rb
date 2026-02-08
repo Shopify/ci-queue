@@ -28,7 +28,8 @@ module CI
           else
             require file_path
           end
-        rescue StandardError, ScriptError => e
+        rescue Exception => e
+          raise if e.is_a?(SignalException) || e.is_a?(SystemExit)
           error = e
         ensure
           duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start

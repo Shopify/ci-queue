@@ -34,4 +34,37 @@ class CI::Queue::FileLoaderTest < Minitest::Test
     assert_equal missing_path, error.file_path
     assert_includes loader.load_stats.keys, missing_path
   end
+
+  # Verifies that non-StandardError exceptions (e.g., StrictWarning::Offense
+  # which inherits from Exception) are caught and wrapped as FileLoadError
+  # instead of crashing the worker process.
+  def test_load_file_catches_non_standard_error_exceptions
+    loader = CI::Queue::FileLoader.new
+
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "raises_exception_test.rb")
+      File.write(path, "raise Class.new(Exception), 'non-standard exception'\n")
+
+      error = assert_raises(CI::Queue::FileLoadError) do
+        loader.load_file(path)
+      end
+
+      assert_equal path, error.file_path
+      assert_includes error.message, "non-standard exception"
+      assert_includes loader.load_stats.keys, path
+    end
+  end
+
+  def test_load_file_does_not_catch_signal_exceptions
+    loader = CI::Queue::FileLoader.new
+
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "raises_signal_test.rb")
+      File.write(path, "raise SignalException, 'TERM'\n")
+
+      assert_raises(SignalException) do
+        loader.load_file(path)
+      end
+    end
+  end
 end
