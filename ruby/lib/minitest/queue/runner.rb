@@ -534,7 +534,16 @@ module Minitest
       end
 
       def print_worker_profiles(supervisor)
-        profiles = supervisor.build.worker_profiles
+        # Wait for workers to finish storing their profiles. The queue is
+        # exhausted but workers may still be in the ensure block writing
+        # their profile to Redis.
+        expected = supervisor.workers_count
+        profiles = {}
+        3.times do
+          profiles = supervisor.build.worker_profiles
+          break if profiles.size >= expected
+          sleep 1
+        end
         return if profiles.empty?
 
         sorted = profiles.values.sort_by { |p| p['worker_id'].to_s }

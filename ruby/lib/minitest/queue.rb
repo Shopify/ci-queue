@@ -397,9 +397,23 @@ module Minitest
         @runnable ||= begin
           klass = @resolver.resolve(@class_name, file_path: @file_path, loader: @loader)
           unless RUNNABLE_METHODS_TRIGGERED[klass]
-            klass.runnable_methods # Trigger dynamic method generation (e.g., Verdict FLAGS)
+            klass.runnable_methods
             RUNNABLE_METHODS_TRIGGERED[klass] = true
           end
+
+          # If the method doesn't exist, the class may have been autoloaded by
+          # Zeitwerk (partial) rather than fully loaded from the test file. Force
+          # load the file so class-definition-time code (e.g., dynamic test
+          # generation via each loops) executes.
+          unless klass.method_defined?(@method_name) || klass.private_method_defined?(@method_name)
+            if @file_path && @loader
+              @loader.load_file(@file_path)
+              RUNNABLE_METHODS_TRIGGERED.delete(klass)
+              klass.runnable_methods
+              RUNNABLE_METHODS_TRIGGERED[klass] = true
+            end
+          end
+
           klass
         end
       end
