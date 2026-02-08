@@ -5,11 +5,14 @@ local worker_queue_key = KEYS[4]
 
 local current_time = ARGV[1]
 local entry = ARGV[2]
+local entry_delimiter = ARGV[3]
 
 local function test_id_from_entry(value)
-  local delimiter = string.find(value, "|", 1, true)
-  if delimiter then
-    return string.sub(value, 1, delimiter - 1)
+  if entry_delimiter then
+    local pos = string.find(value, entry_delimiter, 1, true)
+    if pos then
+      return string.sub(value, 1, pos - 1)
+    end
   end
   return value
 end

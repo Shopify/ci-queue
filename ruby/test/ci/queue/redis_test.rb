@@ -4,6 +4,7 @@ require 'test_helper'
 class CI::Queue::RedisTest < Minitest::Test
   include SharedQueueAssertions
 
+  DELIMITER = CI::Queue::QueueEntry::DELIMITER
   EntryTest = Struct.new(:id, :queue_entry)
 
   def setup
@@ -242,8 +243,8 @@ class CI::Queue::RedisTest < Minitest::Test
     consumer.entry_resolver = ->(entry) { entry }
 
     tests = [
-      EntryTest.new('ATest#test_foo', 'ATest#test_foo|/tmp/a_test.rb'),
-      EntryTest.new('ATest#test_bar', 'ATest#test_bar|/tmp/a_test.rb'),
+      EntryTest.new('ATest#test_foo', "ATest#test_foo#{DELIMITER}/tmp/a_test.rb"),
+      EntryTest.new('ATest#test_bar', "ATest#test_bar#{DELIMITER}/tmp/a_test.rb"),
     ]
 
     streamed = Enumerator.new do |yielder|
@@ -282,7 +283,7 @@ class CI::Queue::RedisTest < Minitest::Test
 
   def test_reserve_lost_ignores_processed_entry_with_path
     queue = worker(1, populate: false)
-    entry = 'ATest#test_foo|/tmp/a_test.rb'
+    entry = "ATest#test_foo#{DELIMITER}/tmp/a_test.rb"
     test_id = 'ATest#test_foo'
 
     @redis.zadd(queue.send(:key, 'running'), 0, entry)
@@ -305,7 +306,7 @@ class CI::Queue::RedisTest < Minitest::Test
 
   def test_heartbeat_uses_test_id_for_processed_check
     queue = worker(1, populate: false)
-    entry = 'ATest#test_foo|/tmp/a_test.rb'
+    entry = "ATest#test_foo#{DELIMITER}/tmp/a_test.rb"
     test_id = 'ATest#test_foo'
 
     @redis.sadd(queue.send(:key, 'processed'), test_id)
@@ -319,7 +320,7 @@ class CI::Queue::RedisTest < Minitest::Test
         queue.send(:key, 'owners'),
         queue.send(:key, 'worker', queue.config.worker_id, 'queue'),
       ],
-      argv: [CI::Queue.time_now.to_f, entry],
+      argv: [CI::Queue.time_now.to_f, entry, DELIMITER],
     )
 
     assert_nil result
@@ -330,9 +331,9 @@ class CI::Queue::RedisTest < Minitest::Test
     queue.instance_variable_set(:@index, { 'ATest#test_foo' => :ok })
     queue.entry_resolver = ->(entry) { "resolved:#{entry}" }
 
-    resolved = queue.send(:resolve_entry, 'MissingTest#test_bar|/tmp/missing.rb')
+    resolved = queue.send(:resolve_entry, "MissingTest#test_bar#{DELIMITER}/tmp/missing.rb")
 
-    assert_equal 'resolved:MissingTest#test_bar|/tmp/missing.rb', resolved
+    assert_equal "resolved:MissingTest#test_bar#{DELIMITER}/tmp/missing.rb", resolved
   end
 
   def test_continuously_timing_out_tests

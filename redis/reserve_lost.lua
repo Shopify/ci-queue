@@ -5,11 +5,14 @@ local owners_key = KEYS[4]
 
 local current_time = ARGV[1]
 local timeout = ARGV[2]
+local entry_delimiter = ARGV[3]
 
 local function test_id_from_entry(entry)
-  local delimiter = string.find(entry, "|", 1, true)
-  if delimiter then
-    return string.sub(entry, 1, delimiter - 1)
+  if entry_delimiter then
+    local pos = string.find(entry, entry_delimiter, 1, true)
+    if pos then
+      return string.sub(entry, 1, pos - 1)
+    end
   end
   return entry
 end

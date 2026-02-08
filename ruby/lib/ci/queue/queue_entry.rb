@@ -6,7 +6,7 @@ require 'json'
 module CI
   module Queue
     module QueueEntry
-      DELIMITER = '|'
+      DELIMITER = "\t"
       LOAD_ERROR_PREFIX = '__ciq_load_error__:'.freeze
 
       def self.parse(entry)
