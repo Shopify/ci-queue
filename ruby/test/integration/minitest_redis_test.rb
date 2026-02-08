@@ -89,7 +89,7 @@ module Integration
         assert_empty err
         result = normalize(out.lines[1].strip)
         assert_equal "Ran 1 tests, 0 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)", result
-        warnings = JSON.parse(warnings_file.read)
+        warnings = warnings_file.read.lines.map { |line| JSON.parse(line) }
         assert_equal 1, warnings.size
       end
     end
@@ -927,7 +927,7 @@ module Integration
         end
 
         warnings_file.rewind
-        content = JSON.parse(warnings_file.read)
+        content = warnings_file.read.lines.map { |line| JSON.parse(line) }
         assert_equal 1, content.size
         assert_equal "RESERVED_LOST_TEST", content[0]["type"]
         assert_equal "Atest#test_bar", content[0]["test"]
