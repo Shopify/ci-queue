@@ -169,6 +169,7 @@ module Minitest
           end
 
           report_load_stats(queue)
+          store_worker_profile(queue)
           queue.stop_heartbeat!
         end
       end
@@ -228,6 +229,54 @@ module Minitest
         slowest.each do |file_path, duration|
           puts "    #{duration.round(3)}s - #{Minitest::Queue.relative_path(file_path)}"
         end
+      end
+
+      def store_worker_profile(queue)
+        return unless queue.respond_to?(:config)
+        config = queue.config
+
+        run_start = Minitest::Queue::Runner.run_start
+        return unless run_start
+
+        run_end = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        profile = {
+          'worker_id' => config.worker_id,
+          'mode' => config.lazy_load ? 'lazy' : 'eager',
+          'role' => queue.master? ? 'leader' : 'non-leader',
+          'total_wall_clock' => (run_end - run_start).round(2),
+        }
+
+        first_test = queue.respond_to?(:first_reserve_at) ? queue.first_reserve_at : nil
+        profile['time_to_first_test'] = (first_test - run_start).round(2) if first_test
+
+        load_tests_duration = Minitest::Queue::Runner.load_tests_duration
+        profile['load_tests_duration'] = load_tests_duration.round(2) if load_tests_duration
+
+        if queue.respond_to?(:file_loader) && queue.file_loader.load_stats.any?
+          loader = queue.file_loader
+          profile['files_loaded'] = loader.load_stats.size
+          profile['file_load_time'] = loader.total_load_time.round(2)
+        end
+
+        profile['total_files'] = Minitest::Queue::Runner.total_files if Minitest::Queue::Runner.total_files
+
+        rss_kb = begin
+          if File.exist?("/proc/#{Process.pid}/statm")
+            pages = Integer(File.read("/proc/#{Process.pid}/statm").split[1])
+            pages * 4
+          else
+            Integer(`ps -o rss= -p #{Process.pid}`.strip)
+          end
+        rescue
+          nil
+        end
+        profile['memory_rss_kb'] = rss_kb if rss_kb
+
+        queue.rescue_connection_errors do
+          queue.build.record_worker_profile(profile)
+        end
+      rescue => e
+        puts "WARNING: Failed to store worker profile: #{e.message}"
       end
 
       def rescue_run_errors(&block)
