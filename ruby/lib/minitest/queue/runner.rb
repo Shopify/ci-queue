@@ -376,7 +376,13 @@ module Minitest
       end
 
       def load_tests
-        return if queue_config.lazy_load && queue.respond_to?(:stream_populate)
+        if queue_config.lazy_load && queue.respond_to?(:stream_populate)
+          # In lazy-load mode, test files are loaded on-demand by the entry resolver.
+          # We still need minitest/autorun so Minitest's at_exit hook fires for all
+          # workers (not just the leader who loads files during streaming).
+          require 'minitest/autorun'
+          return
+        end
 
         test_file_list.sort.each do |f|
           require File.expand_path(f)
