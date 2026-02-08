@@ -372,6 +372,62 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_instance_of CI::Queue::Redis::Worker, queue
   end
 
+  def test_first_reserve_at_is_set_on_first_reserve
+    queue = worker(1)
+    assert_nil queue.first_reserve_at
+
+    queue.poll do |_test|
+      assert queue.first_reserve_at, "first_reserve_at should be set after first reserve"
+      break
+    end
+  end
+
+  def test_first_reserve_at_does_not_change_on_subsequent_reserves
+    queue = worker(1)
+    first_value = nil
+    count = 0
+
+    queue.poll do |_test|
+      first_value ||= queue.first_reserve_at
+      assert_equal first_value, queue.first_reserve_at
+      count += 1
+      break if count >= 3
+    end
+
+    assert_operator count, :>=, 2, "Should have reserved multiple tests"
+  end
+
+  def test_record_and_read_worker_profiles
+    queue = worker(1)
+    profile = {
+      'worker_id' => '1',
+      'mode' => 'lazy',
+      'role' => 'leader',
+      'total_wall_clock' => 12.34,
+      'time_to_first_test' => 1.23,
+      'memory_rss_kb' => 512_000,
+    }
+
+    queue.build.record_worker_profile(profile)
+
+    profiles = queue.build.worker_profiles
+    assert_equal 1, profiles.size
+    assert_equal profile, profiles['1']
+  end
+
+  def test_worker_profiles_aggregates_multiple_workers
+    q1 = worker(1)
+    q2 = worker(2)
+
+    q1.build.record_worker_profile({ 'worker_id' => '1', 'role' => 'leader' })
+    q2.build.record_worker_profile({ 'worker_id' => '2', 'role' => 'non-leader' })
+
+    profiles = q1.build.worker_profiles
+    assert_equal 2, profiles.size
+    assert_equal 'leader', profiles['1']['role']
+    assert_equal 'non-leader', profiles['2']['role']
+  end
+
   private
 
   def shuffled_test_list

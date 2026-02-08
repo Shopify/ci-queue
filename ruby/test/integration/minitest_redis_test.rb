@@ -253,6 +253,44 @@ module Integration
       end
     end
 
+    def test_worker_profile_in_report
+      build_id = 'profile-report'
+      out, err = capture_subprocess_io do
+        system(
+          { 'BUILDKITE' => '1' },
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', build_id,
+          '--worker', '0',
+          '--timeout', '5',
+          '--lazy-load',
+          '--stream-batch-size', '10',
+          '--stream-timeout', '5',
+          '-Itest',
+          'test/passing_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      assert_empty err
+
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'report',
+          '--queue', @redis_url,
+          '--build', build_id,
+          '--timeout', '5',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      assert_empty err
+      assert_includes out, 'Worker profile summary'
+      assert_includes out, 'leader'
+      assert_includes out, 'Wall Clock'
+    end
+
     def test_verbose_reporter
       out, err = capture_subprocess_io do
         system(

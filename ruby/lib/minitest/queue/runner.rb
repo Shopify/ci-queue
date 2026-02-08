@@ -49,6 +49,8 @@ module Minitest
       end
 
       def run_command
+        @run_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
         require_worker_id!
         # if it's an automatic job retry we should process the main queue
         if manual_retry?
@@ -113,10 +115,12 @@ module Minitest
           # test files haven't been loaded yet. exit! prevents double-execution
           # if minitest/autorun was loaded by the leader during streaming.
           passed = Minitest.run []
+          store_worker_profile
           verify_reporters!(reporters)
           exit!(passed ? 0 : 1)
         else
           at_exit {
+            store_worker_profile
             verify_reporters!(reporters)
           }
           # Let minitest's at_exit hook trigger
@@ -295,6 +299,7 @@ module Minitest
         reporter.write_failure_file(queue_config.failure_file) if queue_config.failure_file
         reporter.write_flaky_tests_file(queue_config.export_flaky_tests_file) if queue_config.export_flaky_tests_file
         exit_code = reporter.report
+        print_worker_profiles(supervisor)
         exit! exit_code
       end
 
@@ -521,6 +526,94 @@ module Minitest
         parser.parse!(argv)
         command = argv.shift
         return command, argv
+      end
+
+      def store_worker_profile
+        run_end = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        return unless defined?(@run_start)
+
+        profile = {
+          'worker_id' => queue_config.worker_id,
+          'mode' => queue_config.lazy_load ? 'lazy' : 'eager',
+          'role' => queue.master? ? 'leader' : 'non-leader',
+          'total_wall_clock' => (run_end - @run_start).round(2),
+        }
+
+        first_test = queue.respond_to?(:first_reserve_at) ? queue.first_reserve_at : nil
+        profile['time_to_first_test'] = (first_test - @run_start).round(2) if first_test
+
+        if queue.respond_to?(:file_loader) && queue.file_loader.load_stats.any?
+          loader = queue.file_loader
+          profile['files_loaded'] = loader.load_stats.size
+          profile['file_load_time'] = loader.total_load_time.round(2)
+        end
+
+        total_files = begin; test_file_list.size; rescue; nil; end
+        profile['total_files'] = total_files if total_files
+
+        rss_kb = begin
+          if File.exist?("/proc/#{Process.pid}/statm")
+            pages = Integer(File.read("/proc/#{Process.pid}/statm").split[1])
+            pages * 4
+          else
+            Integer(`ps -o rss= -p #{Process.pid}`.strip)
+          end
+        rescue
+          nil
+        end
+        profile['memory_rss_kb'] = rss_kb if rss_kb
+
+        queue.rescue_connection_errors do
+          queue.build.record_worker_profile(profile)
+        end
+      rescue
+        # Don't fail the build if profiling fails
+      end
+
+      def print_worker_profiles(supervisor)
+        profiles = supervisor.build.worker_profiles
+        return if profiles.empty?
+
+        sorted = profiles.values.sort_by { |p| p['worker_id'].to_s }
+        mode = sorted.first&.dig('mode') || 'unknown'
+
+        puts
+        puts "Worker profile summary (#{sorted.size} workers, mode: #{mode}):"
+        puts "  %-12s %-12s %14s %14s %14s %10s" % ['Worker', 'Role', '1st Test', 'Wall Clock', 'File Load', 'Memory']
+        puts "  #{'-' * 78}"
+
+        sorted.each do |p|
+          first_test = p['time_to_first_test'] ? "#{p['time_to_first_test']}s" : 'n/a'
+          wall = "#{p['total_wall_clock']}s"
+          files = if p['files_loaded'] && p['total_files']
+            "#{p['file_load_time']}s (#{p['files_loaded']}/#{p['total_files']})"
+          elsif p['file_load_time']
+            "#{p['file_load_time']}s"
+          else
+            'n/a'
+          end
+          mem = p['memory_rss_kb'] ? "#{(p['memory_rss_kb'] / 1024.0).round(0)} MB" : 'n/a'
+
+          puts "  %-12s %-12s %14s %14s %14s %10s" % [
+            p['worker_id'], p['role'], first_test, wall, files, mem
+          ]
+        end
+
+        leaders = sorted.select { |p| p['role'] == 'leader' }
+        non_leaders = sorted.select { |p| p['role'] == 'non-leader' }
+
+        if leaders.any? && non_leaders.any?
+          leader_first = leaders.filter_map { |p| p['time_to_first_test'] }.min
+          nl_firsts = non_leaders.filter_map { |p| p['time_to_first_test'] }
+          if leader_first && nl_firsts.any?
+            avg_nl = (nl_firsts.sum / nl_firsts.size).round(2)
+            puts
+            puts "  Leader time to 1st test: #{leader_first}s"
+            puts "  Avg non-leader time to 1st test: #{avg_nl}s"
+          end
+        end
+      rescue
+        # Don't fail the build if profile printing fails
       end
 
       def parser

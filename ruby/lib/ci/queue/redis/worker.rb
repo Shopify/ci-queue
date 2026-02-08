@@ -14,10 +14,12 @@ module CI
 
       class Worker < Base
         attr_accessor :entry_resolver
+        attr_reader :first_reserve_at
 
         def initialize(redis, config)
           @reserved_tests = Concurrent::Set.new
           @shutdown_required = false
+          @first_reserve_at = nil
           super(redis, config)
         end
 
@@ -334,7 +336,10 @@ module CI
 
         def reserve
           (try_to_reserve_lost_test || try_to_reserve_test).tap do |entry|
-            reserve_entry(entry) if entry
+            if entry
+              @first_reserve_at ||= Process.clock_gettime(Process::CLOCK_MONOTONIC)
+              reserve_entry(entry)
+            end
           end
         end
 
