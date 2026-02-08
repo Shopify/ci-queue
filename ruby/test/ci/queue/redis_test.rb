@@ -325,6 +325,16 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_nil result
   end
 
+  def test_resolve_entry_falls_back_to_resolver
+    queue = worker(1, populate: false)
+    queue.instance_variable_set(:@index, { 'ATest#test_foo' => :ok })
+    queue.entry_resolver = ->(entry) { "resolved:#{entry}" }
+
+    resolved = queue.send(:resolve_entry, 'MissingTest#test_bar|/tmp/missing.rb')
+
+    assert_equal 'resolved:MissingTest#test_bar|/tmp/missing.rb', resolved
+  end
+
   def test_continuously_timing_out_tests
     3.times do
       @redis.flushdb

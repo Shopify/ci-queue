@@ -268,13 +268,13 @@ module CI
 
         def resolve_entry(entry)
           test_id = queue_entry_test_id(entry)
-          return index.fetch(test_id) if populated?
-
-          if entry_resolver
-            entry_resolver.call(entry)
-          else
-            entry
+          if populated?
+            return index[test_id] if index.key?(test_id)
           end
+
+          return entry_resolver.call(entry) if entry_resolver
+
+          entry
         end
 
         def still_streaming?
