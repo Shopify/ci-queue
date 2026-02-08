@@ -7,7 +7,7 @@ module CI
       attr_accessor :max_test_duration, :max_test_duration_percentile, :track_test_duration
       attr_accessor :max_test_failed, :redis_ttl, :warnings_file, :debug_log, :max_missed_heartbeat_seconds
       attr_accessor :lazy_load, :stream_batch_size
-      attr_accessor :streaming_timeout
+      attr_accessor :streaming_timeout, :test_helpers
       attr_reader :circuit_breakers
       attr_writer :seed, :build_id
       attr_writer :queue_init_timeout, :report_timeout, :inactive_workers_timeout
@@ -29,6 +29,7 @@ module CI
             lazy_load: lazy_load || false,
             stream_batch_size: env['CI_QUEUE_STREAM_BATCH_SIZE']&.to_i,
             streaming_timeout: env['CI_QUEUE_STREAM_TIMEOUT']&.to_i,
+            test_helpers: env['CI_QUEUE_TEST_HELPERS'],
           )
         end
 
@@ -54,7 +55,7 @@ module CI
         max_test_duration_percentile: 0.5, track_test_duration: false, max_test_failed: nil,
         queue_init_timeout: nil, redis_ttl: 8 * 60 * 60, report_timeout: nil, inactive_workers_timeout: nil,
         export_flaky_tests_file: nil, warnings_file: nil, debug_log: nil, max_missed_heartbeat_seconds: nil,
-        lazy_load: false, stream_batch_size: 2000, streaming_timeout: nil)
+        lazy_load: false, stream_batch_size: 2000, streaming_timeout: nil, test_helpers: nil)
         @build_id = build_id
         @circuit_breakers = [CircuitBreaker::Disabled]
         @failure_file = failure_file
@@ -84,6 +85,13 @@ module CI
         @lazy_load = lazy_load
         @stream_batch_size = stream_batch_size || 2000
         @streaming_timeout = streaming_timeout
+        @test_helpers = test_helpers
+      end
+
+      def test_helper_paths
+        return [] unless @test_helpers
+
+        @test_helpers.split(',').map(&:strip)
       end
 
       def queue_init_timeout

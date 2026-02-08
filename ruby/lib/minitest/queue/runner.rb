@@ -378,14 +378,27 @@ module Minitest
       def load_tests
         if queue_config.lazy_load && queue.respond_to?(:stream_populate)
           # In lazy-load mode, test files are loaded on-demand by the entry resolver.
-          # We still need minitest/autorun so Minitest's at_exit hook fires for all
-          # workers (not just the leader who loads files during streaming).
-          require 'minitest/autorun'
+          # Load only test helpers (e.g., test/test_helper.rb) to boot the app and
+          # register minitest's at_exit hook for all workers. Set via CI_QUEUE_TEST_HELPERS.
+          load_test_helpers
           return
         end
 
         test_file_list.sort.each do |f|
           require File.expand_path(f)
+        end
+      end
+
+      def load_test_helpers
+        helpers = queue_config.test_helper_paths
+        if helpers.empty?
+          # Fallback: ensure minitest runs even without explicit test helpers.
+          require 'minitest/autorun'
+          return
+        end
+
+        helpers.each do |helper_path|
+          require File.expand_path(helper_path)
         end
       end
 
