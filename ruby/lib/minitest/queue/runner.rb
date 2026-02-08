@@ -477,7 +477,7 @@ module Minitest
 
       def load_tests_lazy(files, loader, resolver)
         seen = Set.new
-        known_runnables = Set.new(Minitest::Test.runnables)
+        known_count = Minitest::Test.runnables.size
 
         files.each do |file|
           file_path = File.expand_path(file)
@@ -504,26 +504,31 @@ module Minitest
             next
           end
 
-          current_runnables = Minitest::Test.runnables
-          new_runnables = current_runnables - known_runnables.to_a
-          new_runnables.each do |runnable|
-            runnable.runnable_methods.each do |method_name|
-              test_id = "#{runnable.name}##{method_name}"
-              next if seen.include?(test_id)
+          # Use array index to find new runnables — O(1) per iteration
+          # instead of O(n²) set difference on growing collections.
+          runnables = Minitest::Test.runnables
+          if runnables.size > known_count
+            new_runnables = runnables[known_count..]
+            known_count = runnables.size
 
-              seen.add(test_id)
-              yield Minitest::Queue::LazySingleExample.new(
-                runnable.name,
-                method_name,
-                file_path,
-                loader: loader,
-                resolver: resolver,
-              )
-            rescue NameError, NoMethodError
-              next
+            new_runnables.each do |runnable|
+              runnable.runnable_methods.each do |method_name|
+                test_id = "#{runnable.name}##{method_name}"
+                next if seen.include?(test_id)
+
+                seen.add(test_id)
+                yield Minitest::Queue::LazySingleExample.new(
+                  runnable.name,
+                  method_name,
+                  file_path,
+                  loader: loader,
+                  resolver: resolver,
+                )
+              rescue NameError, NoMethodError
+                next
+              end
             end
           end
-          known_runnables.merge(new_runnables)
         end
       end
 
