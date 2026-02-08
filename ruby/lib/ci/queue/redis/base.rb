@@ -144,19 +144,26 @@ module CI
         end
 
         def to_a
-          test_ids.reverse.map { |k| index.fetch(k) }
+          test_ids.reverse.map do |entry|
+            index.fetch(entry) do
+              test_id = CI::Queue::QueueEntry.test_id(entry)
+              index.fetch(test_id)
+            end
+          end
         end
 
         def progress
-          total - size
+          progress = total - size
+          progress < 0 ? 0 : progress
         end
 
-        def wait_for_master(timeout: 30)
+        def wait_for_master(timeout: 30, allow_streaming: false)
           return true if master?
           return true if queue_initialized?
+          return true if allow_streaming && streaming?
 
           (timeout * 10 + 1).to_i.times do
-            if queue_initialized?
+            if queue_initialized? || (allow_streaming && streaming?)
               return true
             else
               sleep 0.1
@@ -175,6 +182,10 @@ module CI
             status = master_status
             status == 'ready' || status == 'finished'
           end
+        end
+
+        def streaming?
+          master_status == 'streaming'
         end
 
         def queue_initializing?
@@ -235,18 +246,31 @@ module CI
         end
 
         def read_script(name)
-          ::File.read(::File.join(CI::Queue::DEV_SCRIPTS_ROOT, "#{name}.lua"))
+          resolve_lua_includes(
+            ::File.read(::File.join(CI::Queue::DEV_SCRIPTS_ROOT, "#{name}.lua")),
+            CI::Queue::DEV_SCRIPTS_ROOT,
+          )
         rescue SystemCallError
-          ::File.read(::File.join(CI::Queue::RELEASE_SCRIPTS_ROOT, "#{name}.lua"))
+          resolve_lua_includes(
+            ::File.read(::File.join(CI::Queue::RELEASE_SCRIPTS_ROOT, "#{name}.lua")),
+            CI::Queue::RELEASE_SCRIPTS_ROOT,
+          )
+        end
+
+        def resolve_lua_includes(script, root)
+          script.gsub(/^-- @include (\S+)$/) do
+            ::File.read(::File.join(root, "#{$1}.lua"))
+          end
         end
 
         class HeartbeatProcess
-          def initialize(redis_url, zset_key, processed_key, owners_key, worker_queue_key)
+          def initialize(redis_url, zset_key, processed_key, owners_key, worker_queue_key, entry_delimiter:)
             @redis_url = redis_url
             @zset_key = zset_key
             @processed_key = processed_key
             @owners_key = owners_key
             @worker_queue_key = worker_queue_key
+            @entry_delimiter = entry_delimiter
           end
 
           def boot!
@@ -261,6 +285,7 @@ module CI
               @processed_key,
               @owners_key,
               @worker_queue_key,
+              @entry_delimiter,
               in: child_read,
               out: child_write,
             )
@@ -335,6 +360,7 @@ module CI
             key('processed'),
             key('owners'),
             key('worker', worker_id, 'queue'),
+            entry_delimiter: CI::Queue::QueueEntry::DELIMITER,
           )
         end
 

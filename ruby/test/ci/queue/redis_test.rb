@@ -4,6 +4,9 @@ require 'test_helper'
 class CI::Queue::RedisTest < Minitest::Test
   include SharedQueueAssertions
 
+  DELIMITER = CI::Queue::QueueEntry::DELIMITER
+  EntryTest = Struct.new(:id, :queue_entry)
+
   def setup
     @redis_url = ENV.fetch('REDIS_URL', 'redis://localhost:6379/0')
     @redis = ::Redis.new(url: @redis_url)
@@ -234,6 +237,105 @@ class CI::Queue::RedisTest < Minitest::Test
     end
   end
 
+  def test_streaming_waits_for_batches
+    leader = worker(1, populate: false, lazy_load_streaming_timeout: 2, queue_init_timeout: 2, build_id: 'streaming')
+    consumer = worker(2, populate: false, lazy_load_streaming_timeout: 2, queue_init_timeout: 2, build_id: 'streaming')
+    consumer.entry_resolver = ->(entry) { entry }
+
+    tests = [
+      EntryTest.new('ATest#test_foo', "ATest#test_foo#{DELIMITER}/tmp/a_test.rb"),
+      EntryTest.new('ATest#test_bar', "ATest#test_bar#{DELIMITER}/tmp/a_test.rb"),
+    ]
+
+    streamed = Enumerator.new do |yielder|
+      sleep 0.2
+      tests.each { |test| yielder << test }
+    end
+
+    leader_thread = Thread.new do
+      leader.stream_populate(streamed, random: Random.new(0), batch_size: 1)
+    end
+
+    timeout_at = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 1
+    loop do
+      status = @redis.get(leader.send(:key, 'master-status'))
+      break if status == 'streaming' || status == 'ready'
+      raise "streaming status not set" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > timeout_at
+      sleep 0.01
+    end
+
+    consumed = []
+    consumer_thread = Thread.new do
+      consumer.poll do |entry|
+        consumed << entry
+        consumer.acknowledge(entry)
+      end
+    end
+
+    sleep 0.05
+
+    leader_thread.join
+    consumer_thread.join(2)
+
+    assert_equal tests.map(&:queue_entry).sort, consumed.sort
+    assert_predicate consumer, :exhausted?
+  end
+
+  def test_reserve_lost_ignores_processed_entry_with_path
+    queue = worker(1, populate: false)
+    entry = "ATest#test_foo#{DELIMITER}/tmp/a_test.rb"
+    test_id = 'ATest#test_foo'
+
+    @redis.zadd(queue.send(:key, 'running'), 0, entry)
+    @redis.sadd(queue.send(:key, 'completed'), test_id)
+    @redis.hset(queue.send(:key, 'owners'), entry, queue.send(:key, 'worker', queue.config.worker_id, 'queue'))
+
+    lost = queue.send(:try_to_reserve_lost_test)
+    assert_nil lost
+  end
+
+  def test_streaming_timeout_raises_lost_master
+    queue = worker(1, populate: false, lazy_load_streaming_timeout: 1, queue_init_timeout: 1)
+    @redis.set(queue.send(:key, 'master-status'), 'streaming')
+    @redis.set(queue.send(:key, 'streaming-updated-at'), CI::Queue.time_now.to_f - 5)
+
+    assert_raises(CI::Queue::Redis::LostMaster) do
+      queue.poll { |_entry| }
+    end
+  end
+
+  def test_heartbeat_uses_test_id_for_processed_check
+    queue = worker(1, populate: false)
+    entry = "ATest#test_foo#{DELIMITER}/tmp/a_test.rb"
+    test_id = 'ATest#test_foo'
+
+    @redis.sadd(queue.send(:key, 'processed'), test_id)
+
+    result = queue.send(
+      :eval_script,
+      :heartbeat,
+      keys: [
+        queue.send(:key, 'running'),
+        queue.send(:key, 'processed'),
+        queue.send(:key, 'owners'),
+        queue.send(:key, 'worker', queue.config.worker_id, 'queue'),
+      ],
+      argv: [CI::Queue.time_now.to_f, entry, DELIMITER],
+    )
+
+    assert_nil result
+  end
+
+  def test_resolve_entry_falls_back_to_resolver
+    queue = worker(1, populate: false)
+    queue.instance_variable_set(:@index, { 'ATest#test_foo' => :ok })
+    queue.entry_resolver = ->(entry) { "resolved:#{entry}" }
+
+    resolved = queue.send(:resolve_entry, "MissingTest#test_bar#{DELIMITER}/tmp/missing.rb")
+
+    assert_equal "resolved:MissingTest#test_bar#{DELIMITER}/tmp/missing.rb", resolved
+  end
+
   def test_continuously_timing_out_tests
     3.times do
       @redis.flushdb
@@ -268,6 +370,62 @@ class CI::Queue::RedisTest < Minitest::Test
   def test_initialise_from_rediss_uri
     queue = CI::Queue.from_uri('rediss://localhost:6379/0', config)
     assert_instance_of CI::Queue::Redis::Worker, queue
+  end
+
+  def test_first_reserve_at_is_set_on_first_reserve
+    queue = worker(1)
+    assert_nil queue.first_reserve_at
+
+    queue.poll do |_test|
+      assert queue.first_reserve_at, "first_reserve_at should be set after first reserve"
+      break
+    end
+  end
+
+  def test_first_reserve_at_does_not_change_on_subsequent_reserves
+    queue = worker(1)
+    first_value = nil
+    count = 0
+
+    queue.poll do |_test|
+      first_value ||= queue.first_reserve_at
+      assert_equal first_value, queue.first_reserve_at
+      count += 1
+      break if count >= 3
+    end
+
+    assert_operator count, :>=, 2, "Should have reserved multiple tests"
+  end
+
+  def test_record_and_read_worker_profiles
+    queue = worker(1)
+    profile = {
+      'worker_id' => '1',
+      'mode' => 'lazy',
+      'role' => 'leader',
+      'total_wall_clock' => 12.34,
+      'time_to_first_test' => 1.23,
+      'memory_rss_kb' => 512_000,
+    }
+
+    queue.build.record_worker_profile(profile)
+
+    profiles = queue.build.worker_profiles
+    assert_equal 1, profiles.size
+    assert_equal profile, profiles['1']
+  end
+
+  def test_worker_profiles_aggregates_multiple_workers
+    q1 = worker(1)
+    q2 = worker(2)
+
+    q1.build.record_worker_profile({ 'worker_id' => '1', 'role' => 'leader' })
+    q2.build.record_worker_profile({ 'worker_id' => '2', 'role' => 'non-leader' })
+
+    profiles = q1.build.worker_profiles
+    assert_equal 2, profiles.size
+    assert_equal 'leader', profiles['1']['role']
+    assert_equal 'non-leader', profiles['2']['role']
   end
 
   private

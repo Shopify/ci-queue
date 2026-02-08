@@ -136,9 +136,9 @@ module Minitest
         result[:time] = 0
         tests.each do |test|
           result[:"#{result(test)}_count"] += 1
-          result[:assertion_count] += test.assertions
+          result[:assertion_count] += test.assertions || 0
           result[:test_count] += 1
-          result[:time] += test.time
+          result[:time] += test.time || 0
         end
         result
       end

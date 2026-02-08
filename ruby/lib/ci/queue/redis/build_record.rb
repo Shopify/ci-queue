@@ -108,6 +108,18 @@ module CI
           redis.smembers(key('flaky-reports'))
         end
 
+        def record_worker_profile(profile)
+          redis.pipelined do |pipeline|
+            pipeline.hset(key('worker-profiles'), config.worker_id, JSON.dump(profile))
+            pipeline.expire(key('worker-profiles'), config.redis_ttl)
+          end
+        end
+
+        def worker_profiles
+          raw = redis.hgetall(key('worker-profiles'))
+          raw.transform_values { |v| JSON.parse(v) }
+        end
+
         def fetch_stats(stat_names)
           counts = redis.pipelined do |pipeline|
             stat_names.each { |c| pipeline.hvals(key(c)) }
