@@ -542,10 +542,11 @@ module Minitest
 
         puts
         puts "Worker profile summary (#{sorted.size} workers, mode: #{mode}):"
-        puts "  %-12s %-12s %14s %14s %14s %14s %10s" % ['Worker', 'Role', '1st Test', 'Wall Clock', 'Load Tests', 'File Load', 'Memory']
-        puts "  #{'-' * 90}"
+        puts "  %-12s %-12s %8s %14s %14s %14s %14s %10s" % ['Worker', 'Role', 'Tests', '1st Test', 'Wall Clock', 'Load Tests', 'File Load', 'Memory']
+        puts "  #{'-' * 100}"
 
         sorted.each do |p|
+          tests = p['tests_run'] ? p['tests_run'].to_s : 'n/a'
           first_test = p['time_to_first_test'] ? "#{p['time_to_first_test']}s" : 'n/a'
           wall = "#{p['total_wall_clock']}s"
           load_tests = p['load_tests_duration'] ? "#{p['load_tests_duration']}s" : 'n/a'
@@ -558,8 +559,8 @@ module Minitest
           end
           mem = p['memory_rss_kb'] ? "#{(p['memory_rss_kb'] / 1024.0).round(0)} MB" : 'n/a'
 
-          puts "  %-12s %-12s %14s %14s %14s %14s %10s" % [
-            p['worker_id'], p['role'], first_test, wall, load_tests, files, mem
+          puts "  %-12s %-12s %8s %14s %14s %14s %14s %10s" % [
+            p['worker_id'], p['role'], tests, first_test, wall, load_tests, files, mem
           ]
         end
 

@@ -160,16 +160,19 @@ module Minitest
 
       def run(reporter, *)
         rescue_run_errors do
-          queue.poll do |example|
-            result = queue.with_heartbeat(example.queue_entry) do
-              example.run
+          begin
+            queue.poll do |example|
+              result = queue.with_heartbeat(example.queue_entry) do
+                example.run
+              end
+
+              handle_test_result(reporter, example, result)
             end
 
-            handle_test_result(reporter, example, result)
+            report_load_stats(queue)
+          ensure
+            store_worker_profile(queue)
           end
-
-          report_load_stats(queue)
-          store_worker_profile(queue)
           queue.stop_heartbeat!
         end
       end
@@ -248,6 +251,9 @@ module Minitest
 
         first_test = queue.respond_to?(:first_reserve_at) ? queue.first_reserve_at : nil
         profile['time_to_first_test'] = (first_test - run_start).round(2) if first_test
+
+        tests_run = queue.rescue_connection_errors { queue.send(:redis).llen(queue.send(:key, 'worker', config.worker_id, 'queue')) }
+        profile['tests_run'] = tests_run.to_i if tests_run
 
         load_tests_duration = Minitest::Queue::Runner.load_tests_duration
         profile['load_tests_duration'] = load_tests_duration.round(2) if load_tests_duration
@@ -385,10 +391,15 @@ module Minitest
         id <=> other.id
       end
 
+      RUNNABLE_METHODS_TRIGGERED = {} # :nodoc:
+
       def runnable
         @runnable ||= begin
           klass = @resolver.resolve(@class_name, file_path: @file_path, loader: @loader)
-          klass.runnable_methods # Trigger dynamic method generation (e.g., Verdict FLAGS)
+          unless RUNNABLE_METHODS_TRIGGERED[klass]
+            klass.runnable_methods # Trigger dynamic method generation (e.g., Verdict FLAGS)
+            RUNNABLE_METHODS_TRIGGERED[klass] = true
+          end
           klass
         end
       end
