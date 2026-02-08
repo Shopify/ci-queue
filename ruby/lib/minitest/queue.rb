@@ -337,7 +337,11 @@ module Minitest
       end
 
       def runnable
-        @runnable ||= @resolver.resolve(@class_name, file_path: @file_path, loader: @loader)
+        @runnable ||= begin
+          klass = @resolver.resolve(@class_name, file_path: @file_path, loader: @loader)
+          klass.runnable_methods # Trigger dynamic method generation (e.g., Verdict FLAGS)
+          klass
+        end
       end
 
       def with_timestamps

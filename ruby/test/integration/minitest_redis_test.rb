@@ -200,6 +200,59 @@ module Integration
       end
     end
 
+    # Verifies that dynamically generated test methods (defined in runnable_methods,
+    # not at class load time) work correctly in lazy-load mode. This catches issues
+    # like Shopify's Verdict FLAGS methods not being found on non-leader workers.
+    def test_lazy_loading_dynamic_test_methods
+      build_id = 'lazy-dynamic'
+      test_files = File.expand_path('../../fixtures/test/dynamic_test.rb', __FILE__)
+      Tempfile.open('test_files_list') do |f|
+        f.write(test_files)
+        f.flush
+
+        out, err = capture_subprocess_io do
+          threads = 2.times.map do |i|
+            Thread.start do
+              system(
+                { 'BUILDKITE' => '1' },
+                @exe, 'run',
+                '--queue', @redis_url,
+                '--seed', 'foobar',
+                '--build', build_id,
+                '--worker', i.to_s,
+                '--timeout', '5',
+                '--queue-init-timeout', '10',
+                '--lazy-load',
+                '--test-files', f.path,
+                '--stream-batch-size', '1',
+                '--stream-timeout', '10',
+                '-Itest',
+                chdir: 'test/fixtures/',
+              )
+            end
+          end
+          threads.each(&:join)
+        end
+
+        assert_empty err
+
+        out, err = capture_subprocess_io do
+          system(
+            @exe, 'report',
+            '--queue', @redis_url,
+            '--build', build_id,
+            '--timeout', '5',
+            chdir: 'test/fixtures/',
+          )
+        end
+
+        assert_empty err
+        # 1 static + 3 dynamic variants = 4 tests
+        result = normalize(out.lines[1].strip)
+        assert_equal 'Ran 4 tests, 4 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)', result
+      end
+    end
+
     def test_verbose_reporter
       out, err = capture_subprocess_io do
         system(
