@@ -395,16 +395,22 @@ module Minitest
 
       def runnable
         @runnable ||= begin
-          # Always ensure the test file is loaded via FileLoader, even if the
-          # class already exists (e.g., autoloaded by Zeitwerk). Zeitwerk loads
-          # the class but may not execute test-specific code like `include`
-          # statements for helper modules or `run_all_with_flag` declarations.
-          @loader.load_file(@file_path) if @file_path && @loader
-
           klass = @resolver.resolve(@class_name, file_path: @file_path, loader: @loader)
           unless RUNNABLE_METHODS_TRIGGERED[klass]
             klass.runnable_methods
             RUNNABLE_METHODS_TRIGGERED[klass] = true
+          end
+
+          # If the method doesn't exist, the class may have been autoloaded by
+          # Zeitwerk without executing test-specific code (includes, helpers).
+          # Force load the file so all class-definition-time code executes.
+          unless klass.method_defined?(@method_name) || klass.private_method_defined?(@method_name)
+            if @file_path && @loader
+              @loader.load_file(@file_path)
+              RUNNABLE_METHODS_TRIGGERED.delete(klass)
+              klass.runnable_methods
+              RUNNABLE_METHODS_TRIGGERED[klass] = true
+            end
           end
 
           klass

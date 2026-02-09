@@ -23,11 +23,7 @@ module CI
         error = nil
 
         begin
-          if file_in_loaded_features?(file_path) && @forked
-            with_warning_suppression { Kernel.load(file_path) }
-          else
-            require file_path
-          end
+          require file_path
         rescue Exception => e
           raise if e.is_a?(SignalException) || e.is_a?(SystemExit)
           error = e
