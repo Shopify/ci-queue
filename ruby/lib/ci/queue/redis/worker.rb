@@ -34,7 +34,7 @@ module CI
           self
         end
 
-        def stream_populate(tests, random: Random.new, batch_size: 2000)
+        def stream_populate(tests, random: Random.new, batch_size: 10_000)
           batch_size = batch_size.to_i
           batch_size = 1 if batch_size < 1
 
@@ -231,6 +231,10 @@ module CI
           @reserved_entries ||= {}
         end
 
+        def reserved_entry_ids
+          @reserved_entry_ids ||= {}
+        end
+
         def worker_id
           config.worker_id
         end
@@ -245,20 +249,26 @@ module CI
           test_id = queue_entry_test_id(entry)
           reserved_tests << test_id
           reserved_entries[test_id] = entry
+          reserved_entry_ids[entry] = test_id
         end
 
         def unreserve_entry(test_id)
+          entry = reserved_entries.delete(test_id)
           reserved_tests.delete(test_id)
-          reserved_entries.delete(test_id)
+          reserved_entry_ids.delete(entry) if entry
         end
 
         def normalize_test_id(test_key)
           key = test_key.respond_to?(:id) ? test_key.id : test_key
+          if key.is_a?(String)
+            cached = reserved_entry_ids[key]
+            return cached if cached
+          end
           queue_entry_test_id(key)
         end
 
         def queue_entry_test_id(entry)
-          CI::Queue::QueueEntry.parse(entry).fetch(:test_id)
+          CI::Queue::QueueEntry.test_id(entry)
         end
 
         def queue_entry_for(test)
@@ -269,7 +279,7 @@ module CI
         end
 
         def resolve_entry(entry)
-          test_id = queue_entry_test_id(entry)
+          test_id = reserved_entry_ids[entry] || queue_entry_test_id(entry)
           if populated?
             return index[test_id] if index.key?(test_id)
           end

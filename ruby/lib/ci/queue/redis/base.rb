@@ -146,7 +146,7 @@ module CI
         def to_a
           test_ids.reverse.map do |entry|
             index.fetch(entry) do
-              test_id = CI::Queue::QueueEntry.parse(entry).fetch(:test_id)
+              test_id = CI::Queue::QueueEntry.test_id(entry)
               index.fetch(test_id)
             end
           end

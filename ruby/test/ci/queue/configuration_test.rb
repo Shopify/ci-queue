@@ -146,7 +146,7 @@ module CI::Queue
     def test_lazy_load_defaults
       config = Configuration.new
       refute config.lazy_load
-      assert_equal 2000, config.stream_batch_size
+      assert_equal 10000, config.stream_batch_size
     end
 
     def test_lazy_load_from_env

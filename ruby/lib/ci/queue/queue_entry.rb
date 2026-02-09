@@ -9,6 +9,11 @@ module CI
       DELIMITER = "\t"
       LOAD_ERROR_PREFIX = '__ciq_load_error__:'.freeze
 
+      def self.test_id(entry)
+        pos = entry.index(DELIMITER)
+        pos ? entry[0, pos] : entry
+      end
+
       def self.parse(entry)
         return { test_id: entry, file_path: nil } unless entry.include?(DELIMITER)
 

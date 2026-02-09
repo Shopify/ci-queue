@@ -468,10 +468,12 @@ module Minitest
       # (reads paths from a file, one per line) over positional argv arguments.
       # --test-files avoids ARG_MAX limits for large test suites (36K+ files).
       def test_file_list
-        if test_files_file
-          File.readlines(test_files_file, chomp: true).reject { |f| f.strip.empty? }
-        else
-          argv
+        @test_file_list ||= begin
+          if test_files_file
+            File.readlines(test_files_file, chomp: true).reject { |f| f.strip.empty? }
+          else
+            argv
+          end
         end
       end
 
@@ -710,7 +712,7 @@ module Minitest
 
           help = <<~EOS
             Batch size for streaming tests to Redis in lazy mode.
-            Defaults to 2000.
+            Defaults to 10000.
           EOS
           opts.separator ""
           opts.on('--stream-batch-size SIZE', Integer, help) do |size|
