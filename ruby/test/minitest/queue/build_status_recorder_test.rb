@@ -107,6 +107,22 @@ module Minitest::Queue
       assert_equal 0, @queue.test_failed
     end
 
+    def test_duplicate_ack_rolls_back_local_counters
+      # First worker records failure for "a" -> record_error returns true, we count it
+      reserve(@queue, "a")
+      @reporter.record(result("a", failure: "Something went wrong"))
+      assert_equal 1, @reporter.failures
+
+      # Second worker "acks" the same test (e.g. duplicate run); record_error returns false
+      second_queue = worker(2)
+      second_reporter = BuildStatusRecorder.new(build: second_queue.build)
+      second_reporter.start
+      reserve(second_queue, "a")
+      second_reporter.record(result("a", failure: "Something went wrong"))
+      # Local counter was incremented then rolled back because we weren't the first to ack
+      assert_equal 0, second_reporter.failures
+    end
+
     def test_static_queue_record_success
       static_queue = CI::Queue::Static.new(['test_example'], CI::Queue::Configuration.new(build_id: '42', worker_id: '1'))
       static_reporter = BuildStatusRecorder.new(build: static_queue.build)

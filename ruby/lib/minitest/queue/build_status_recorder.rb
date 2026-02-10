@@ -50,7 +50,15 @@ module Minitest
 
         stats = COUNTERS.zip(COUNTERS.map { |c| send(c) }).to_h
         if (test.failure || test.error?) && !test.skipped?
-          build.record_error("#{test.klass}##{test.name}", dump(test), stats: stats)
+          acknowledged = build.record_error("#{test.klass}##{test.name}", dump(test), stats: stats)
+          unless acknowledged
+             # Duplicate ack: we didn't write to Redis, so don't count this in local stats
+             if test.error?
+              self.errors -= 1
+             else
+              self.failures -= 1
+             end
+          end
         elsif test.requeued?
           build.record_requeue("#{test.klass}##{test.name}", stats: stats)
         else

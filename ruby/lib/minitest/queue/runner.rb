@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 require 'optparse'
 require 'json'
+require 'fileutils'
 require 'minitest/queue'
 require 'ci/queue'
 require 'digest/md5'
@@ -242,16 +243,16 @@ module Minitest
           puts
 
           File.write('log/test_order.log', failing_order.to_a.map(&:id).join("\n"))
-          
+
           bisect_test_details = failing_order.to_a.map do |test|
             source_location = test.source_location
             file_path = source_location&.first || 'unknown'
             line_number = source_location&.last || -1
             "#{test.id} #{file_path}:#{line_number}"
           end
-          
+
           File.write('log/bisect_test_details.log', bisect_test_details.join("\n"))
-          
+
           exit! 0
         end
       end
@@ -336,8 +337,22 @@ module Minitest
         warnings = build.pop_warnings.map do |type, attributes|
           attributes.merge(type: type)
         end.compact
-        File.open(queue_config.warnings_file, 'w') do |f|
-          JSON.dump(warnings, f)
+
+        return if warnings.empty?
+
+        begin
+          # Ensure directory exists
+          dir = File.dirname(queue_config.warnings_file)
+          FileUtils.mkdir_p(dir) unless File.directory?(dir)
+
+          # Write each warning as a separate JSON line (JSONL format)
+          File.open(queue_config.warnings_file, 'a') do |f|
+            warnings.each do |warning|
+              f.puts(JSON.dump(warning))
+            end
+          end
+        rescue => error
+          STDERR.puts "Failed to write warnings: #{error.message}"
         end
       end
 
