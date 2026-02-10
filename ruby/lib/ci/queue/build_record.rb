@@ -21,11 +21,17 @@ module CI
       def record_error(id, payload, stats: nil)
         error_reports[id] = payload
         record_stats(stats)
+        true
       end
 
       def record_success(id, stats: nil, skip_flaky_record: false, acknowledge: true)
         error_reports.delete(id)
         record_stats(stats)
+        true
+      end
+
+      def record_requeue(id, stats: nil)
+        true
       end
 
       def fetch_stats(stat_names)

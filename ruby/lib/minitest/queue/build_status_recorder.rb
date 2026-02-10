@@ -38,35 +38,38 @@ module Minitest
         super
 
         self.total_time = Minitest.clock_time - start_time
-        if test.requeued?
-          self.requeues += 1
-        elsif test.skipped?
-          self.skips += 1
-        elsif test.error?
-          self.errors += 1
-        elsif test.failure
-          self.failures += 1
-        end
+        stats = COUNTERS.zip(COUNTERS.map { |c| send(c) + stat_delta(c, test) }).to_h
 
-        stats = COUNTERS.zip(COUNTERS.map { |c| send(c) }).to_h
-        if (test.failure || test.error?) && !test.skipped?
-          acknowledged = build.record_error("#{test.klass}##{test.name}", dump(test), stats: stats)
-          unless acknowledged
-             # Duplicate ack: we didn't write to Redis, so don't count this in local stats
-             if test.error?
-              self.errors -= 1
-             else
-              self.failures -= 1
-             end
-          end
+        acknowledged = if (test.failure || test.error?) && !test.skipped?
+          build.record_error("#{test.klass}##{test.name}", dump(test), stats: stats)
         elsif test.requeued?
           build.record_requeue("#{test.klass}##{test.name}", stats: stats)
         else
           build.record_success("#{test.klass}##{test.name}", stats: stats, skip_flaky_record: test.skipped?)
         end
+
+        if acknowledged
+          if (test.failure || test.error?) && !test.skipped?
+            test.error? ? self.errors += 1 : self.failures += 1
+          elsif test.requeued?
+            self.requeues += 1
+          elsif test.skipped?
+            self.skips += 1
+          end
+        end
       end
 
       private
+
+      def stat_delta(counter, test)
+        case counter
+        when 'errors'   then test.error?   && !test.skipped? ? 1 : 0
+        when 'failures' then test.failure  && !test.skipped? ? 1 : 0
+        when 'skips'    then test.skipped? ? 1 : 0
+        when 'requeues' then test.requeued? ? 1 : 0
+        else 0
+        end
+      end
 
       def dump(test)
         ErrorReport.new(self.class.failure_formatter.new(test).to_h).dump

@@ -72,20 +72,21 @@ module CI
         end
 
         def record_success(id, stats: nil, skip_flaky_record: false)
-          _, error_reports_deleted_count, requeued_count, _ = redis.multi do |transaction|
+          acknowledged, error_reports_deleted_count, requeued_count, _ = redis.multi do |transaction|
             @queue.acknowledge(id, pipeline: transaction)
             transaction.hdel(key('error-reports'), id)
             transaction.hget(key('requeues-count'), id)
             record_stats(stats, pipeline: transaction)
           end
           record_flaky(id) if !skip_flaky_record && (error_reports_deleted_count.to_i > 0 || requeued_count.to_i > 0)
-          nil
+          !!acknowledged
         end
 
         def record_requeue(id, stats: nil)
           redis.pipelined do |pipeline|
-           record_stats(stats, pipeline: pipeline)
+            record_stats(stats, pipeline: pipeline)
           end
+          true
         end
 
         def record_flaky(id, stats: nil)
