@@ -58,9 +58,7 @@ module CI
 
         def record_error(id, payload, stats: nil)
           # Run acknowledge first so we know whether we're the first to ack
-          acknowledged = redis.pipelined do |pipeline|
-            @queue.acknowledge(id, error: payload, pipeline: pipeline)
-          end.first
+          acknowledged = @queue.acknowledge(id, error: payload)
 
           if acknowledged
             # We were the first to ack; another worker already ack'd would get falsy from SADD
