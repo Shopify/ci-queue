@@ -57,14 +57,20 @@ module CI
         end
 
         def record_error(id, payload, stats: nil)
-          acknowledged = @queue.acknowledge(id, error: payload)
+          # Run acknowledge first so we know whether we're the first to ack
+          acknowledged = redis.pipelined do |pipeline|
+            @queue.acknowledge(id, error: payload, pipeline: pipeline)
+          end.first
 
           if acknowledged
-            # if another worker already acknowledged the test, we don't need to update the global stats or increment the test failed count
-            record_stats(stats)
+            # We were the first to ack; another worker already ack'd would get falsy from SADD
+            redis.pipelined do |pipeline|
+              record_stats(stats, pipeline: pipeline)
+            end
             @queue.increment_test_failed
           end
-          nil
+          # Return so caller can roll back local counter when not acknowledged
+          !!acknowledged
         end
 
         def record_success(id, stats: nil, skip_flaky_record: false)
