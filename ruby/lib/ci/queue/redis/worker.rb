@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 require 'ci/queue/static'
 require 'concurrent/set'
+require 'concurrent/map'
 
 module CI
   module Queue
@@ -228,11 +229,11 @@ module CI
         end
 
         def reserved_entries
-          @reserved_entries ||= {}
+          @reserved_entries ||= Concurrent::Map.new
         end
 
         def reserved_entry_ids
-          @reserved_entry_ids ||= {}
+          @reserved_entry_ids ||= Concurrent::Map.new
         end
 
         def worker_id
