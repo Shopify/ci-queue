@@ -207,9 +207,9 @@ class CI::Queue::RedisTest < Minitest::Test
   end
 
   def test_workers_register
-    assert_equal 1, @redis.scard(CI::Queue::Redis::KeyShortener.key('42', 'workers'))
+    assert_equal 1, @redis.scard(('build:42:workers'))
     worker(2)
-    assert_equal 2, @redis.scard(CI::Queue::Redis::KeyShortener.key('42', 'workers'))
+    assert_equal 2, @redis.scard(('build:42:workers'))
   end
 
   def test_timeout_warning
