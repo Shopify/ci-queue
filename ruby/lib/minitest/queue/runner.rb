@@ -524,8 +524,11 @@ module Minitest
             Defaults to 10000.
           EOS
           opts.separator ""
-          opts.on('--stream-batch-size SIZE', Integer, help) do |size|
-            queue_config.stream_batch_size = size
+          opts.on('--lazy-load-stream-batch-size SIZE', Integer, help) do |size|
+            queue_config.lazy_load_stream_batch_size = size
+          end
+          opts.on('--stream-batch-size SIZE', Integer, 'Deprecated alias for --lazy-load-stream-batch-size') do |size|
+            queue_config.lazy_load_stream_batch_size = size
           end
 
           help = <<~EOS
@@ -542,8 +545,11 @@ module Minitest
             Defaults to the max of --queue-init-timeout and 300 seconds.
           EOS
           opts.separator ""
-          opts.on('--stream-timeout SECONDS', Integer, help) do |seconds|
-            queue_config.streaming_timeout = seconds
+          opts.on('--lazy-load-stream-timeout SECONDS', Integer, help) do |seconds|
+            queue_config.lazy_load_streaming_timeout = seconds
+          end
+          opts.on('--stream-timeout SECONDS', Integer, 'Deprecated alias for --lazy-load-stream-timeout') do |seconds|
+            queue_config.lazy_load_streaming_timeout = seconds
           end
 
           help = <<~EOS

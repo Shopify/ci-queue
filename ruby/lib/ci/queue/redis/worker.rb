@@ -114,7 +114,7 @@ module CI
               yield resolve_entry(entry)
             else
               if still_streaming?
-                raise LostMaster, "Streaming stalled for more than #{config.streaming_timeout}s" if streaming_stale?
+                raise LostMaster, "Streaming stalled for more than #{config.lazy_load_streaming_timeout}s" if streaming_stale?
                 sleep 0.1
                 next
               end
@@ -297,7 +297,7 @@ module CI
         end
 
         def streaming_stale?
-          timeout = config.streaming_timeout.to_i
+          timeout = config.lazy_load_streaming_timeout.to_i
           updated_at = redis.get(key('streaming-updated-at'))
           return true unless updated_at
 
@@ -307,7 +307,7 @@ module CI
         end
 
         def start_streaming!
-          timeout = config.streaming_timeout.to_i
+          timeout = config.lazy_load_streaming_timeout.to_i
           with_redis_timeout(5) do
             redis.multi do |transaction|
               transaction.set(key('total'), 0)
@@ -326,7 +326,7 @@ module CI
           return if entries.empty?
 
           @total += entries.size
-          timeout = config.streaming_timeout.to_i
+          timeout = config.lazy_load_streaming_timeout.to_i
           redis.multi do |transaction|
             transaction.lpush(key('queue'), entries)
             transaction.incrby(key('total'), entries.size)

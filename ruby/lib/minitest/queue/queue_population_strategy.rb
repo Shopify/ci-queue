@@ -28,7 +28,7 @@ module Minitest
       def populate_queue
         if queue_config.lazy_load && queue.respond_to?(:stream_populate)
           configure_lazy_queue
-          queue.stream_populate(lazy_test_enumerator, random: ordering_seed, batch_size: queue_config.stream_batch_size)
+          queue.stream_populate(lazy_test_enumerator, random: ordering_seed, batch_size: queue_config.lazy_load_stream_batch_size)
         else
           queue.populate(Minitest.loaded_tests, random: ordering_seed)
         end
@@ -38,9 +38,9 @@ module Minitest
         start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         if queue_config.lazy_load && queue.respond_to?(:stream_populate)
           # In lazy-load mode, test files are loaded on-demand by the entry resolver.
-          # Load test helpers (e.g., test/test_helper.rb via CI_QUEUE_TEST_HELPERS)
+          # Load test helpers (e.g., test/test_helper.rb via CI_QUEUE_LAZY_LOAD_TEST_HELPERS)
           # to boot the app for all workers.
-          queue_config.test_helper_paths.each do |helper_path|
+          queue_config.lazy_load_test_helper_paths.each do |helper_path|
             require File.expand_path(helper_path)
           end
         else

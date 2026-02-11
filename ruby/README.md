@@ -46,15 +46,22 @@ To reduce worker memory usage, you can enable lazy loading so test files are loa
 minitest-queue --queue redis://example.com --lazy-load run -Itest test/**/*_test.rb
 ```
 
-You can tune streaming with `--stream-batch-size` (default: 10000) and `--stream-timeout`.
+You can tune streaming with `--lazy-load-stream-batch-size` (default: 10000) and `--lazy-load-stream-timeout`.
 
 Environment variables:
 
 - `CI_QUEUE_LAZY_LOAD=1`
-- `CI_QUEUE_STREAM_BATCH_SIZE=10000`
-- `CI_QUEUE_STREAM_TIMEOUT=300`
+- `CI_QUEUE_LAZY_LOAD_STREAM_BATCH_SIZE=10000`
+- `CI_QUEUE_LAZY_LOAD_STREAM_TIMEOUT=300`
+- `CI_QUEUE_LAZY_LOAD_TEST_HELPERS=test/test_helper.rb`
 
-When enabled, file loading stats are printed at the end of the run.
+Backward-compatible aliases still work:
+
+- `CI_QUEUE_STREAM_BATCH_SIZE`
+- `CI_QUEUE_STREAM_TIMEOUT`
+- `CI_QUEUE_TEST_HELPERS`
+
+When enabled, file loading stats are printed at the end of the run if debug is enabled.
 
 
 If you'd like to centralize the error reporting you can do so with:

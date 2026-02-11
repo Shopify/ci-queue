@@ -61,7 +61,7 @@ module Minitest::Queue
 
     def test_lazy_mode_sets_resolver_and_streams
       queue = FakeQueue.new
-      config = CI::Queue::Configuration.new(lazy_load: true, stream_batch_size: 7)
+      config = CI::Queue::Configuration.new(lazy_load: true, lazy_load_stream_batch_size: 7)
       strategy = QueuePopulationStrategy.new(
         queue: queue,
         queue_config: config,

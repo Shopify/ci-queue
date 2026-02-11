@@ -238,8 +238,8 @@ class CI::Queue::RedisTest < Minitest::Test
   end
 
   def test_streaming_waits_for_batches
-    leader = worker(1, populate: false, streaming_timeout: 2, queue_init_timeout: 2, build_id: 'streaming')
-    consumer = worker(2, populate: false, streaming_timeout: 2, queue_init_timeout: 2, build_id: 'streaming')
+    leader = worker(1, populate: false, lazy_load_streaming_timeout: 2, queue_init_timeout: 2, build_id: 'streaming')
+    consumer = worker(2, populate: false, lazy_load_streaming_timeout: 2, queue_init_timeout: 2, build_id: 'streaming')
     consumer.entry_resolver = ->(entry) { entry }
 
     tests = [
@@ -295,7 +295,7 @@ class CI::Queue::RedisTest < Minitest::Test
   end
 
   def test_streaming_timeout_raises_lost_master
-    queue = worker(1, populate: false, streaming_timeout: 1, queue_init_timeout: 1)
+    queue = worker(1, populate: false, lazy_load_streaming_timeout: 1, queue_init_timeout: 1)
     @redis.set(queue.send(:key, 'master-status'), 'streaming')
     @redis.set(queue.send(:key, 'streaming-updated-at'), CI::Queue.time_now.to_f - 5)
 

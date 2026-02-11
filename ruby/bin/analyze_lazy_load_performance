@@ -1,0 +1,356 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'optparse'
+require 'shellwords'
+require 'open3'
+require 'time'
+
+class LazyLoadPerformanceAnalyzer
+  Result = Struct.new(:mode, :trial, :build_id, :run_ok, :report_ok, :elapsed_s, :report_output, :report_error, :summary_line, :worker_rows, keyword_init: true)
+
+  def initialize(argv)
+    @options = {
+      queue_url: ENV.fetch('CI_QUEUE_URL', 'redis://localhost:6379/0'),
+      workers: 2,
+      timeout: 30,
+      queue_init_timeout: nil,
+      stream_timeout: nil,
+      stream_batch_size: 10_000,
+      seed: 'lazy-load-benchmark',
+      trials: 3,
+      build_prefix: "lazy-perf-#{Time.now.utc.strftime('%Y%m%d%H%M%S')}",
+      exe: File.expand_path('../exe/minitest-queue', __dir__),
+      load_paths: nil,
+      chdir: nil,
+      test_files: nil,
+      verbose: false,
+      worker_env: {},
+    }
+    @test_args = []
+    parse(argv)
+  end
+
+  def run!
+    validate!
+    results = []
+    [:eager, :lazy].each do |mode|
+      puts "\n=== #{mode.to_s.upcase} ==="
+      @options[:trials].times do |trial_index|
+        trial = trial_index + 1
+        build_id = "#{@options[:build_prefix]}-#{mode}-t#{trial}"
+        result = run_trial(mode: mode, trial: trial, build_id: build_id)
+        results << result
+        print_trial(result)
+      end
+    end
+
+    print_rollup(results)
+    failed = results.any? { |result| !result.run_ok || !result.report_ok }
+    exit(failed ? 1 : 0)
+  end
+
+  private
+
+  def parse(argv)
+    parser = OptionParser.new do |opts|
+      opts.banner = 'Usage: bin/analyze_lazy_load_performance [options] -- [test args]'
+      opts.separator ''
+      opts.separator 'Example:'
+      opts.separator '  bin/analyze_lazy_load_performance --workers 10 -- -Itest test/**/*_test.rb'
+      opts.separator ''
+
+      opts.on('--queue URL', 'Redis queue URL (default: CI_QUEUE_URL or redis://localhost:6379/0)') do |value|
+        @options[:queue_url] = value
+      end
+      opts.on('--workers N', Integer, 'Worker count per trial (default: 2)') do |value|
+        @options[:workers] = value
+      end
+      opts.on('--trials N', Integer, 'Trials per mode (default: 3)') do |value|
+        @options[:trials] = value
+      end
+      opts.on('--seed SEED', 'Seed passed to minitest-queue run') do |value|
+        @options[:seed] = value
+      end
+      opts.on('--timeout SECONDS', Float, 'Run/report timeout value (default: 30)') do |value|
+        @options[:timeout] = value
+      end
+      opts.on('--queue-init-timeout SECONDS', Float, 'Optional queue init timeout') do |value|
+        @options[:queue_init_timeout] = value
+      end
+      opts.on('--lazy-load-stream-timeout SECONDS', Integer, 'Lazy mode stream timeout') do |value|
+        @options[:stream_timeout] = value
+      end
+      opts.on('--stream-timeout SECONDS', Integer, 'Deprecated alias for --lazy-load-stream-timeout') do |value|
+        @options[:stream_timeout] = value
+      end
+      opts.on('--lazy-load-stream-batch-size N', Integer, 'Lazy mode stream batch size (default: 10000)') do |value|
+        @options[:stream_batch_size] = value
+      end
+      opts.on('--stream-batch-size N', Integer, 'Deprecated alias for --lazy-load-stream-batch-size') do |value|
+        @options[:stream_batch_size] = value
+      end
+      opts.on('--build-prefix PREFIX', 'Build ID prefix') do |value|
+        @options[:build_prefix] = value
+      end
+      opts.on('--exe PATH', 'Path to minitest-queue executable') do |value|
+        @options[:exe] = value
+      end
+      opts.on('--chdir DIR', 'Working directory for run/report commands') do |value|
+        @options[:chdir] = value
+      end
+      opts.on('-IPATHS', 'Pass -I load paths (same syntax as minitest-queue)') do |value|
+        @options[:load_paths] = value
+      end
+      opts.on('--test-files FILE', 'Use --test-files FILE mode') do |value|
+        @options[:test_files] = value
+      end
+      opts.on('--env KEY=VALUE', 'Extra env for workers (can repeat)') do |value|
+        key, val = value.split('=', 2)
+        raise OptionParser::InvalidArgument, value unless key && val
+
+        @options[:worker_env][key] = val
+      end
+      opts.on('--verbose', 'Print worker command output while running') do
+        @options[:verbose] = true
+      end
+    end
+
+    parser.parse!(argv)
+    @test_args = argv.dup
+  rescue OptionParser::ParseError => error
+    warn(error.message)
+    warn(parser)
+    exit(1)
+  end
+
+  def validate!
+    raise "Executable not found: #{@options[:exe]}" unless File.exist?(@options[:exe])
+    raise '--workers must be > 0' unless @options[:workers].to_i > 0
+    raise '--trials must be > 0' unless @options[:trials].to_i > 0
+    raise 'Provide either --test-files FILE or test args after --' if @options[:test_files].nil? && @test_args.empty?
+  end
+
+  def run_trial(mode:, trial:, build_id:)
+    start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    run_ok = run_workers(mode: mode, build_id: build_id)
+    report_output, report_error, report_status = run_report(build_id: build_id)
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+    summary_line = report_output.lines.find { |line| line.include?('Ran ') && line.include?('aggregated') }&.strip
+    worker_rows = parse_worker_rows(report_output)
+
+    Result.new(
+      mode: mode,
+      trial: trial,
+      build_id: build_id,
+      run_ok: run_ok,
+      report_ok: report_status.success?,
+      elapsed_s: elapsed,
+      report_output: report_output,
+      report_error: report_error,
+      summary_line: summary_line,
+      worker_rows: worker_rows,
+    )
+  end
+
+  def run_workers(mode:, build_id:)
+    threads = []
+    statuses = []
+    @options[:workers].times do |worker|
+      threads << Thread.new do
+        env = base_env.merge(@options[:worker_env]).merge('BUILDKITE' => '1', 'CI_QUEUE_DEBUG' => '1')
+        command = run_command(mode: mode, build_id: build_id, worker: worker.to_s)
+        output, status = Open3.capture2e(env, *command, chdir: run_dir)
+        puts(output) if @options[:verbose]
+        statuses << status.success?
+      end
+    end
+    threads.each(&:join)
+    statuses.all?
+  end
+
+  def run_report(build_id:)
+    env = base_env.merge('CI_QUEUE_DEBUG' => '1')
+    command = report_command(build_id: build_id)
+    Open3.capture3(env, *command, chdir: run_dir)
+  end
+
+  def run_command(mode:, build_id:, worker:)
+    command = [
+      @options[:exe], 'run',
+      '--queue', @options[:queue_url],
+      '--seed', @options[:seed],
+      '--build', build_id,
+      '--worker', worker,
+      '--timeout', @options[:timeout].to_s,
+    ]
+    command += ['--queue-init-timeout', @options[:queue_init_timeout].to_s] if @options[:queue_init_timeout]
+    command += ['-I', @options[:load_paths]] if @options[:load_paths]
+    if mode == :lazy
+      command << '--lazy-load'
+      command += ['--lazy-load-stream-batch-size', @options[:stream_batch_size].to_s]
+      command += ['--lazy-load-stream-timeout', @options[:stream_timeout].to_s] if @options[:stream_timeout]
+    end
+
+    if @options[:test_files]
+      command += ['--test-files', @options[:test_files]]
+    else
+      command += @test_args
+    end
+    command
+  end
+
+  def report_command(build_id:)
+    command = [
+      @options[:exe], 'report',
+      '--queue', @options[:queue_url],
+      '--build', build_id,
+      '--timeout', @options[:timeout].to_s,
+    ]
+    command += ['--queue-init-timeout', @options[:queue_init_timeout].to_s] if @options[:queue_init_timeout]
+    command
+  end
+
+  def parse_worker_rows(output)
+    in_table = false
+    rows = []
+    output.each_line do |line|
+      if line.include?('Worker profile summary')
+        in_table = true
+        next
+      end
+      next unless in_table
+      next if line.strip.empty?
+      next if line.include?('-----')
+      break if line.include?('Leader time to 1st test:')
+
+      parts = line.strip.split(/\s{2,}/)
+      next unless parts.size >= 8
+
+      rows << {
+        worker: parts[0],
+        role: parts[1],
+        tests_run: parse_int(parts[2]),
+        first_test_s: parse_seconds(parts[3]),
+        wall_clock_s: parse_seconds(parts[4]),
+        load_tests_s: parse_seconds(parts[5]),
+        file_load_s: parse_file_load(parts[6]),
+        memory_mb: parse_memory(parts[7]),
+      }
+    end
+    rows
+  end
+
+  def parse_int(value)
+    Integer(value)
+  rescue StandardError
+    nil
+  end
+
+  def parse_seconds(value)
+    return nil if value == 'n/a'
+    return nil unless value.end_with?('s')
+
+    Float(value.delete_suffix('s'))
+  rescue StandardError
+    nil
+  end
+
+  def parse_file_load(value)
+    return nil if value == 'n/a'
+
+    seconds = value.split(' ', 2).first
+    parse_seconds(seconds)
+  end
+
+  def parse_memory(value)
+    return nil if value == 'n/a'
+    return nil unless value.end_with?('MB')
+
+    Integer(value.delete(' MB'))
+  rescue StandardError
+    nil
+  end
+
+  def print_trial(result)
+    status = result.run_ok && result.report_ok ? 'OK' : 'FAIL'
+    puts "trial #{result.trial}: #{status} elapsed=#{format('%.2f', result.elapsed_s)}s build=#{result.build_id}"
+    puts "  summary: #{result.summary_line}" if result.summary_line
+    unless result.report_ok
+      puts '  report stderr:'
+      puts result.report_error
+    end
+  end
+
+  def print_rollup(results)
+    puts "\n=== ROLLUP ==="
+    grouped = results.group_by(&:mode)
+    grouped.each do |mode, mode_results|
+      elapsed = mode_results.map(&:elapsed_s)
+      first_tests = mode_results.flat_map { |r| r.worker_rows.map { |row| row[:first_test_s] }.compact }
+      memory = mode_results.flat_map { |r| r.worker_rows.map { |row| row[:memory_mb] }.compact }
+      tests_run = mode_results.flat_map { |r| r.worker_rows.map { |row| row[:tests_run] }.compact }
+      imbalance = compute_imbalance(tests_run)
+
+      puts "#{mode}:"
+      puts "  trials: #{mode_results.size}"
+      puts "  elapsed avg/min/max: #{fmt_stats(elapsed)} s"
+      puts "  first-test avg/p95: #{fmt_avg(first_tests)} / #{fmt_p95(first_tests)} s"
+      puts "  memory avg/max: #{fmt_avg(memory)} / #{fmt_max(memory)} MB"
+      puts "  tests-run imbalance (max/min): #{imbalance || 'n/a'}"
+    end
+
+    eager = grouped[:eager]&.map(&:elapsed_s)
+    lazy = grouped[:lazy]&.map(&:elapsed_s)
+    if eager&.any? && lazy&.any?
+      eager_avg = eager.sum / eager.size
+      lazy_avg = lazy.sum / lazy.size
+      delta = ((lazy_avg - eager_avg) / eager_avg) * 100.0
+      puts "\nElapsed delta (lazy vs eager): #{format('%+.2f', delta)}%"
+    end
+  end
+
+  def compute_imbalance(values)
+    return nil if values.empty?
+    min = values.min
+    max = values.max
+    return nil if min.nil? || min.zero?
+
+    format('%.2fx', max.to_f / min.to_f)
+  end
+
+  def fmt_stats(values)
+    return 'n/a' if values.empty?
+    format('%.2f/%.2f/%.2f', values.sum / values.size, values.min, values.max)
+  end
+
+  def fmt_avg(values)
+    return 'n/a' if values.empty?
+    format('%.2f', values.sum.to_f / values.size)
+  end
+
+  def fmt_p95(values)
+    return 'n/a' if values.empty?
+    sorted = values.sort
+    index = (0.95 * (sorted.length - 1)).round
+    format('%.2f', sorted[index])
+  end
+
+  def fmt_max(values)
+    return 'n/a' if values.empty?
+    values.max
+  end
+
+  def base_env
+    lib_path = File.expand_path('../lib', __dir__)
+    ruby_lib = ENV['RUBYLIB']
+    merged = [lib_path, ruby_lib].compact.reject(&:empty?).join(File::PATH_SEPARATOR)
+    { 'RUBYLIB' => merged }
+  end
+
+  def run_dir
+    @options[:chdir] || Dir.pwd
+  end
+end
+
+LazyLoadPerformanceAnalyzer.new(ARGV).run!
