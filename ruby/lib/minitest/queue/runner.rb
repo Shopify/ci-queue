@@ -1,12 +1,13 @@
 # frozen_string_literal: true
 require 'optparse'
 require 'json'
-require 'set'
 require 'minitest/queue'
 require 'ci/queue'
 require 'digest/md5'
 require 'minitest/reporters/bisect_reporter'
 require 'minitest/reporters/statsd_reporter'
+require 'minitest/queue/queue_population_strategy'
+require 'minitest/queue/worker_profile_reporter'
 
 module Minitest
   module Queue
@@ -104,12 +105,10 @@ module Minitest
             if remaining <= running
               puts green("Queue almost empty, exiting early...")
             else
-              load_tests
-              populate_queue
+              prepare_queue_for_execution
             end
           else
-            load_tests
-            populate_queue
+            prepare_queue_for_execution
           end
         end
 
@@ -187,11 +186,9 @@ module Minitest
         trap('TERM') { Minitest.queue.shutdown! }
         trap('INT') { Minitest.queue.shutdown! }
 
-        load_tests
-
         @queue = CI::Queue::Grind.new(grind_list, queue_config)
         Minitest.queue = queue
-        populate_queue
+        prepare_queue_for_execution
 
         # Let minitest's at_exit hook trigger
       end
@@ -200,10 +197,9 @@ module Minitest
         invalid_usage! "Missing the FAILING_TEST argument." unless queue_config.failing_test
 
         set_load_path
-        load_tests
         @queue = CI::Queue::Bisect.new(queue_url, queue_config)
         Minitest.queue = queue
-        populate_queue
+        prepare_queue_for_execution
 
         step("Testing the failing test in isolation")
         unless queue.failing_test_present?
@@ -375,15 +371,6 @@ module Minitest
         queue.build.reset_worker_error
       end
 
-      def populate_queue
-        if queue_config.lazy_load && queue.respond_to?(:stream_populate)
-          configure_lazy_queue
-          Minitest.queue.stream_populate(lazy_test_enumerator, random: ordering_seed, batch_size: queue_config.stream_batch_size)
-        else
-          Minitest.queue.populate(Minitest.loaded_tests, random: ordering_seed)
-        end
-      end
-
       def set_load_path
         if paths = load_paths
           paths.split(':').reverse.each do |path|
@@ -392,146 +379,21 @@ module Minitest
         end
       end
 
-      def load_tests
-        start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-        if queue_config.lazy_load && queue.respond_to?(:stream_populate)
-          # In lazy-load mode, test files are loaded on-demand by the entry resolver.
-          # Load test helpers (e.g., test/test_helper.rb via CI_QUEUE_TEST_HELPERS)
-          # to boot the app for all workers.
-          queue_config.test_helper_paths.each do |helper_path|
-            require File.expand_path(helper_path)
-          end
-        else
-          test_file_list.sort.each do |f|
-            require File.expand_path(f)
-          end
-        end
-      ensure
-        Runner.load_tests_duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
-        Runner.total_files = begin; test_file_list.size; rescue; nil; end
+      def prepare_queue_for_execution
+        strategy = queue_population_strategy
+        strategy.load_and_populate!
+        Runner.load_tests_duration = strategy.load_tests_duration
+        Runner.total_files = strategy.total_files
       end
 
-      def configure_lazy_queue
-        return unless queue.respond_to?(:entry_resolver=)
-
-        queue.entry_resolver = lazy_entry_resolver
-      end
-
-      def lazy_entry_resolver
-        loader = queue.respond_to?(:file_loader) ? queue.file_loader : CI::Queue::FileLoader.new
-        resolver = CI::Queue::ClassResolver
-
-        lambda do |entry|
-          parsed = CI::Queue::QueueEntry.parse(entry)
-          class_name, method_name = parsed.fetch(:test_id).split('#', 2)
-          if CI::Queue::QueueEntry.load_error_payload?(parsed[:file_path])
-            payload = CI::Queue::QueueEntry.decode_load_error(parsed[:file_path])
-            if payload
-              error = StandardError.new("#{payload['error_class']}: #{payload['error_message']}")
-              error.set_backtrace(payload['backtrace']) if payload['backtrace']
-              load_error = CI::Queue::FileLoadError.new(payload['file_path'], error)
-              return Minitest::Queue::LazySingleExample.new(
-                class_name,
-                method_name,
-                payload['file_path'],
-                loader: loader,
-                resolver: resolver,
-                load_error: load_error,
-                queue_entry: entry,
-              )
-            end
-          end
-          Minitest::Queue::LazySingleExample.new(
-            class_name,
-            method_name,
-            parsed[:file_path],
-            loader: loader,
-            resolver: resolver,
-            queue_entry: entry,
-          )
-        end
-      end
-
-      def lazy_test_enumerator
-        loader = queue.respond_to?(:file_loader) ? queue.file_loader : CI::Queue::FileLoader.new
-        resolver = CI::Queue::ClassResolver
-        files = test_file_list.sort
-
-        Enumerator.new do |yielder|
-          load_tests_lazy(files, loader, resolver) do |test|
-            yielder << test
-          end
-        end
-      end
-
-      # Returns the list of test files to process. Prefers --test-files FILE
-      # (reads paths from a file, one per line) over positional argv arguments.
-      # --test-files avoids ARG_MAX limits for large test suites (36K+ files).
-      def test_file_list
-        @test_file_list ||= begin
-          if test_files_file
-            File.readlines(test_files_file, chomp: true).reject { |f| f.strip.empty? }
-          else
-            argv
-          end
-        end
-      end
-
-      def load_tests_lazy(files, loader, resolver)
-        seen = Set.new
-        known_count = Minitest::Test.runnables.size
-
-        files.each do |file|
-          file_path = File.expand_path(file)
-          begin
-            loader.load_file(file_path)
-          rescue CI::Queue::FileLoadError => error
-            method_name = "load_file_#{file_path.hash.abs}"
-            class_name = "CIQueue::FileLoadError"
-            test_id = "#{class_name}##{method_name}"
-            entry = CI::Queue::QueueEntry.format(
-              test_id,
-              CI::Queue::QueueEntry.encode_load_error(file_path, error),
-            )
-            test = Minitest::Queue::LazySingleExample.new(
-              class_name,
-              method_name,
-              file_path,
-              loader: loader,
-              resolver: resolver,
-              load_error: error,
-              queue_entry: entry,
-            )
-            yield test
-            next
-          end
-
-          # Use array index to find new runnables — O(1) per iteration
-          # instead of O(n²) set difference on growing collections.
-          runnables = Minitest::Test.runnables
-          if runnables.size > known_count
-            new_runnables = runnables[known_count..]
-            known_count = runnables.size
-
-            new_runnables.each do |runnable|
-              runnable.runnable_methods.each do |method_name|
-                test_id = "#{runnable.name}##{method_name}"
-                next if seen.include?(test_id)
-
-                seen.add(test_id)
-                yield Minitest::Queue::LazySingleExample.new(
-                  runnable.name,
-                  method_name,
-                  file_path,
-                  loader: loader,
-                  resolver: resolver,
-                )
-              rescue NameError, NoMethodError
-                next
-              end
-            end
-          end
-        end
+      def queue_population_strategy
+        Minitest::Queue::QueuePopulationStrategy.new(
+          queue: queue,
+          queue_config: queue_config,
+          argv: argv,
+          test_files_file: test_files_file,
+          ordering_seed: ordering_seed,
+        )
       end
 
       def parse(argv)
@@ -541,60 +403,7 @@ module Minitest
       end
 
       def print_worker_profiles(supervisor)
-        # Wait for workers to finish storing their profiles. The queue is
-        # exhausted but workers may still be in the ensure block writing
-        # their profile to Redis.
-        expected = supervisor.workers_count
-        profiles = {}
-        3.times do
-          profiles = supervisor.build.worker_profiles
-          break if profiles.size >= expected
-          sleep 1
-        end
-        return if profiles.empty?
-
-        sorted = profiles.values.sort_by { |p| p['worker_id'].to_s }
-        mode = sorted.first&.dig('mode') || 'unknown'
-
-        puts
-        puts "Worker profile summary (#{sorted.size} workers, mode: #{mode}):"
-        puts "  %-12s %-12s %8s %14s %14s %14s %14s %10s" % ['Worker', 'Role', 'Tests', '1st Test', 'Wall Clock', 'Load Tests', 'File Load', 'Memory']
-        puts "  #{'-' * 100}"
-
-        sorted.each do |p|
-          tests = p['tests_run'] ? p['tests_run'].to_s : 'n/a'
-          first_test = p['time_to_first_test'] ? "#{p['time_to_first_test']}s" : 'n/a'
-          wall = "#{p['total_wall_clock']}s"
-          load_tests = p['load_tests_duration'] ? "#{p['load_tests_duration']}s" : 'n/a'
-          files = if p['files_loaded'] && p['total_files']
-            "#{p['file_load_time']}s (#{p['files_loaded']}/#{p['total_files']})"
-          elsif p['file_load_time']
-            "#{p['file_load_time']}s"
-          else
-            'n/a'
-          end
-          mem = p['memory_rss_kb'] ? "#{(p['memory_rss_kb'] / 1024.0).round(0)} MB" : 'n/a'
-
-          puts "  %-12s %-12s %8s %14s %14s %14s %14s %10s" % [
-            p['worker_id'], p['role'], tests, first_test, wall, load_tests, files, mem
-          ]
-        end
-
-        leaders = sorted.select { |p| p['role'] == 'leader' }
-        non_leaders = sorted.select { |p| p['role'] == 'non-leader' }
-
-        if leaders.any? && non_leaders.any?
-          leader_first = leaders.filter_map { |p| p['time_to_first_test'] }.min
-          nl_firsts = non_leaders.filter_map { |p| p['time_to_first_test'] }
-          if leader_first && nl_firsts.any?
-            avg_nl = (nl_firsts.sum / nl_firsts.size).round(2)
-            puts
-            puts "  Leader time to 1st test: #{leader_first}s"
-            puts "  Avg non-leader time to 1st test: #{avg_nl}s"
-          end
-        end
-      rescue
-        # Don't fail the build if profile printing fails
+        Minitest::Queue::WorkerProfileReporter.new(supervisor).print_summary
       end
 
       def parser

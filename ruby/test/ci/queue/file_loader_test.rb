@@ -67,4 +67,26 @@ class CI::Queue::FileLoaderTest < Minitest::Test
       end
     end
   end
+
+  def test_load_file_forces_load_when_feature_is_inherited_after_fork
+    loader = CI::Queue::FileLoader.new
+
+    Dir.mktmpdir do |dir|
+      class_name = "ForkLoaded#{Process.pid}#{rand(1000)}"
+      path = File.join(dir, "fork_loaded_test.rb")
+      File.write(path, "class #{class_name}; end\n")
+
+      expanded = File.expand_path(path)
+      $LOADED_FEATURES << expanded unless $LOADED_FEATURES.include?(expanded)
+      loader.instance_variable_set(:@pid, Process.pid - 1)
+
+      loader.load_file(path)
+
+      assert Object.const_defined?(class_name), "class should be defined by forced load fallback"
+      assert_includes loader.load_stats.keys, path
+    ensure
+      Object.send(:remove_const, class_name) if Object.const_defined?(class_name)
+      $LOADED_FEATURES.delete(expanded)
+    end
+  end
 end

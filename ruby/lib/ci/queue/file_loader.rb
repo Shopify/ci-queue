@@ -23,7 +23,10 @@ module CI
         error = nil
 
         begin
-          require file_path
+          required = require file_path
+          if should_force_load_after_fork?(required, file_path)
+            with_warning_suppression { load file_path }
+          end
         rescue Exception => e
           raise if e.is_a?(SignalException) || e.is_a?(SystemExit)
           error = e
@@ -69,6 +72,10 @@ module CI
 
       def remember_loaded_feature(file_path)
         loaded_features.add(::File.expand_path(file_path))
+      end
+
+      def should_force_load_after_fork?(required, file_path)
+        @forked && !required && file_in_loaded_features?(file_path)
       end
 
       def with_warning_suppression

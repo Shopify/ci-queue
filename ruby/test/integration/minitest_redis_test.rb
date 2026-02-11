@@ -257,7 +257,7 @@ module Integration
       build_id = 'profile-report'
       out, err = capture_subprocess_io do
         system(
-          { 'BUILDKITE' => '1' },
+          { 'BUILDKITE' => '1', 'CI_QUEUE_DEBUG' => '1' },
           @exe, 'run',
           '--queue', @redis_url,
           '--seed', 'foobar',
@@ -277,6 +277,7 @@ module Integration
 
       out, err = capture_subprocess_io do
         system(
+          { 'CI_QUEUE_DEBUG' => '1' },
           @exe, 'report',
           '--queue', @redis_url,
           '--build', build_id,

@@ -209,6 +209,7 @@ module Minitest
       private
 
       def report_load_stats(queue)
+        return unless CI::Queue.debug?
         return unless queue.respond_to?(:file_loader)
         return unless queue.respond_to?(:config) && queue.config.lazy_load
 
@@ -235,6 +236,7 @@ module Minitest
       end
 
       def store_worker_profile(queue)
+        debug = CI::Queue.debug?
         return unless queue.respond_to?(:config)
         config = queue.config
 
@@ -282,7 +284,7 @@ module Minitest
           queue.build.record_worker_profile(profile)
         end
       rescue => e
-        puts "WARNING: Failed to store worker profile: #{e.message}"
+        puts "WARNING: Failed to store worker profile: #{e.message}" if debug
       end
 
       def rescue_run_errors(&block)

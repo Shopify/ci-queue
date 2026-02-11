@@ -47,8 +47,10 @@ module CI
 
           if @master = (value == status)
             @total = 0
-            puts "Worker elected as leader, streaming tests to the queue."
-            puts
+            if CI::Queue.debug?
+              puts "Worker elected as leader, streaming tests to the queue."
+              puts
+            end
 
             duration = measure do
               start_streaming!
@@ -67,7 +69,7 @@ module CI
               finalize_streaming
             end
 
-            puts "Finished streaming #{@total} tests to the queue in #{duration.round(2)}s."
+            puts "Finished streaming #{@total} tests to the queue in #{duration.round(2)}s." if CI::Queue.debug?
           end
 
           register

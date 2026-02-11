@@ -60,6 +60,11 @@ module CI
       end
     end
 
+    def debug?
+      value = ENV['CI_QUEUE_DEBUG']
+      value && !value.strip.empty? && !%w[0 false].include?(value.strip.downcase)
+    end
+
     def from_uri(url, config)
       uri = URI(url)
       implementation = case uri.scheme
