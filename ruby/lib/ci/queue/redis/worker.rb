@@ -168,6 +168,12 @@ module CI
           @file_loader ||= CI::Queue::FileLoader.new
         end
 
+        def worker_queue_length
+          redis.llen(key('worker', worker_id, 'queue'))
+        rescue *CONNECTION_ERRORS
+          nil
+        end
+
         def report_worker_error(error)
           build.report_worker_error(error)
         end

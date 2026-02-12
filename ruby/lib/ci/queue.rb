@@ -14,6 +14,9 @@ require 'ci/queue/static'
 require 'ci/queue/file'
 require 'ci/queue/grind'
 require 'ci/queue/bisect'
+require 'ci/queue/queue_entry'
+require 'ci/queue/class_resolver'
+require 'ci/queue/file_loader'
 
 module CI
   module Queue
@@ -83,6 +86,3 @@ module CI
   end
 end
 
-require 'ci/queue/queue_entry'
-require 'ci/queue/class_resolver'
-require 'ci/queue/file_loader'

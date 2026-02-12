@@ -2,6 +2,7 @@
 require 'shellwords'
 require 'minitest'
 require 'minitest/reporters'
+require 'concurrent/map'
 
 require 'minitest/queue/failure_formatter'
 require 'minitest/queue/error_report'
@@ -254,7 +255,7 @@ module Minitest
         first_test = queue.respond_to?(:first_reserve_at) ? queue.first_reserve_at : nil
         profile['time_to_first_test'] = (first_test - run_start).round(2) if first_test
 
-        tests_run = queue.rescue_connection_errors { queue.send(:redis).llen(queue.send(:key, 'worker', config.worker_id, 'queue')) }
+        tests_run = queue.rescue_connection_errors { queue.worker_queue_length } if queue.respond_to?(:worker_queue_length)
         profile['tests_run'] = tests_run.to_i if tests_run
 
         load_tests_duration = Minitest::Queue::Runner.load_tests_duration
@@ -393,7 +394,7 @@ module Minitest
         id <=> other.id
       end
 
-      RUNNABLE_METHODS_TRIGGERED = {} # :nodoc:
+      RUNNABLE_METHODS_TRIGGERED = Concurrent::Map.new # :nodoc:
 
       def runnable
         @runnable ||= begin

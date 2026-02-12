@@ -55,8 +55,7 @@ module CI
         max_test_duration_percentile: 0.5, track_test_duration: false, max_test_failed: nil,
         queue_init_timeout: nil, redis_ttl: 8 * 60 * 60, report_timeout: nil, inactive_workers_timeout: nil,
         export_flaky_tests_file: nil, warnings_file: nil, debug_log: nil, max_missed_heartbeat_seconds: nil,
-        lazy_load: false, lazy_load_stream_batch_size: nil, lazy_load_streaming_timeout: nil, lazy_load_test_helpers: nil,
-        stream_batch_size: nil, streaming_timeout: nil, test_helpers: nil)
+        lazy_load: false, lazy_load_stream_batch_size: nil, lazy_load_streaming_timeout: nil, lazy_load_test_helpers: nil)
         @build_id = build_id
         @circuit_breakers = [CircuitBreaker::Disabled]
         @failure_file = failure_file
@@ -84,9 +83,9 @@ module CI
         @debug_log = debug_log
         @max_missed_heartbeat_seconds = max_missed_heartbeat_seconds
         @lazy_load = lazy_load
-        @lazy_load_stream_batch_size = lazy_load_stream_batch_size || stream_batch_size || 10_000
-        @lazy_load_streaming_timeout = lazy_load_streaming_timeout || streaming_timeout || 300
-        @lazy_load_test_helpers = lazy_load_test_helpers || test_helpers
+        @lazy_load_stream_batch_size = lazy_load_stream_batch_size || 10_000
+        @lazy_load_streaming_timeout = lazy_load_streaming_timeout || 300
+        @lazy_load_test_helpers = lazy_load_test_helpers
       end
 
       def lazy_load_test_helper_paths

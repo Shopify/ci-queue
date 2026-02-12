@@ -57,9 +57,21 @@ module CI
         end
 
         def read_script(name)
-          ::File.read(::File.join(DEV_SCRIPTS_ROOT, "#{name}.lua"))
+          resolve_lua_includes(
+            ::File.read(::File.join(DEV_SCRIPTS_ROOT, "#{name}.lua")),
+            DEV_SCRIPTS_ROOT,
+          )
         rescue SystemCallError
-          ::File.read(::File.join(RELEASE_SCRIPTS_ROOT, "#{name}.lua"))
+          resolve_lua_includes(
+            ::File.read(::File.join(RELEASE_SCRIPTS_ROOT, "#{name}.lua")),
+            RELEASE_SCRIPTS_ROOT,
+          )
+        end
+
+        def resolve_lua_includes(script, root)
+          script.gsub(/^-- @include (\S+)$/) do
+            ::File.read(::File.join(root, "#{$1}.lua"))
+          end
         end
 
         HEADER = 'L'
