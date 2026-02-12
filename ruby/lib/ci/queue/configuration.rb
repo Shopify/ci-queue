@@ -85,7 +85,7 @@ module CI
         @max_missed_heartbeat_seconds = max_missed_heartbeat_seconds
         @lazy_load = lazy_load
         @lazy_load_stream_batch_size = lazy_load_stream_batch_size || stream_batch_size || 10_000
-        @lazy_load_streaming_timeout = lazy_load_streaming_timeout || streaming_timeout
+        @lazy_load_streaming_timeout = lazy_load_streaming_timeout || streaming_timeout || 300
         @lazy_load_test_helpers = lazy_load_test_helpers || test_helpers
       end
 
