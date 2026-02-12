@@ -18,20 +18,23 @@ module CI
         @queue.exhausted?
       end
 
-      def record_error(id, payload, stats: nil)
+      def record_error(id, payload)
         error_reports[id] = payload
-        record_stats(stats)
         true
       end
 
-      def record_success(id, stats: nil, skip_flaky_record: false, acknowledge: true)
+      def record_success(id, skip_flaky_record: false, acknowledge: true)
         error_reports.delete(id)
-        record_stats(stats)
         true
       end
 
-      def record_requeue(id, stats: nil)
+      def record_requeue(id)
         true
+      end
+
+      def record_stats(builds_stats)
+        return unless builds_stats
+        stats.merge!(builds_stats)
       end
 
       def fetch_stats(stat_names)
@@ -53,11 +56,6 @@ module CI
       private
 
       attr_reader :stats
-
-      def record_stats(builds_stats)
-        return unless builds_stats
-        stats.merge!(builds_stats)
-      end
     end
   end
 end

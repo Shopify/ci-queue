@@ -56,37 +56,44 @@ module CI
           redis.rpush(key('warnings'), Marshal.dump([type, attributes]))
         end
 
-        def record_error(id, payload, stats: nil)
+        def record_error(id, payload)
           # Run acknowledge first so we know whether we're the first to ack
           acknowledged = @queue.acknowledge(id, error: payload)
 
           if acknowledged
             # We were the first to ack; another worker already ack'd would get falsy from SADD
-            redis.pipelined do |pipeline|
-              record_stats(stats, pipeline: pipeline)
-            end
             @queue.increment_test_failed
           end
           # Return so caller can roll back local counter when not acknowledged
           !!acknowledged
         end
 
-        def record_success(id, stats: nil, skip_flaky_record: false)
-          acknowledged, error_reports_deleted_count, requeued_count, _ = redis.multi do |transaction|
+        def record_success(id, skip_flaky_record: false)
+          acknowledged, error_reports_deleted_count, requeued_count = redis.multi do |transaction|
             @queue.acknowledge(id, pipeline: transaction)
             transaction.hdel(key('error-reports'), id)
             transaction.hget(key('requeues-count'), id)
-            record_stats(stats, pipeline: transaction)
           end
           record_flaky(id) if !skip_flaky_record && (error_reports_deleted_count.to_i > 0 || requeued_count.to_i > 0)
           !!acknowledged
         end
 
-        def record_requeue(id, stats: nil)
-          redis.pipelined do |pipeline|
-            record_stats(stats, pipeline: pipeline)
-          end
+        def record_requeue(id)
           true
+        end
+
+        def record_stats(stats, pipeline: nil)
+          return unless stats
+          if pipeline
+            stats.each do |stat_name, stat_value|
+              pipeline.hset(key(stat_name), config.worker_id, stat_value)
+              pipeline.expire(key(stat_name), config.redis_ttl)
+            end
+          else
+            redis.pipelined do |p|
+              record_stats(stats, pipeline: p)
+            end
+          end
         end
 
         def record_flaky(id, stats: nil)
@@ -135,14 +142,6 @@ module CI
         private
 
         attr_reader :config, :redis
-
-        def record_stats(stats, pipeline: redis)
-          return unless stats
-          stats.each do |stat_name, stat_value|
-            pipeline.hset(key(stat_name), config.worker_id, stat_value)
-            pipeline.expire(key(stat_name), config.redis_ttl)
-          end
-        end
 
         def key(*args)
           KeyShortener.key(config.build_id, *args)

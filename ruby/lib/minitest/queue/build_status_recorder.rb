@@ -38,14 +38,16 @@ module Minitest
         super
 
         self.total_time = Minitest.clock_time - start_time
-        stats = COUNTERS.zip(COUNTERS.map { |c| send(c) + stat_delta(c, test) }).to_h
+        
+        # Determine what type of result this is and record it
+        test_id = "#{test.klass}##{test.name}"
 
         acknowledged = if (test.failure || test.error?) && !test.skipped?
-          build.record_error("#{test.klass}##{test.name}", dump(test), stats: stats)
+          build.record_error(test_id, dump(test))
         elsif test.requeued?
-          build.record_requeue("#{test.klass}##{test.name}", stats: stats)
+          build.record_requeue(test_id)
         else
-          build.record_success("#{test.klass}##{test.name}", stats: stats, skip_flaky_record: test.skipped?)
+          build.record_success(test_id, skip_flaky_record: test.skipped?)
         end
 
         if acknowledged
@@ -56,20 +58,12 @@ module Minitest
           elsif test.skipped?
             self.skips += 1
           end
+          stats = COUNTERS.zip(COUNTERS.map { |c| send(c) }).to_h
+          build.record_stats(stats)
         end
       end
 
       private
-
-      def stat_delta(counter, test)
-        case counter
-        when 'errors'   then test.error?   && !test.skipped? ? 1 : 0
-        when 'failures' then test.failure  && !test.skipped? ? 1 : 0
-        when 'skips'    then test.skipped? ? 1 : 0
-        when 'requeues' then test.requeued? ? 1 : 0
-        else 0
-        end
-      end
 
       def dump(test)
         ErrorReport.new(self.class.failure_formatter.new(test).to_h).dump

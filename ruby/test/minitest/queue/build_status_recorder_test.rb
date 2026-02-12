@@ -145,21 +145,21 @@ module Minitest::Queue
     def test_build_record_methods_return_boolean
       # Redis build: first to ack returns true, duplicate returns false
       reserve(@queue, "a")
-      assert_equal true, @queue.build.record_success("Minitest::Test#a", stats: { 'assertions' => 1, 'errors' => 0, 'failures' => 0, 'skips' => 0, 'requeues' => 0, 'total_time' => 0.1 })
-      assert_equal true, @queue.build.record_requeue("Minitest::Test#b", stats: { 'assertions' => 1, 'errors' => 0, 'failures' => 0, 'skips' => 0, 'requeues' => 1, 'total_time' => 0.1 })
+      assert_equal true, @queue.build.record_success("Minitest::Test#a")
+      assert_equal true, @queue.build.record_requeue("Minitest::Test#b")
 
       second_queue = worker(2)
       reserve(second_queue, "a")
-      assert_equal false, second_queue.build.record_success("Minitest::Test#a", stats: { 'assertions' => 1, 'errors' => 0, 'failures' => 0, 'skips' => 0, 'requeues' => 0, 'total_time' => 0.1 })
+      assert_equal false, second_queue.build.record_success("Minitest::Test#a")
     end
 
     def test_static_build_record_returns_true
       static_queue = CI::Queue::Static.new(['test_example'], CI::Queue::Configuration.new(build_id: '42', worker_id: '1'))
       build = static_queue.build
 
-      assert_equal true, build.record_success("test_example", stats: { 'assertions' => 0, 'errors' => 0, 'failures' => 0, 'skips' => 0, 'requeues' => 0, 'total_time' => 0 })
-      assert_equal true, build.record_requeue("test_example", stats: { 'assertions' => 0, 'errors' => 0, 'failures' => 0, 'skips' => 0, 'requeues' => 1, 'total_time' => 0 })
-      assert_equal true, build.record_error("test_example", "payload", stats: {})
+      assert_equal true, build.record_success("test_example")
+      assert_equal true, build.record_requeue("test_example")
+      assert_equal true, build.record_error("test_example", "payload")
     end
 
     private
