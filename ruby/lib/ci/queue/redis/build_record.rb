@@ -82,7 +82,7 @@ module CI
           true
         end
 
-        def record_stats(stats, pipeline: nil)
+        def record_stats(stats = nil, pipeline: nil)
           return unless stats
           if pipeline
             stats.each do |stat_name, stat_value|

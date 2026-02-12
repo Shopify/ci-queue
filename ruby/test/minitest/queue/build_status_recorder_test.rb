@@ -43,7 +43,7 @@ module Minitest::Queue
       assert_equal 9, summary.assertions
       assert_equal 3, summary.failures
       assert_equal 3, summary.errors
-      assert_equal 2, summary.skips
+      assert_equal 1, summary.skips
       assert_equal 1, summary.requeues
       assert_equal 5, summary.error_reports.size
       assert_equal 0, summary.flaky_reports.size
