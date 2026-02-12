@@ -19,10 +19,22 @@ module Minitest
       end
 
       def each_test(files)
+        discovery_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        total_files = 0
+        new_runnable_files = 0
+        reopened_files = 0
+        reopened_candidates = 0
+        reopened_scan_time = 0.0
+
         seen = Set.new
-        known_count = Minitest::Test.runnables.size
+        runnables = Minitest::Test.runnables
+        known_count = runnables.size
+        by_full_name = {}
+        by_short_name = Hash.new { |h, k| h[k] = [] }
+        index_runnables(runnables, by_full_name, by_short_name)
 
         files.each do |file|
+          total_files += 1
           file_path = File.expand_path(file)
           begin
             @loader.load_file(file_path)
@@ -51,31 +63,73 @@ module Minitest
           if runnables.size > known_count
             new_runnables = runnables[known_count..]
             known_count = runnables.size
+            index_runnables(new_runnables, by_full_name, by_short_name)
             candidates.concat(new_runnables)
+            new_runnable_files += 1
+          else
+            # Re-opened classes do not increase runnables size. In that case, map
+            # declared class names in the file to known runnables directly.
+            reopened_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+            reopened = reopened_runnables_for_file(file_path, by_full_name, by_short_name)
+            reopened_scan_time += Process.clock_gettime(Process::CLOCK_MONOTONIC) - reopened_start
+            unless reopened.empty?
+              reopened_files += 1
+              reopened_candidates += reopened.size
+            end
+            candidates.concat(reopened)
           end
 
-          candidates.concat(reopened_runnables_for_file(runnables, file_path))
           enqueue_discovered_tests(candidates.uniq, file_path, seen) do |test|
             yield test
           end
         end
+      ensure
+        debug_discovery_profile(
+          discovery_start: discovery_start,
+          total_files: total_files,
+          new_runnable_files: new_runnable_files,
+          reopened_files: reopened_files,
+          reopened_candidates: reopened_candidates,
+          reopened_scan_time: reopened_scan_time,
+        )
       end
 
       private
 
-      def reopened_runnables_for_file(runnables, file_path)
+      def reopened_runnables_for_file(file_path, by_full_name, by_short_name)
         declared = declared_class_names(file_path)
         return [] if declared.empty?
 
-        declared_short = declared.map { |name| name.split('::').last }.to_set
+        declared.each_with_object([]) do |name, runnables|
+          runnable = by_full_name[name]
+          if runnable
+            runnables << runnable
+            next
+          end
 
-        runnables.select do |runnable|
-          name = runnable.name
-          next false unless name
-          next false unless declared.include?(name) || declared_short.include?(name.split('::').last)
-
-          runnable_has_method_in_file?(runnable, file_path)
+          short_name = name.split('::').last
+          runnables.concat(by_short_name[short_name])
         end
+      end
+
+      def index_runnables(runnables, by_full_name, by_short_name)
+        runnables.each do |runnable|
+          name = runnable.name
+          next unless name
+
+          by_full_name[name] ||= runnable
+          short_name = name.split('::').last
+          by_short_name[short_name] << runnable
+        end
+      end
+
+      def debug_discovery_profile(discovery_start:, total_files:, new_runnable_files:, reopened_files:, reopened_candidates:, reopened_scan_time:)
+        return unless CI::Queue.debug?
+
+        total_time = Process.clock_gettime(Process::CLOCK_MONOTONIC) - discovery_start
+        puts "[ci-queue][lazy-discovery] files=#{total_files} new_runnable_files=#{new_runnable_files} " \
+          "reopened_files=#{reopened_files} reopened_candidates=#{reopened_candidates} " \
+          "reopened_scan_time=#{reopened_scan_time.round(2)}s total_time=#{total_time.round(2)}s"
       end
 
       def enqueue_discovered_tests(runnables, file_path, seen)
@@ -109,14 +163,6 @@ module Minitest
         Set.new
       end
 
-      def runnable_has_method_in_file?(runnable, file_path)
-        runnable.runnable_methods.any? do |method_name|
-          location = runnable.instance_method(method_name).source_location
-          location && ::File.expand_path(location.first) == file_path
-        rescue NameError
-          false
-        end
-      end
     end
   end
 end
