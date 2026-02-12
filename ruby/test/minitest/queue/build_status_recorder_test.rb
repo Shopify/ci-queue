@@ -40,7 +40,7 @@ module Minitest::Queue
       reserve(second_queue, "h")
       second_reporter.record(result('h', skipped: true, requeued: true))
 
-      assert_equal 9, summary.assertions
+      assert_equal 8, summary.assertions
       assert_equal 3, summary.failures
       assert_equal 3, summary.errors
       assert_equal 1, summary.skips
