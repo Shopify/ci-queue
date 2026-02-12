@@ -56,23 +56,34 @@ module CI
           redis.rpush(key('warnings'), Marshal.dump([type, attributes]))
         end
 
-        def record_error(id, payload)
+        def record_error(id, payload, stat_delta: nil)
           # Run acknowledge first so we know whether we're the first to ack
           acknowledged = @queue.acknowledge(id, error: payload)
+          stats_logger&.info("[stats] record_error test_id=#{id.inspect} acknowledged=#{acknowledged} worker_id=#{config.worker_id} stat_delta=#{stat_delta.inspect}")
 
           if acknowledged
             # We were the first to ack; another worker already ack'd would get falsy from SADD
             @queue.increment_test_failed
+            # Only the acknowledging worker's stats include this failure (others skip increment when ack=false).
+            # Store so we can subtract it if another worker records success later.
+            store_error_report_delta(id, stat_delta) if stat_delta && stat_delta.any?
           end
           # Return so caller can roll back local counter when not acknowledged
           !!acknowledged
         end
 
         def record_success(id, skip_flaky_record: false)
-          acknowledged, error_reports_deleted_count, requeued_count = redis.multi do |transaction|
+          acknowledged, error_reports_deleted_count, requeued_count, delta_json = redis.multi do |transaction|
             @queue.acknowledge(id, pipeline: transaction)
             transaction.hdel(key('error-reports'), id)
             transaction.hget(key('requeues-count'), id)
+            transaction.hget(key('error-report-deltas'), id)
+          end
+          stats_logger&.info("[stats] record_success test_id=#{id.inspect} acknowledged=#{acknowledged} worker_id=#{config.worker_id} error_reports_deleted=#{error_reports_deleted_count} has_delta=#{!!delta_json}")
+          # When we're replacing a failure, subtract the (single) acknowledging worker's stat contribution
+          if error_reports_deleted_count.to_i > 0 && delta_json
+            apply_error_report_delta_correction(delta_json)
+            redis.hdel(key('error-report-deltas'), id)
           end
           record_flaky(id) if !skip_flaky_record && (error_reports_deleted_count.to_i > 0 || requeued_count.to_i > 0)
           !!acknowledged
@@ -84,6 +95,7 @@ module CI
 
         def record_stats(stats = nil, pipeline: nil)
           return unless stats
+          stats_logger&.info("[stats] record_stats worker_id=#{config.worker_id} stats=#{stats.inspect}")
           if pipeline
             stats.each do |stat_name, stat_value|
               pipeline.hset(key(stat_name), config.worker_id, stat_value)
@@ -145,6 +157,38 @@ module CI
 
         def key(*args)
           KeyShortener.key(config.build_id, *args)
+        end
+
+        def store_error_report_delta(test_id, stat_delta)
+          # Only the acknowledging worker's stats include this test; store their delta for correction on success
+          payload = { 'worker_id' => config.worker_id }.merge(stat_delta)
+          stats_logger&.info("[stats] store_error_report_delta test_id=#{test_id.inspect} worker_id=#{config.worker_id} payload=#{payload.inspect}")
+          redis.hset(key('error-report-deltas'), test_id, JSON.generate(payload))
+          redis.expire(key('error-report-deltas'), config.redis_ttl)
+        end
+
+        def apply_error_report_delta_correction(delta_json)
+          delta = JSON.parse(delta_json)
+          worker_id = delta.delete('worker_id')
+          stats_logger&.info("[stats] apply_error_report_delta_correction worker_id=#{worker_id.inspect} subtracting=#{delta.inspect}")
+          return if worker_id.nil? || delta.empty?
+
+          redis.pipelined do |pipeline|
+            delta.each do |stat_name, value|
+              next unless value.is_a?(Numeric) || value.to_s.match?(/\A-?\d+\.?\d*\z/)
+
+              pipeline.hincrbyfloat(key(stat_name), worker_id, -value.to_f)
+              pipeline.expire(key(stat_name), config.redis_ttl)
+            end
+          end
+        end
+
+        def stats_logger
+          return @stats_logger if defined?(@stats_logger)
+          return @stats_logger = nil unless config.respond_to?(:debug_log) && config.debug_log
+
+          require 'logger'
+          @stats_logger = Logger.new(config.debug_log).tap { |l| l.level = Logger::INFO }
         end
       end
     end

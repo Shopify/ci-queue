@@ -43,7 +43,7 @@ module Minitest
         test_id = "#{test.klass}##{test.name}"
 
         acknowledged = if (test.failure || test.error?) && !test.skipped?
-          build.record_error(test_id, dump(test))
+          build.record_error(test_id, dump(test), stat_delta: delta_for(test))
         elsif test.requeued?
           build.record_requeue(test_id)
         else
@@ -66,6 +66,18 @@ module Minitest
       end
 
       private
+
+      def delta_for(test)
+        h = { 'assertions' => 1, 'errors' => 0, 'failures' => 0, 'skips' => 0, 'requeues' => 0, 'total_time' => test.time.to_f }
+        if (test.failure || test.error?) && !test.skipped?
+          test.error? ? h['errors'] = 1 : h['failures'] = 1
+        elsif test.requeued?
+          h['requeues'] = 1
+        elsif test.skipped?
+          h['skips'] = 1
+        end
+        h
+      end
 
       def dump(test)
         ErrorReport.new(self.class.failure_formatter.new(test).to_h).dump

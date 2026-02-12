@@ -18,7 +18,7 @@ module CI
         @queue.exhausted?
       end
 
-      def record_error(id, payload)
+      def record_error(id, payload, stat_delta: nil)
         error_reports[id] = payload
         true
       end
