@@ -58,9 +58,11 @@ module Minitest
           elsif test.skipped?
             self.skips += 1
           end
-          stats = COUNTERS.zip(COUNTERS.map { |c| send(c) }).to_h
-          build.record_stats(stats)
         end
+
+        # Record stats after incrementing counters
+        stats = COUNTERS.zip(COUNTERS.map { |c| send(c) }).to_h
+        build.record_stats(stats)
       end
 
       private
