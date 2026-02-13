@@ -38,6 +38,33 @@ minitest-queue --queue redis://example.com run -Itest test/**/*_test.rb
 
 Additionally you can configure the requeue settings (see main README) with `--max-requeues` and `--requeue-tolerance`.
 
+#### Lazy loading (opt-in)
+
+Lazy loading and streaming are currently supported only by `minitest-queue` (not `rspec-queue`).
+
+To reduce worker memory usage, you can enable lazy loading so test files are loaded on-demand:
+
+```bash
+minitest-queue --queue redis://example.com --lazy-load run -Itest test/**/*_test.rb
+```
+
+You can tune streaming with `--lazy-load-stream-batch-size` (default: 5000) and `--lazy-load-stream-timeout` (default 300s).
+
+Environment variables:
+
+- `CI_QUEUE_LAZY_LOAD=1`
+- `CI_QUEUE_LAZY_LOAD_STREAM_BATCH_SIZE=10000`
+- `CI_QUEUE_LAZY_LOAD_STREAM_TIMEOUT=300`
+- `CI_QUEUE_LAZY_LOAD_TEST_HELPERS=test/test_helper.rb`
+
+Backward-compatible aliases still work:
+
+- `CI_QUEUE_STREAM_BATCH_SIZE`
+- `CI_QUEUE_STREAM_TIMEOUT`
+- `CI_QUEUE_TEST_HELPERS`
+
+When enabled, file loading stats are printed at the end of the run if debug is enabled.
+
 
 If you'd like to centralize the error reporting you can do so with:
 
