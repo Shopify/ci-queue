@@ -108,6 +108,25 @@ module CI
           end
         end
 
+        # Apply a delta to this worker's stats in Redis (HINCRBY). Use this instead of
+        # record_stats when recording per-test so we never overwrite and correction sticks.
+        def record_stats_delta(delta, pipeline: nil)
+          return if delta.nil? || delta.empty?
+          stats_logger&.info("[stats] record_stats_delta worker_id=#{config.worker_id} delta=#{delta.inspect}")
+          apply_delta = lambda do |p|
+            delta.each do |stat_name, value|
+              next unless value.is_a?(Numeric) || value.to_s.match?(/\A-?\d+\.?\d*\z/)
+              p.hincrbyfloat(key(stat_name), config.worker_id.to_s, value.to_f)
+              p.expire(key(stat_name), config.redis_ttl)
+            end
+          end
+          if pipeline
+            apply_delta.call(pipeline)
+          else
+            redis.pipelined { |p| apply_delta.call(p) }
+          end
+        end
+
         def record_flaky(id, stats: nil)
           redis.pipelined do |pipeline|
             pipeline.sadd?(
@@ -161,7 +180,7 @@ module CI
 
         def store_error_report_delta(test_id, stat_delta)
           # Only the acknowledging worker's stats include this test; store their delta for correction on success
-          payload = { 'worker_id' => config.worker_id }.merge(stat_delta)
+          payload = { 'worker_id' => config.worker_id.to_s }.merge(stat_delta)
           stats_logger&.info("[stats] store_error_report_delta test_id=#{test_id.inspect} worker_id=#{config.worker_id} payload=#{payload.inspect}")
           redis.hset(key('error-report-deltas'), test_id, JSON.generate(payload))
           redis.expire(key('error-report-deltas'), config.redis_ttl)
@@ -169,9 +188,9 @@ module CI
 
         def apply_error_report_delta_correction(delta_json)
           delta = JSON.parse(delta_json)
-          worker_id = delta.delete('worker_id')
+          worker_id = delta.delete('worker_id')&.to_s
           stats_logger&.info("[stats] apply_error_report_delta_correction worker_id=#{worker_id.inspect} subtracting=#{delta.inspect}")
-          return if worker_id.nil? || delta.empty?
+          return if worker_id.nil? || worker_id.empty? || delta.empty?
 
           redis.pipelined do |pipeline|
             delta.each do |stat_name, value|

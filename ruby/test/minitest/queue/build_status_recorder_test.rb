@@ -39,13 +39,16 @@ module Minitest::Queue
       second_reporter.record(result('g', requeued: true))
       reserve(second_queue, "h")
       second_reporter.record(result('h', skipped: true, requeued: true))
+      # W2 passes "b" (W1 had errored): stat correction subtracts W1's error, so 2 errors (d, f) and 4 error reports
+      reserve(second_queue, "b")
+      second_reporter.record(result('b'))
 
       assert_equal 8, summary.assertions
       assert_equal 2, summary.failures
-      assert_equal 3, summary.errors
+      assert_equal 2, summary.errors
       assert_equal 1, summary.skips
       assert_equal 1, summary.requeues
-      assert_equal 5, summary.error_reports.size
+      assert_equal 4, summary.error_reports.size
       assert_equal 0, summary.flaky_reports.size
     end
 

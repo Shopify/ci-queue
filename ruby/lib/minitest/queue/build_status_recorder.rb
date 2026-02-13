@@ -41,9 +41,10 @@ module Minitest
         
         # Determine what type of result this is and record it
         test_id = "#{test.klass}##{test.name}"
+        delta = delta_for(test)
 
         acknowledged = if (test.failure || test.error?) && !test.skipped?
-          build.record_error(test_id, dump(test), stat_delta: delta_for(test))
+          build.record_error(test_id, dump(test), stat_delta: delta)
         elsif test.requeued?
           build.record_requeue(test_id)
         else
@@ -58,11 +59,9 @@ module Minitest
           elsif test.skipped?
             self.skips += 1
           end
+          # Apply delta to Redis only (HINCRBY); no full overwrite so correction sticks
+          build.record_stats_delta(delta)
         end
-
-        # Record stats after incrementing counters
-        stats = COUNTERS.zip(COUNTERS.map { |c| send(c) }).to_h
-        build.record_stats(stats)
       end
 
       private
