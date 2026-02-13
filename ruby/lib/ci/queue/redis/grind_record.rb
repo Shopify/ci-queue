@@ -52,7 +52,7 @@ module CI
         attr_reader :redis, :config
 
         def key(*args)
-          KeyShortener.key(config.build_id, *args)
+          ['build', config.build_id, *args].join(':')
         end
 
         def record_stats(stats, pipeline: redis)
