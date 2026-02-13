@@ -88,7 +88,7 @@ module Integration
 
         assert_empty err
         result = normalize(out.lines[1].strip)
-        assert_equal "Ran 1 tests, 0 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)", result
+        assert_equal "Ran 1 tests, 1 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)", result
         warnings = warnings_file.read.lines.map { |line| JSON.parse(line) }
         assert_equal 1, warnings.size
       end
@@ -952,7 +952,7 @@ module Integration
           REQUEUE
           BTest#test_bar (requeued 1 times)
 
-          Ran 7 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs (aggregated)
+          Ran 7 tests, 11 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs (aggregated)
 
 
 

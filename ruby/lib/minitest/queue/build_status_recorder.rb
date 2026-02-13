@@ -59,7 +59,7 @@ module Minitest
           elsif test.skipped?
             self.skips += 1
           end
-          # Apply delta to Redis only (HINCRBY); no full overwrite so correction sticks
+          # Apply delta to Redis (record_success returns true when ack'd or when we replaced a failure)
           build.record_stats_delta(delta)
         end
       end

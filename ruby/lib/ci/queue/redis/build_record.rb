@@ -86,7 +86,8 @@ module CI
             redis.hdel(key('error-report-deltas'), id)
           end
           record_flaky(id) if !skip_flaky_record && (error_reports_deleted_count.to_i > 0 || requeued_count.to_i > 0)
-          !!acknowledged
+          # Count this run when we ack'd or when we replaced a failure (so stats delta is applied)
+          acknowledged || error_reports_deleted_count.to_i > 0
         end
 
         def record_requeue(id)
