@@ -56,31 +56,71 @@ module CI
           redis.rpush(key('warnings'), Marshal.dump([type, attributes]))
         end
 
-        def record_error(id, payload, stats: nil)
+        def record_error(id, payload, stat_delta: nil)
+          # Run acknowledge first so we know whether we're the first to ack
           acknowledged = @queue.acknowledge(id, error: payload)
 
           if acknowledged
-            # if another worker already acknowledged the test, we don't need to update the global stats or increment the test failed count
-            record_stats(stats)
+            # We were the first to ack; another worker already ack'd would get falsy from SADD
             @queue.increment_test_failed
+            # Only the acknowledging worker's stats include this failure (others skip increment when ack=false).
+            # Store so we can subtract it if another worker records success later.
+            store_error_report_delta(id, stat_delta) if stat_delta && stat_delta.any?
           end
-          nil
+          # Return so caller can roll back local counter when not acknowledged
+          !!acknowledged
         end
 
-        def record_success(id, stats: nil, skip_flaky_record: false)
-          _, error_reports_deleted_count, requeued_count, _ = redis.multi do |transaction|
+        def record_success(id, skip_flaky_record: false)
+          acknowledged, error_reports_deleted_count, requeued_count, delta_json = redis.multi do |transaction|
             @queue.acknowledge(id, pipeline: transaction)
             transaction.hdel(key('error-reports'), id)
             transaction.hget(key('requeues-count'), id)
-            record_stats(stats, pipeline: transaction)
+            transaction.hget(key('error-report-deltas'), id)
+          end
+          # When we're replacing a failure, subtract the (single) acknowledging worker's stat contribution
+          if error_reports_deleted_count.to_i > 0 && delta_json
+            apply_error_report_delta_correction(delta_json)
+            redis.hdel(key('error-report-deltas'), id)
           end
           record_flaky(id) if !skip_flaky_record && (error_reports_deleted_count.to_i > 0 || requeued_count.to_i > 0)
-          nil
+          # Count this run when we ack'd or when we replaced a failure (so stats delta is applied)
+          !!(acknowledged || error_reports_deleted_count.to_i > 0)
         end
 
-        def record_requeue(id, stats: nil)
-          redis.pipelined do |pipeline|
-           record_stats(stats, pipeline: pipeline)
+        def record_requeue(id)
+          true
+        end
+
+        def record_stats(stats = nil, pipeline: nil)
+          return unless stats
+          if pipeline
+            stats.each do |stat_name, stat_value|
+              pipeline.hset(key(stat_name), config.worker_id, stat_value)
+              pipeline.expire(key(stat_name), config.redis_ttl)
+            end
+          else
+            redis.pipelined do |p|
+              record_stats(stats, pipeline: p)
+            end
+          end
+        end
+
+        # Apply a delta to this worker's stats in Redis (HINCRBY). Use this instead of
+        # record_stats when recording per-test so we never overwrite and correction sticks.
+        def record_stats_delta(delta, pipeline: nil)
+          return if delta.nil? || delta.empty?
+          apply_delta = lambda do |p|
+            delta.each do |stat_name, value|
+              next unless value.is_a?(Numeric) || value.to_s.match?(/\A-?\d+\.?\d*\z/)
+              p.hincrbyfloat(key(stat_name), config.worker_id.to_s, value.to_f)
+              p.expire(key(stat_name), config.redis_ttl)
+            end
+          end
+          if pipeline
+            apply_delta.call(pipeline)
+          else
+            redis.pipelined { |p| apply_delta.call(p) }
           end
         end
 
@@ -131,16 +171,30 @@ module CI
 
         attr_reader :config, :redis
 
-        def record_stats(stats, pipeline: redis)
-          return unless stats
-          stats.each do |stat_name, stat_value|
-            pipeline.hset(key(stat_name), config.worker_id, stat_value)
-            pipeline.expire(key(stat_name), config.redis_ttl)
-          end
-        end
-
         def key(*args)
           ['build', config.build_id, *args].join(':')
+        end
+
+        def store_error_report_delta(test_id, stat_delta)
+          # Only the acknowledging worker's stats include this test; store their delta for correction on success
+          payload = { 'worker_id' => config.worker_id.to_s }.merge(stat_delta)
+          redis.hset(key('error-report-deltas'), test_id, JSON.generate(payload))
+          redis.expire(key('error-report-deltas'), config.redis_ttl)
+        end
+
+        def apply_error_report_delta_correction(delta_json)
+          delta = JSON.parse(delta_json)
+          worker_id = delta.delete('worker_id')&.to_s
+          return if worker_id.nil? || worker_id.empty? || delta.empty?
+
+          redis.pipelined do |pipeline|
+            delta.each do |stat_name, value|
+              next unless value.is_a?(Numeric) || value.to_s.match?(/\A-?\d+\.?\d*\z/)
+
+              pipeline.hincrbyfloat(key(stat_name), worker_id, -value.to_f)
+              pipeline.expire(key(stat_name), config.redis_ttl)
+            end
+          end
         end
       end
     end

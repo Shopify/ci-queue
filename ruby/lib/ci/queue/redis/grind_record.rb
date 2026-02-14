@@ -10,20 +10,32 @@ module CI
           @config = config
         end
 
-        def record_error(payload, stats: nil)
+        def record_error(payload)
           redis.pipelined do |pipeline|
             pipeline.lpush(
               key('error-reports'),
               payload,
             )
             pipeline.expire(key('error-reports'), config.redis_ttl)
-            record_stats(stats, pipeline: pipeline)
           end
           nil
         end
 
-        def record_success(stats: nil)
-          record_stats(stats)
+        def record_success
+        end
+
+        def record_stats(stats, pipeline: nil)
+          return unless stats
+          if pipeline
+            stats.each do |stat_name, stat_value|
+              pipeline.hset(key(stat_name), config.worker_id, stat_value)
+              pipeline.expire(key(stat_name), config.redis_ttl)
+            end
+          else
+            redis.pipelined do |p|
+              record_stats(stats, pipeline: p)
+            end
+          end
         end
 
         def record_warning(_,_)
@@ -53,14 +65,6 @@ module CI
 
         def key(*args)
           ['build', config.build_id, *args].join(':')
-        end
-
-        def record_stats(stats, pipeline: redis)
-          return unless stats
-          stats.each do |stat_name, stat_value|
-            pipeline.hset(key(stat_name), config.worker_id, stat_value)
-            pipeline.expire(key(stat_name), config.redis_ttl)
-          end
         end
       end
     end
