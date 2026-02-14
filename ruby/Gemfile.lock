@@ -31,7 +31,7 @@ GEM
       concurrent-ruby (~> 1.0)
     json (2.7.1)
     language_server-protocol (3.17.0.3)
-    logger (1.6.1)
+    logger (1.7.0)
     minitest (5.22.3)
     minitest-reporters (1.6.1)
       ansi

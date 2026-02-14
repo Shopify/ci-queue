@@ -289,6 +289,7 @@ module Minitest
 
     def __run(*args)
       if queue
+        puts "------- Running tests #{queue.config.worker_id}"
         Queue.run(*args)
 
         if queue.config.circuit_breakers.any?(&:open?)
