@@ -12,6 +12,7 @@ module CI
           'queue' => 'q',
           'owners' => 'o',
           'error-reports' => 'e',
+          'error-report-deltas' => 'ed',
           'requeues-count' => 'rc',
           'assertions' => 'a',
           'errors' => 'er',

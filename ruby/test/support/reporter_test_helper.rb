@@ -11,9 +11,10 @@ module ReporterTestHelper
   def runnable(name, failure: nil, requeued: false, skipped: false, unexpected_error: false)
     runnable = Minitest::Test.new(name)
     runnable.failures << generate_assertion(failure) if failure
+    # Push Requeue before Skip when both set so requeued? is true (recorder checks requeued? before success/skip)
+    runnable.failures << Minitest::Requeue.new(generate_assertion("Failed")) if requeued
     runnable.failures << Minitest::Skip.new if skipped
     runnable.failures << generate_unexpected_error if unexpected_error
-    runnable.failures << Minitest::Requeue.new(generate_assertion("Failed")) if requeued
     runnable.assertions += 1
     runnable.time = 0.12
     runnable
