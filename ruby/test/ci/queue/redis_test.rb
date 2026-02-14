@@ -270,6 +270,18 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_instance_of CI::Queue::Redis::Worker, queue
   end
 
+  def test_custom_config_returns_empty_hash_by_default
+    queue = worker(1)
+    custom_config = queue.send(:custom_config)
+    assert_equal({}, custom_config)
+  end
+
+  def test_custom_config_returns_logger_when_debug_log_is_set
+    queue = worker(1, debug_log: '/dev/null')
+    custom_config = queue.send(:custom_config)
+    assert_kind_of Logger, custom_config[:debug_log]
+  end
+
   private
 
   def shuffled_test_list
