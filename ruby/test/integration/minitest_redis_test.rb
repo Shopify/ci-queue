@@ -88,8 +88,9 @@ module Integration
 
         assert_empty err
         result = normalize(out.lines[1].strip)
+        # lost_test.rb test_foo has no assertions (only sleep)
         assert_equal "Ran 1 tests, 0 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)", result
-        warnings = JSON.parse(warnings_file.read)
+        warnings = warnings_file.read.lines.map { |line| JSON.parse(line) }
         assert_equal 1, warnings.size
       end
     end
@@ -513,7 +514,8 @@ module Integration
 
       error_reports.keys.each_with_index do |test_id, index|
         queue.instance_variable_set(:@reserved_tests, Concurrent::Set.new([test_id]))
-        queue.build.record_success(test_id.dup, stats: {
+        queue.build.record_success(test_id.dup)
+        queue.build.record_stats({
           'assertions' => index + 1,
           'errors' => 0,
           'failures' => 0,
@@ -912,6 +914,7 @@ module Integration
       end
       assert_empty err
       output = normalize(out.lines.last.strip)
+      # 8 = sum of test.assertions from Minitest (skip counts as 1 in some versions)
       assert_equal 'Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
 
       Tempfile.open('warnings') do |warnings_file|
@@ -927,7 +930,7 @@ module Integration
         end
 
         warnings_file.rewind
-        content = JSON.parse(warnings_file.read)
+        content = warnings_file.read.lines.map { |line| JSON.parse(line) }
         assert_equal 1, content.size
         assert_equal "RESERVED_LOST_TEST", content[0]["type"]
         assert_equal "Atest#test_bar", content[0]["test"]

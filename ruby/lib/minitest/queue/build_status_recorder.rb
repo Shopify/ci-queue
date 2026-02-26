@@ -38,27 +38,45 @@ module Minitest
         super
 
         self.total_time = Minitest.clock_time - start_time
-        if test.requeued?
-          self.requeues += 1
-        elsif test.skipped?
-          self.skips += 1
-        elsif test.error?
-          self.errors += 1
-        elsif test.failure
-          self.failures += 1
+        
+        # Determine what type of result this is and record it
+        test_id = "#{test.klass}##{test.name}"
+        delta = delta_for(test)
+
+        acknowledged = if (test.failure || test.error?) && !test.skipped?
+          build.record_error(test_id, dump(test), stat_delta: delta)
+        elsif test.requeued?
+          build.record_requeue(test_id)
+        else
+          build.record_success(test_id, skip_flaky_record: test.skipped?)
         end
 
-        stats = COUNTERS.zip(COUNTERS.map { |c| send(c) }).to_h
-        if (test.failure || test.error?) && !test.skipped?
-          build.record_error("#{test.klass}##{test.name}", dump(test), stats: stats)
-        elsif test.requeued?
-          build.record_requeue("#{test.klass}##{test.name}", stats: stats)
-        else
-          build.record_success("#{test.klass}##{test.name}", stats: stats, skip_flaky_record: test.skipped?)
+        if acknowledged
+          if (test.failure || test.error?) && !test.skipped?
+            test.error? ? self.errors += 1 : self.failures += 1
+          elsif test.requeued?
+            self.requeues += 1
+          elsif test.skipped?
+            self.skips += 1
+          end
+          # Apply delta to Redis (record_success returns true when ack'd or when we replaced a failure)
+          build.record_stats_delta(delta)
         end
       end
 
       private
+
+      def delta_for(test)
+        h = { 'assertions' => (test.assertions || 0).to_i, 'errors' => 0, 'failures' => 0, 'skips' => 0, 'requeues' => 0, 'total_time' => test.time.to_f }
+        if (test.failure || test.error?) && !test.skipped?
+          test.error? ? h['errors'] = 1 : h['failures'] = 1
+        elsif test.requeued?
+          h['requeues'] = 1
+        elsif test.skipped?
+          h['skips'] = 1
+        end
+        h
+      end
 
       def dump(test)
         ErrorReport.new(self.class.failure_formatter.new(test).to_h).dump
