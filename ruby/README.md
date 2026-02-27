@@ -71,6 +71,28 @@ rspec-queue --queue redis://example.com --timeout 600 --report
 
 Because of how `ci-queue` executes the examples, `before(:all)` and `after(:all)` hooks are not supported. `rspec-queue` will explicitly reject them.
 
+## Releasing a New Version
+
+After merging changes to `main`, follow these steps to release and propagate the update:
+
+1. **Bump the version** in `ruby/lib/ci/queue/version.rb`:
+
+    ```ruby
+    VERSION = '0.XX.0'
+    ```
+
+2. **Update `Gemfile.lock`** by running `bundle install` in the `ruby/` directory (or manually updating the version string in `Gemfile.lock` if native dependencies prevent `bundle install`).
+
+3. **Commit and merge** the version bump to `main`. ShipIt will automatically publish the gem to RubyGems.
+
+4. **Update dependent apps/zones**: Any application that depends on `ci-queue` (e.g. via its `Gemfile`) needs to pick up the new version by running:
+
+    ```bash
+    bundle update ci-queue
+    ```
+
+    This updates the app's `Gemfile.lock` to reference the new `ci-queue` version. Commit the updated `Gemfile.lock` and deploy.
+
 ## Custom Redis Expiry
 
 `ci-queue` expects the Redis server to have an [eviction policy](https://redis.io/docs/manual/eviction/#eviction-policies) of `allkeys-lru`.
