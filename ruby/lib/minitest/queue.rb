@@ -2,6 +2,7 @@
 require 'shellwords'
 require 'minitest'
 require 'minitest/reporters'
+require 'concurrent/map'
 
 require 'minitest/queue/failure_formatter'
 require 'minitest/queue/error_report'
@@ -106,6 +107,10 @@ module Minitest
     attr_accessor :start_timestamp, :finish_timestamp
   end
 
+  module ResultMetadata
+    attr_accessor :queue_id, :queue_entry
+  end
+
   module Queue
     extend ::CI::Queue::OutputHelpers
     attr_writer :run_command_formatter, :project_root
@@ -156,19 +161,29 @@ module Minitest
 
       def run(reporter, *)
         rescue_run_errors do
-          queue.poll do |example|
-            result = queue.with_heartbeat(example.id) do
-              example.run
+          begin
+            queue.poll do |example|
+              result = queue.with_heartbeat(example.queue_entry) do
+                example.run
+              end
+
+              handle_test_result(reporter, example, result)
             end
 
-            handle_test_result(reporter, example, result)
+            report_load_stats(queue)
+          ensure
+            store_worker_profile(queue)
           end
-
           queue.stop_heartbeat!
         end
       end
 
       def handle_test_result(reporter, example, result)
+        if result.respond_to?(:queue_id=)
+          result.queue_id = example.id
+          result.queue_entry = example.queue_entry if result.respond_to?(:queue_entry=)
+        end
+
         failed = !(result.passed? || result.skipped?)
 
         if example.flaky?
@@ -193,6 +208,85 @@ module Minitest
       end
 
       private
+
+      def report_load_stats(queue)
+        return unless CI::Queue.debug?
+        return unless queue.respond_to?(:file_loader)
+        return unless queue.respond_to?(:config) && queue.config.lazy_load
+
+        loader = queue.file_loader
+        return if loader.load_stats.empty?
+
+        total_time = loader.total_load_time
+        file_count = loader.load_stats.size
+        average = file_count.zero? ? 0 : (total_time / file_count)
+
+        puts
+        puts "File loading stats:"
+        puts "  Total time: #{total_time.round(2)}s"
+        puts "  Files loaded: #{file_count}"
+        puts "  Average: #{average.round(3)}s per file"
+
+        slowest = loader.slowest_files(5)
+        return if slowest.empty?
+
+        puts "  Slowest files:"
+        slowest.each do |file_path, duration|
+          puts "    #{duration.round(3)}s - #{Minitest::Queue.relative_path(file_path)}"
+        end
+      end
+
+      def store_worker_profile(queue)
+        debug = CI::Queue.debug?
+        return unless queue.respond_to?(:config)
+        config = queue.config
+
+        run_start = Minitest::Queue::Runner.run_start
+        return unless run_start
+
+        run_end = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        profile = {
+          'worker_id' => config.worker_id,
+          'mode' => config.lazy_load ? 'lazy' : 'eager',
+          'role' => queue.master? ? 'leader' : 'non-leader',
+          'total_wall_clock' => (run_end - run_start).round(2),
+        }
+
+        first_test = queue.respond_to?(:first_reserve_at) ? queue.first_reserve_at : nil
+        profile['time_to_first_test'] = (first_test - run_start).round(2) if first_test
+
+        tests_run = queue.rescue_connection_errors { queue.worker_queue_length } if queue.respond_to?(:worker_queue_length)
+        profile['tests_run'] = tests_run.to_i if tests_run
+
+        load_tests_duration = Minitest::Queue::Runner.load_tests_duration
+        profile['load_tests_duration'] = load_tests_duration.round(2) if load_tests_duration
+
+        if queue.respond_to?(:file_loader) && queue.file_loader.load_stats.any?
+          loader = queue.file_loader
+          profile['files_loaded'] = loader.load_stats.size
+          profile['file_load_time'] = loader.total_load_time.round(2)
+        end
+
+        profile['total_files'] = Minitest::Queue::Runner.total_files if Minitest::Queue::Runner.total_files
+
+        rss_kb = begin
+          if File.exist?("/proc/#{Process.pid}/statm")
+            pages = Integer(File.read("/proc/#{Process.pid}/statm").split[1])
+            pages * 4
+          else
+            Integer(`ps -o rss= -p #{Process.pid}`.strip)
+          end
+        rescue
+          nil
+        end
+        profile['memory_rss_kb'] = rss_kb if rss_kb
+
+        queue.rescue_connection_errors do
+          queue.build.record_worker_profile(profile)
+        end
+      rescue => e
+        puts "WARNING: Failed to store worker profile: #{e.message}" if debug
+      end
 
       def rescue_run_errors(&block)
         block.call
@@ -232,6 +326,10 @@ module Minitest
         @id ||= "#{@runnable}##{@method_name}".freeze
       end
 
+      def queue_entry
+        id
+      end
+
       def <=>(other)
         id <=> other.id
       end
@@ -264,6 +362,174 @@ module Minitest
       end
 
       private
+
+      def current_timestamp
+        CI::Queue.time_now.to_i
+      end
+    end
+
+    class LazySingleExample
+      attr_reader :class_name, :method_name, :file_path
+
+      def initialize(class_name, method_name, file_path, loader:, resolver:, load_error: nil, queue_entry: nil)
+        @class_name = class_name
+        @method_name = method_name
+        @file_path = file_path
+        @loader = loader
+        @resolver = resolver
+        @load_error = load_error
+        @queue_entry_override = queue_entry
+        @runnable = nil
+      end
+
+      def id
+        @id ||= "#{@class_name}##{@method_name}".freeze
+      end
+
+      def queue_entry
+        @queue_entry ||= @queue_entry_override || CI::Queue::QueueEntry.format(id, file_path)
+      end
+
+      def <=>(other)
+        id <=> other.id
+      end
+
+      RUNNABLE_METHODS_TRIGGERED = Concurrent::Map.new # :nodoc:
+
+      def runnable
+        @runnable ||= begin
+          klass = @resolver.resolve(@class_name, file_path: @file_path, loader: @loader)
+          unless RUNNABLE_METHODS_TRIGGERED[klass]
+            klass.runnable_methods
+            RUNNABLE_METHODS_TRIGGERED[klass] = true
+          end
+
+          # If the method doesn't exist, the class may have been autoloaded by
+          # Zeitwerk without executing test-specific code (includes, helpers).
+          # Force load the file so all class-definition-time code executes.
+          unless klass.method_defined?(@method_name) || klass.private_method_defined?(@method_name)
+            if @file_path && @loader
+              @loader.load_file(@file_path)
+              RUNNABLE_METHODS_TRIGGERED.delete(klass)
+              klass.runnable_methods
+              RUNNABLE_METHODS_TRIGGERED[klass] = true
+            end
+          end
+
+          klass
+        end
+      end
+
+      def with_timestamps
+        start_timestamp = current_timestamp
+        result = yield
+        result
+      ensure
+        if result
+          result.start_timestamp = start_timestamp
+          result.finish_timestamp = current_timestamp
+        end
+      end
+
+      def run
+        with_timestamps do
+          begin
+            return build_error_result(@load_error) if @load_error
+
+            klass = runnable
+            if skip_stale_tests? && !(klass.method_defined?(@method_name) || klass.private_method_defined?(@method_name))
+              return build_stale_skip_result
+            end
+
+            Minitest.run_one_method(klass, @method_name)
+          rescue StandardError, ScriptError => error
+            build_error_result(error)
+          end
+        end
+      end
+
+      def flaky?
+        Minitest.queue.flaky?(self)
+      end
+
+      def source_location
+        return nil if @load_error
+
+        runnable.instance_method(@method_name).source_location
+      rescue NameError, NoMethodError, CI::Queue::FileLoadError, CI::Queue::ClassNotFoundError
+        nil
+      end
+
+      def marshal_dump
+        {
+          'class_name' => @class_name,
+          'method_name' => @method_name,
+          'file_path' => @file_path,
+          'load_error' => serialize_error(@load_error),
+          'queue_entry' => @queue_entry_override,
+        }
+      end
+
+      def marshal_load(payload)
+        @class_name = payload['class_name']
+        @method_name = payload['method_name']
+        @file_path = payload['file_path']
+        @load_error = deserialize_error(payload['load_error'])
+        @queue_entry_override = payload['queue_entry']
+        @loader = CI::Queue::FileLoader.new
+        @resolver = CI::Queue::ClassResolver
+        @runnable = nil
+        @id = nil
+        @queue_entry = nil
+      end
+
+      private
+
+      def serialize_error(error)
+        return nil unless error
+
+        {
+          'class' => error.class.name,
+          'message' => error.message,
+          'backtrace' => error.backtrace,
+        }
+      end
+
+      def deserialize_error(payload)
+        return nil unless payload
+
+        message = "#{payload['class']}: #{payload['message']}"
+        error = StandardError.new(message)
+        error.set_backtrace(payload['backtrace']) if payload['backtrace']
+        CI::Queue::FileLoadError.new(@file_path, error)
+      end
+
+      def build_error_result(error)
+        result_class = defined?(Minitest::Result) ? Minitest::Result : Minitest::Test
+        result = result_class.new(@method_name)
+        result.klass = @class_name if result.respond_to?(:klass=)
+        result.source_location = [@file_path || 'unknown', -1] if result.respond_to?(:source_location=)
+        result.failures << Minitest::UnexpectedError.new(error)
+        result
+      end
+
+      def skip_stale_tests?
+        Minitest.queue&.respond_to?(:config) && Minitest.queue.config.skip_stale_tests
+      end
+
+      def build_stale_skip_result
+        $stderr.puts "[ci-queue] Skipping stale preresolved entry: #{@class_name}##{@method_name} " \
+          "(method no longer exists in #{@file_path || 'unknown file'})"
+
+        result_class = defined?(Minitest::Result) ? Minitest::Result : Minitest::Test
+        result = result_class.new(@method_name)
+        result.klass = @class_name if result.respond_to?(:klass=)
+        result.source_location = [@file_path || 'unknown', -1] if result.respond_to?(:source_location=)
+        result.failures << Minitest::Skip.new(
+          "[ci-queue] Stale preresolved entry: #{@class_name}##{@method_name} no longer exists"
+        )
+        result
+      end
 
       def current_timestamp
         CI::Queue.time_now.to_i
@@ -310,10 +576,12 @@ if defined? Minitest::Result
   Minitest::Result.prepend(Minitest::Requeueing)
   Minitest::Result.prepend(Minitest::Flakiness)
   Minitest::Result.prepend(Minitest::WithTimestamps)
+  Minitest::Result.prepend(Minitest::ResultMetadata)
 else
   Minitest::Test.prepend(Minitest::Requeueing)
   Minitest::Test.prepend(Minitest::Flakiness)
   Minitest::Test.prepend(Minitest::WithTimestamps)
+  Minitest::Test.prepend(Minitest::ResultMetadata)
 
   module MinitestBackwardCompatibility
     def source_location

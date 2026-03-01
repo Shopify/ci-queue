@@ -7,6 +7,8 @@ require 'ci/queue'
 require 'digest/md5'
 require 'minitest/reporters/bisect_reporter'
 require 'minitest/reporters/statsd_reporter'
+require 'minitest/queue/queue_population_strategy'
+require 'minitest/queue/worker_profile_reporter'
 
 module Minitest
   module Queue
@@ -15,6 +17,10 @@ module Minitest
 
       Error = Class.new(StandardError)
       MissingParameter = Class.new(Error)
+
+      class << self
+        attr_accessor :run_start, :load_tests_duration, :total_files
+      end
 
       def self.invoke(argv)
         new(argv).run!
@@ -49,6 +55,8 @@ module Minitest
       end
 
       def run_command
+        @run_start = Runner.run_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
         require_worker_id!
         # if it's an automatic job retry we should process the main queue
         if manual_retry?
@@ -98,19 +106,27 @@ module Minitest
             if remaining <= running
               puts green("Queue almost empty, exiting early...")
             else
-              load_tests
-              populate_queue
+              prepare_queue_for_execution
             end
           else
-            load_tests
-            populate_queue
+            prepare_queue_for_execution
           end
         end
 
-        at_exit {
+        if queue_config.lazy_load
+          # In lazy-load mode, run minitest explicitly instead of relying on
+          # minitest/autorun's at_exit hook, which may not be registered since
+          # test files haven't been loaded yet. exit! prevents double-execution
+          # if minitest/autorun was loaded by the leader during streaming.
+          passed = Minitest.run []
           verify_reporters!(reporters)
-        }
-        # Let minitest's at_exit hook trigger
+          exit!(passed ? 0 : 1)
+        else
+          at_exit {
+            verify_reporters!(reporters)
+          }
+          # Let minitest's at_exit hook trigger
+        end
       end
 
       def verify_reporters!(reporters)
@@ -171,11 +187,9 @@ module Minitest
         trap('TERM') { Minitest.queue.shutdown! }
         trap('INT') { Minitest.queue.shutdown! }
 
-        load_tests
-
         @queue = CI::Queue::Grind.new(grind_list, queue_config)
         Minitest.queue = queue
-        populate_queue
+        prepare_queue_for_execution
 
         # Let minitest's at_exit hook trigger
       end
@@ -184,10 +198,9 @@ module Minitest
         invalid_usage! "Missing the FAILING_TEST argument." unless queue_config.failing_test
 
         set_load_path
-        load_tests
         @queue = CI::Queue::Bisect.new(queue_url, queue_config)
         Minitest.queue = queue
-        populate_queue
+        prepare_queue_for_execution
 
         step("Testing the failing test in isolation")
         unless queue.failing_test_present?
@@ -285,6 +298,7 @@ module Minitest
         reporter.write_failure_file(queue_config.failure_file) if queue_config.failure_file
         reporter.write_flaky_tests_file(queue_config.export_flaky_tests_file) if queue_config.export_flaky_tests_file
         exit_code = reporter.report
+        print_worker_profiles(supervisor)
         exit! exit_code
       end
 
@@ -322,7 +336,7 @@ module Minitest
 
       attr_reader :queue_config, :options, :command, :argv
       attr_writer :queue_url
-      attr_accessor :queue, :grind_list, :grind_count, :load_paths, :verbose
+      attr_accessor :queue, :grind_list, :grind_count, :load_paths, :verbose, :test_files_file, :preresolved_test_list
 
       def require_worker_id!
         if queue.distributed?
@@ -372,10 +386,6 @@ module Minitest
         queue.build.reset_worker_error
       end
 
-      def populate_queue
-        Minitest.queue.populate(Minitest.loaded_tests, random: ordering_seed)
-      end
-
       def set_load_path
         if paths = load_paths
           paths.split(':').reverse.each do |path|
@@ -384,16 +394,32 @@ module Minitest
         end
       end
 
-      def load_tests
-        argv.sort.each do |f|
-          require File.expand_path(f)
-        end
+      def prepare_queue_for_execution
+        strategy = queue_population_strategy
+        strategy.load_and_populate!
+        Runner.load_tests_duration = strategy.load_tests_duration
+        Runner.total_files = strategy.total_files
+      end
+
+      def queue_population_strategy
+        Minitest::Queue::QueuePopulationStrategy.new(
+          queue: queue,
+          queue_config: queue_config,
+          argv: argv,
+          test_files_file: test_files_file,
+          ordering_seed: ordering_seed,
+          preresolved_test_list: preresolved_test_list,
+        )
       end
 
       def parse(argv)
         parser.parse!(argv)
         command = argv.shift
         return command, argv
+      end
+
+      def print_worker_profiles(supervisor)
+        Minitest::Queue::WorkerProfileReporter.new(supervisor).print_summary
       end
 
       def parser
@@ -499,6 +525,55 @@ module Minitest
           opts.separator ""
           opts.on('-IPATHS', help) do |paths|
             self.load_paths = [load_paths, paths].compact.join(':')
+          end
+
+          help = <<~EOS
+            Load test files on demand instead of eagerly loading all tests.
+          EOS
+          opts.separator ""
+          opts.on('--lazy-load', help) do
+            queue_config.lazy_load = true
+          end
+
+          help = <<~EOS
+            Batch size for streaming tests to Redis in lazy mode.
+            Defaults to 5000.
+          EOS
+          opts.separator ""
+          opts.on('--lazy-load-stream-batch-size SIZE', Integer, help) do |size|
+            queue_config.lazy_load_stream_batch_size = size
+          end
+
+          help = <<~EOS
+            Read test file paths from FILE (one per line) instead of positional arguments.
+            Useful for large test suites to avoid ARG_MAX limits.
+          EOS
+          opts.separator ""
+          opts.on('--test-files FILE', help) do |file|
+            self.test_files_file = file
+          end
+
+          help = <<~EOS
+            Read a pre-resolved test list from FILE instead of discovering tests from files.
+            Each line must be in the format: TestClass#method_name|path/to/test_file.rb
+            The leader streams entries directly to Redis without loading or discovering tests.
+            Implies lazy-load mode for all workers.
+            When combined with --test-files, entries whose file path appears in that list
+            are skipped and the files are lazily re-discovered (reconciliation).
+          EOS
+          opts.separator ""
+          opts.on('--preresolved-tests FILE', help) do |file|
+            self.preresolved_test_list = file
+            queue_config.lazy_load = true
+          end
+
+          help = <<~EOS
+            Timeout in seconds without new streamed batches before failing.
+            Defaults to the max of --queue-init-timeout and 300 seconds.
+          EOS
+          opts.separator ""
+          opts.on('--lazy-load-stream-timeout SECONDS', Integer, help) do |seconds|
+            queue_config.lazy_load_streaming_timeout = seconds
           end
 
           help = <<~EOS

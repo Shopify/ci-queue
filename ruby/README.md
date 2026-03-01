@@ -38,6 +38,63 @@ minitest-queue --queue redis://example.com run -Itest test/**/*_test.rb
 
 Additionally you can configure the requeue settings (see main README) with `--max-requeues` and `--requeue-tolerance`.
 
+#### Lazy loading (opt-in)
+
+Lazy loading and streaming are currently supported only by `minitest-queue` (not `rspec-queue`).
+
+To reduce worker memory usage, you can enable lazy loading so test files are loaded on-demand:
+
+```bash
+minitest-queue --queue redis://example.com --lazy-load run -Itest test/**/*_test.rb
+```
+
+You can tune streaming with `--lazy-load-stream-batch-size` (default: 5000) and `--lazy-load-stream-timeout` (default 300s).
+
+Environment variables:
+
+- `CI_QUEUE_LAZY_LOAD=1`
+- `CI_QUEUE_LAZY_LOAD_STREAM_BATCH_SIZE=10000`
+- `CI_QUEUE_LAZY_LOAD_STREAM_TIMEOUT=300`
+- `CI_QUEUE_LAZY_LOAD_TEST_HELPERS=test/test_helper.rb`
+
+Backward-compatible aliases still work:
+
+- `CI_QUEUE_STREAM_BATCH_SIZE`
+- `CI_QUEUE_STREAM_TIMEOUT`
+- `CI_QUEUE_TEST_HELPERS`
+
+When enabled, file loading stats are printed at the end of the run if debug is enabled.
+
+#### Preresolved test names (opt-in)
+
+For large test suites, you can pre-compute the full list of test names on a stable branch and
+reuse it on feature branches. This avoids loading all test files on every worker:
+
+```bash
+minitest-queue --queue redis://example.com run \
+  --preresolved-tests test_names.txt \
+  -I. -Itest
+```
+
+The file format is one test per line: `TestClass#method_name|path/to/test_file.rb`.
+The leader streams entries directly to Redis; workers load test files on-demand.
+
+**Reconciliation with `--test-files`**: When combined with `--test-files`, entries whose
+file path appears in that list are skipped and the files are lazily re-discovered. This
+handles cases where test methods have been added, removed, or renamed since the cache was built:
+
+```bash
+minitest-queue --queue redis://example.com run \
+  --preresolved-tests cached_test_names.txt \
+  --test-files changed_test_files.txt \
+  -I. -Itest
+```
+
+**Stale entry handling**: If a preresolved entry refers to a test method that no longer exists
+(e.g., it was renamed or removed and not caught by reconciliation), by default the worker will
+report an error. Set `CI_QUEUE_SKIP_STALE_TESTS=1` to skip these entries gracefully instead:
+
+- `CI_QUEUE_SKIP_STALE_TESTS=1` — report stale entries as Minitest skips instead of errors
 
 If you'd like to centralize the error reporting you can do so with:
 
