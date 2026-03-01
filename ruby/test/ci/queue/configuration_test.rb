@@ -143,5 +143,62 @@ module CI::Queue
       assert_equal 45, config.report_timeout
     end
 
+    def test_lazy_load_defaults
+      config = Configuration.new
+      refute config.lazy_load
+      assert_equal 5000, config.lazy_load_stream_batch_size
+    end
+
+    def test_lazy_load_from_env
+      config = Configuration.from_env(
+        "CI_QUEUE_LAZY_LOAD" => "true",
+        "CI_QUEUE_LAZY_LOAD_STREAM_BATCH_SIZE" => "1500",
+      )
+      assert config.lazy_load
+      assert_equal 1500, config.lazy_load_stream_batch_size
+    end
+
+    def test_lazy_load_from_env_false
+      config = Configuration.from_env(
+        "CI_QUEUE_LAZY_LOAD" => "false",
+      )
+      refute config.lazy_load
+    end
+
+    def test_lazy_load_streaming_timeout_defaults
+      config = Configuration.new
+      assert_equal 300, config.lazy_load_streaming_timeout
+    end
+
+    def test_lazy_load_streaming_timeout_defaults_to_queue_init_timeout_when_higher
+      config = Configuration.new(queue_init_timeout: 900)
+      assert_equal 900, config.lazy_load_streaming_timeout
+    end
+
+    def test_lazy_load_streaming_timeout_from_env
+      config = Configuration.from_env(
+        "CI_QUEUE_LAZY_LOAD_STREAM_TIMEOUT" => "120",
+      )
+      assert_equal 120, config.lazy_load_streaming_timeout
+    end
+
+    def test_legacy_lazy_load_env_aliases
+      config = Configuration.from_env(
+        "CI_QUEUE_STREAM_BATCH_SIZE" => "1600",
+        "CI_QUEUE_STREAM_TIMEOUT" => "90",
+        "CI_QUEUE_TEST_HELPERS" => "test/test_helper.rb, test/support/helper.rb",
+      )
+      assert_equal 1600, config.lazy_load_stream_batch_size
+      assert_equal 90, config.lazy_load_streaming_timeout
+      assert_equal ["test/test_helper.rb", "test/support/helper.rb"], config.lazy_load_test_helper_paths
+    end
+
+    def test_new_lazy_load_test_helpers_env
+      config = Configuration.from_env(
+        "CI_QUEUE_LAZY_LOAD_TEST_HELPERS" => "test/test_helper.rb, test/support/helper.rb",
+      )
+      assert_equal ["test/test_helper.rb", "test/support/helper.rb"], config.lazy_load_test_helper_paths
+    end
+
   end
 end
