@@ -9,6 +9,7 @@ module CI
 
       def initialize
         @loaded_files = Set.new
+        @failed_files = {}
         @pid = Process.pid
         @forked = false
         @load_stats = {}
@@ -17,28 +18,37 @@ module CI
 
       def load_file(file_path)
         detect_fork!
-        return if @loaded_files.include?(file_path)
+        expanded = ::File.expand_path(file_path)
+        return if @loaded_files.include?(expanded)
+
+        if (cached_error = @failed_files[expanded])
+          raise cached_error
+        end
 
         start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         error = nil
 
         begin
-          required = require file_path
-          if should_force_load_after_fork?(required, file_path)
-            with_warning_suppression { load file_path }
+          required = with_warning_suppression { require expanded }
+          if should_force_load_after_fork?(required, expanded)
+            with_warning_suppression { load expanded }
           end
         rescue Exception => e
           raise if e.is_a?(SignalException) || e.is_a?(SystemExit)
           error = e
         ensure
           duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
-          @load_stats[file_path] = duration
+          @load_stats[expanded] = duration
         end
 
-        raise FileLoadError.new(file_path, error) if error
+        if error
+          load_error = FileLoadError.new(file_path, error)
+          @failed_files[expanded] = load_error
+          raise load_error
+        end
 
-        remember_loaded_feature(file_path)
-        @loaded_files.add(file_path)
+        remember_loaded_feature(expanded)
+        @loaded_files.add(expanded)
         nil
       end
 
@@ -58,6 +68,7 @@ module CI
         @pid = Process.pid
         @forked = true
         @loaded_files.clear
+        @failed_files.clear
         @load_stats.clear
         @loaded_features = nil
       end

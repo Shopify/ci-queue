@@ -68,6 +68,55 @@ class CI::Queue::FileLoaderTest < Minitest::Test
     end
   end
 
+  def test_load_file_caches_failed_files
+    loader = CI::Queue::FileLoader.new
+
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "failing_test.rb")
+      File.write(path, "raise 'first load failure'\n")
+
+      # First load should fail
+      error1 = assert_raises(CI::Queue::FileLoadError) do
+        loader.load_file(path)
+      end
+      assert_includes error1.message, "first load failure"
+
+      # Fix the file content
+      File.write(path, "module FailingTestFixed; end\n")
+
+      # Second load should raise the cached error without re-executing the file
+      error2 = assert_raises(CI::Queue::FileLoadError) do
+        loader.load_file(path)
+      end
+      assert_same error1, error2
+    ensure
+      Object.send(:remove_const, :FailingTestFixed) if defined?(FailingTestFixed)
+    end
+  end
+
+  def test_failed_files_cache_cleared_on_fork
+    loader = CI::Queue::FileLoader.new
+
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "fork_fail_test.rb")
+      File.write(path, "raise 'load failure'\n")
+
+      assert_raises(CI::Queue::FileLoadError) do
+        loader.load_file(path)
+      end
+
+      # Fix the file and simulate a fork
+      File.write(path, "module ForkFailFixed; end\n")
+      loader.instance_variable_set(:@pid, Process.pid - 1)
+
+      # After fork, the cache should be cleared and the file should load fresh
+      loader.load_file(path)
+      assert Object.const_defined?(:ForkFailFixed)
+    ensure
+      Object.send(:remove_const, :ForkFailFixed) if defined?(ForkFailFixed)
+    end
+  end
+
   def test_load_file_forces_load_when_feature_is_inherited_after_fork
     loader = CI::Queue::FileLoader.new
 
