@@ -114,6 +114,52 @@ module Minitest::Queue
       end
     end
 
+    def test_run_sets_timestamps_on_load_error_result
+      loader = CI::Queue::FileLoader.new
+      resolver = CI::Queue::ClassResolver
+      error = StandardError.new('boom')
+      example = LazySingleExample.new('MissingClass', 'test_missing', '/tmp/missing.rb', loader: loader, resolver: resolver, load_error: error)
+
+      result = example.run
+
+      assert result.error?
+      assert_kind_of Integer, result.start_timestamp
+      assert_kind_of Integer, result.finish_timestamp
+      assert result.finish_timestamp >= result.start_timestamp
+    end
+
+    def test_run_sets_timestamps_on_stale_skip_result
+      Dir.mktmpdir do |dir|
+        class_name = "StaleTimestamp#{Process.pid}#{rand(1000)}"
+        file_path = File.join(dir, "stale_timestamp_test.rb")
+        File.write(
+          file_path,
+          "class #{class_name} < Minitest::Test\n" \
+          "  def test_exists\n" \
+          "    assert true\n" \
+          "  end\n" \
+          "end\n"
+        )
+
+        loader = CI::Queue::FileLoader.new
+        resolver = CI::Queue::ClassResolver
+        example = LazySingleExample.new(class_name, 'test_no_longer_exists', file_path, loader: loader, resolver: resolver)
+
+        old_queue = Minitest.queue
+        Minitest.queue = Struct.new(:config).new(CI::Queue::Configuration.new(skip_stale_tests: true))
+
+        result = example.run
+
+        assert result.skipped?
+        assert_kind_of Integer, result.start_timestamp
+        assert_kind_of Integer, result.finish_timestamp
+        assert result.finish_timestamp >= result.start_timestamp
+      ensure
+        Minitest.queue = old_queue
+        Object.send(:remove_const, class_name) if Object.const_defined?(class_name)
+      end
+    end
+
     def test_marshal_round_trip
       Dir.mktmpdir do |dir|
         class_name = "LazyMarshal#{Process.pid}#{rand(1000)}"

@@ -173,8 +173,8 @@ module Minitest
             report_load_stats(queue)
           ensure
             store_worker_profile(queue)
+            queue.stop_heartbeat!
           end
-          queue.stop_heartbeat!
         end
       end
 
@@ -433,18 +433,15 @@ module Minitest
 
       def run
         with_timestamps do
-          begin
-            return build_error_result(@load_error) if @load_error
-
-            klass = runnable
-            if skip_stale_tests? && !(klass.method_defined?(@method_name) || klass.private_method_defined?(@method_name))
-              return build_stale_skip_result
-            end
-
-            Minitest.run_one_method(klass, @method_name)
-          rescue StandardError, ScriptError => error
-            build_error_result(error)
+          if @load_error
+            build_error_result(@load_error)
+          elsif skip_stale_tests? && !(runnable.method_defined?(@method_name) || runnable.private_method_defined?(@method_name))
+            build_stale_skip_result
+          else
+            Minitest.run_one_method(runnable, @method_name)
           end
+        rescue StandardError, ScriptError => error
+          build_error_result(error)
         end
       end
 

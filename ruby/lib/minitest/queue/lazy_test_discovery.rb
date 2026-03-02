@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'set'
+require 'zlib'
 
 module Minitest
   module Queue
@@ -39,7 +40,7 @@ module Minitest
           begin
             @loader.load_file(file_path)
           rescue CI::Queue::FileLoadError => error
-            method_name = "load_file_#{file_path.hash.abs}"
+            method_name = "load_file_#{Zlib.crc32(file_path).to_s(16)}"
             class_name = "CIQueue::FileLoadError"
             test_id = "#{class_name}##{method_name}"
             entry = CI::Queue::QueueEntry.format(

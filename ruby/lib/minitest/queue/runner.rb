@@ -55,7 +55,7 @@ module Minitest
       end
 
       def run_command
-        @run_start = Runner.run_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        Runner.run_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
         require_worker_id!
         # if it's an automatic job retry we should process the main queue
@@ -577,7 +577,7 @@ module Minitest
           end
 
           help = <<~EOS
-            Sepcify a seed used to shuffle the test suite.
+            Specify a seed used to shuffle the test suite.
             On Buildkite, CircleCI, Heroku CI, and Travis, the commit revision will be used by default.
           EOS
           opts.separator ""

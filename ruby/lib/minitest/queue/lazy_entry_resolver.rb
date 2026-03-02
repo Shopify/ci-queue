@@ -26,6 +26,18 @@ module Minitest
               load_error: load_error,
               queue_entry: entry,
             )
+          else
+            error = StandardError.new("Corrupt load error payload for #{class_name}##{method_name}")
+            load_error = CI::Queue::FileLoadError.new("unknown", error)
+            return Minitest::Queue::LazySingleExample.new(
+              class_name,
+              method_name,
+              nil,
+              loader: @loader,
+              resolver: @resolver,
+              load_error: load_error,
+              queue_entry: entry,
+            )
           end
         end
 

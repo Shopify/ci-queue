@@ -7,7 +7,8 @@ module CI
       attr_accessor :max_test_duration, :max_test_duration_percentile, :track_test_duration
       attr_accessor :max_test_failed, :redis_ttl, :warnings_file, :debug_log, :max_missed_heartbeat_seconds
       attr_accessor :lazy_load, :lazy_load_stream_batch_size
-      attr_accessor :lazy_load_streaming_timeout, :lazy_load_test_helpers
+      attr_writer :lazy_load_streaming_timeout
+      attr_accessor :lazy_load_test_helpers
       attr_accessor :skip_stale_tests
       attr_reader :circuit_breakers
       attr_writer :seed, :build_id

@@ -47,7 +47,7 @@ module CI
 
           if @master = (value == status)
             @total = 0
-            puts "Worker elected as leader, streaming tests to the queue."                          
+            puts "Worker elected as leader, streaming tests to the queue."
 
             duration = measure do
               start_streaming!
@@ -213,6 +213,7 @@ module CI
           unless requeued
             reserved_tests << test_id
             reserved_entries[test_id] = entry
+            reserved_entry_ids[entry] = test_id
           end
           requeued
         end

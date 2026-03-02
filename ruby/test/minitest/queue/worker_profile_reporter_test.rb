@@ -16,12 +16,14 @@ module Minitest::Queue
       out = StringIO.new
       original = ENV['CI_QUEUE_DEBUG']
       ENV.delete('CI_QUEUE_DEBUG')
+      CI::Queue.reset_debug!
 
       WorkerProfileReporter.new(supervisor, out: out).print_summary
 
       assert_equal "", out.string
     ensure
       ENV['CI_QUEUE_DEBUG'] = original
+      CI::Queue.reset_debug!
     end
 
     def test_print_summary_outputs_table
@@ -57,6 +59,7 @@ module Minitest::Queue
 
       original = ENV['CI_QUEUE_DEBUG']
       ENV['CI_QUEUE_DEBUG'] = '1'
+      CI::Queue.reset_debug!
       WorkerProfileReporter.new(supervisor, out: out).print_summary
 
       text = out.string
@@ -65,6 +68,7 @@ module Minitest::Queue
       assert_includes text, "Avg non-leader time to 1st test: 2.2s"
     ensure
       ENV['CI_QUEUE_DEBUG'] = original
+      CI::Queue.reset_debug!
     end
   end
 end

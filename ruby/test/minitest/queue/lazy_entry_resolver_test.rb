@@ -16,6 +16,20 @@ module Minitest::Queue
       assert_equal entry, resolved.queue_entry
     end
 
+    def test_builds_error_result_for_corrupt_load_error_payload
+      loader = CI::Queue::FileLoader.new
+      resolver = CI::Queue::ClassResolver
+      corrupt_payload = "__ciq_load_error__:not_valid_base64!!!"
+      entry = CI::Queue::QueueEntry.format("CIQueue::FileLoadError#load_file_abc123", corrupt_payload)
+
+      resolved = LazyEntryResolver.new(loader: loader, resolver: resolver).call(entry)
+      result = resolved.run
+
+      assert_instance_of Minitest::Queue::LazySingleExample, resolved
+      assert result.error?
+      assert_match(/Corrupt load error payload/, result.failure.error.message)
+    end
+
     def test_builds_lazy_single_example_with_load_error
       loader = CI::Queue::FileLoader.new
       resolver = CI::Queue::ClassResolver

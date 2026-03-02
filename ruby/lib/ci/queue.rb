@@ -64,8 +64,14 @@ module CI
     end
 
     def debug?
+      return @debug if defined?(@debug)
+
       value = ENV['CI_QUEUE_DEBUG']
-      value && !value.strip.empty? && !%w[0 false].include?(value.strip.downcase)
+      @debug = !!(value && !value.strip.empty? && !%w[0 false].include?(value.strip.downcase))
+    end
+
+    def reset_debug!
+      remove_instance_variable(:@debug) if defined?(@debug)
     end
 
     def from_uri(url, config)

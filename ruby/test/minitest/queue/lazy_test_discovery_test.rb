@@ -1,9 +1,37 @@
 # frozen_string_literal: true
 require 'test_helper'
 require 'minitest/queue/lazy_test_discovery'
+require 'zlib'
 
 module Minitest::Queue
   class LazyTestDiscoveryTest < Minitest::Test
+    def test_load_error_generates_deterministic_test_id
+      loader = CI::Queue::FileLoader.new
+      resolver = CI::Queue::ClassResolver
+      discovered = []
+
+      Dir.mktmpdir do |dir|
+        file_path = File.join(dir, "broken_test.rb")
+        File.write(file_path, "raise 'boom'\n")
+
+        2.times do
+          discovered.clear
+          discovery = LazyTestDiscovery.new(loader: loader, resolver: resolver)
+          discovery.each_test([file_path]) { |test| discovered << test.id }
+        end
+
+        assert_equal 1, discovered.size
+        assert_match(/\ACIQueue::FileLoadError#load_file_[0-9a-f]+\z/, discovered.first)
+      end
+    end
+
+    def test_load_error_test_id_is_stable_across_invocations
+      file_path = "/tmp/stable_hash_test_#{rand(1000)}.rb"
+      method_name_a = "load_file_#{Zlib.crc32(file_path).to_s(16)}"
+      method_name_b = "load_file_#{Zlib.crc32(file_path).to_s(16)}"
+      assert_equal method_name_a, method_name_b
+    end
+
     def test_discovers_methods_added_by_reopened_class
       loader = CI::Queue::FileLoader.new
       resolver = CI::Queue::ClassResolver
