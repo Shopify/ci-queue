@@ -46,6 +46,17 @@ module Minitest
       def result_line
         "#{super}, #{requeues} requeues"
       end
+
+      def location(exception)
+        backtrace = exception.backtrace
+        return super if backtrace && !backtrace.empty?
+
+        nested_exception = exception.respond_to?(:error) ? exception.error : nil
+        nested_backtrace = nested_exception&.backtrace
+        return super(nested_exception) if nested_backtrace && !nested_backtrace.empty?
+
+        'unknown'
+      end
     end
   end
 end

@@ -183,7 +183,7 @@ module CI
           unreserve_entry(test_id)
           eval_script(
             :acknowledge,
-            keys: [key('running'), key('processed'), key('owners'), key('error-reports')],
+            keys: [key('running'), key('processed'), key('owners'), key('error-reports'), key('requeued-by')],
             argv: [entry, test_id, error.to_s, config.redis_ttl],
             pipeline: pipeline,
           ) == 1
@@ -206,8 +206,9 @@ module CI
               key('worker', worker_id, 'queue'),
               key('owners'),
               key('error-reports'),
+              key('requeued-by'),
             ],
-            argv: [config.max_requeues, global_max_requeues, entry, test_id, offset],
+            argv: [config.max_requeues, global_max_requeues, entry, test_id, offset, config.redis_ttl],
           ) == 1
 
           unless requeued
@@ -372,8 +373,10 @@ module CI
               key('processed'),
               key('worker', worker_id, 'queue'),
               key('owners'),
+              key('requeued-by'),
+              key('workers'),
             ],
-            argv: [CI::Queue.time_now.to_f],
+            argv: [CI::Queue.time_now.to_f, Redis.requeue_offset],
           )
         end
 

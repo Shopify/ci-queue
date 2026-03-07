@@ -5,12 +5,14 @@ local zset_key = KEYS[4]
 local worker_queue_key = KEYS[5]
 local owners_key = KEYS[6]
 local error_reports_key = KEYS[7]
+local requeued_by_key = KEYS[8]
 
 local max_requeues = tonumber(ARGV[1])
 local global_max_requeues = tonumber(ARGV[2])
 local entry = ARGV[3]
 local test_id = ARGV[4]
 local offset = ARGV[5]
+local ttl = tonumber(ARGV[6])
 
 if redis.call('hget', owners_key, entry) == worker_queue_key then
    redis.call('hdel', owners_key, entry)
@@ -40,6 +42,11 @@ if pivot then
   redis.call('linsert', queue_key, 'BEFORE', pivot, entry)
 else
   redis.call('lpush', queue_key, entry)
+end
+
+redis.call('hset', requeued_by_key, entry, worker_queue_key)
+if ttl and ttl > 0 then
+  redis.call('expire', requeued_by_key, ttl)
 end
 
 redis.call('zrem', zset_key, entry)

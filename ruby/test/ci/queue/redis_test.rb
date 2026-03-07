@@ -304,6 +304,28 @@ class CI::Queue::RedisTest < Minitest::Test
     end
   end
 
+  def test_reserve_defers_own_requeued_test_once
+    queue = worker(1, populate: false, build_id: 'self-requeue-script')
+    queue.send(:register)
+    entry = "ATest#test_foo#{DELIMITER}/tmp/a_test.rb"
+    queue_key = queue.send(:key, 'queue')
+    requeued_by_key = queue.send(:key, 'requeued-by')
+    worker_queue_key = queue.send(:key, 'worker', queue.config.worker_id, 'queue')
+    workers_key = queue.send(:key, 'workers')
+
+    @redis.lpush(queue_key, entry)
+    @redis.hset(requeued_by_key, entry, worker_queue_key)
+    @redis.sadd(workers_key, '2')
+
+    first_try = queue.send(:try_to_reserve_test)
+    assert_nil first_try
+    assert_equal [entry], @redis.lrange(queue_key, 0, -1)
+    assert_nil @redis.hget(requeued_by_key, entry)
+
+    second_try = queue.send(:try_to_reserve_test)
+    assert_equal entry, second_try
+  end
+
   def test_heartbeat_uses_test_id_for_processed_check
     queue = worker(1, populate: false)
     entry = "ATest#test_foo#{DELIMITER}/tmp/a_test.rb"
@@ -426,6 +448,87 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_equal 2, profiles.size
     assert_equal 'leader', profiles['1']['role']
     assert_equal 'non-leader', profiles['2']['role']
+  end
+
+  def test_worker_does_not_pick_up_its_own_requeued_test_when_others_are_available
+    @redis.flushdb
+
+    test_list = TEST_LIST.first(3)
+    w1 = worker(1, tests: test_list, build_id: 'self-requeue', timeout: 10, max_requeues: 1, requeue_tolerance: 1.0)
+    w2 = worker(2, populate: false, build_id: 'self-requeue', timeout: 10, max_requeues: 1, requeue_tolerance: 1.0)
+    w3 = worker(3, populate: false, build_id: 'self-requeue', timeout: 10, max_requeues: 1, requeue_tolerance: 1.0)
+    w2.send(:register)
+    w3.send(:register)
+
+    id_for = ->(test) { test.respond_to?(:id) ? test.id : CI::Queue::QueueEntry.test_id(test) }
+
+    requeued_test_id = nil
+    picked_up_requeue = {}
+    worker_two_reserved = false
+    worker_three_reserved = false
+    release_other_workers = false
+
+    mon = Monitor.new
+    cond = mon.new_cond
+
+    threads = [
+      Thread.new do
+        w2.poll do |test|
+          test_id = id_for.call(test)
+          mon.synchronize do
+            worker_two_reserved = true
+            picked_up_requeue['2'] = true if test_id == requeued_test_id
+            cond.broadcast
+            cond.wait_until { release_other_workers }
+          end
+          w2.acknowledge(test_id)
+        end
+      end,
+      Thread.new do
+        w3.poll do |test|
+          test_id = id_for.call(test)
+          mon.synchronize do
+            worker_three_reserved = true
+            picked_up_requeue['3'] = true if test_id == requeued_test_id
+            cond.broadcast
+            cond.wait_until { release_other_workers }
+          end
+          w3.acknowledge(test_id)
+        end
+      end,
+    ]
+
+    mon.synchronize do
+      cond.wait_until { worker_two_reserved && worker_three_reserved }
+    end
+
+    worker_one_picked_its_own_requeue = false
+    first_test = true
+
+    w1.poll do |test|
+      test_id = id_for.call(test)
+
+      if first_test
+        first_test = false
+        requeued_test_id = test_id
+        w1.report_failure!
+        assert_equal true, w1.requeue(test)
+        mon.synchronize do
+          release_other_workers = true
+          cond.broadcast
+        end
+      else
+        worker_one_picked_its_own_requeue = true if test_id == requeued_test_id
+        w1.acknowledge(test_id)
+      end
+    end
+
+    threads.each { |t| t.join(5) }
+
+    assert_equal false, worker_one_picked_its_own_requeue
+    assert_equal true, picked_up_requeue.values.any?
+  ensure
+    threads&.each(&:kill)
   end
 
   private
