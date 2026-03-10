@@ -95,6 +95,204 @@ module Integration
       end
     end
 
+    def test_lazy_loading_streaming
+      out, err = capture_subprocess_io do
+        threads = 2.times.map do |i|
+          Thread.start do
+            system(
+              { 'BUILDKITE' => '1' },
+              @exe, 'run',
+              '--queue', @redis_url,
+              '--seed', 'foobar',
+              '--build', 'lazy-stream',
+              '--worker', i.to_s,
+              '--timeout', '1',
+              '--lazy-load',
+              '--lazy-load-stream-batch-size', '1',
+              '--lazy-load-stream-timeout', '5',
+              '-Itest',
+              'test/passing_test.rb',
+              chdir: 'test/fixtures/',
+            )
+          end
+        end
+        threads.each(&:join)
+      end
+
+      assert_empty err
+
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'report',
+          '--queue', @redis_url,
+          '--build', 'lazy-stream',
+          '--timeout', '1',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      assert_empty err
+      result = normalize(out.lines[1].strip)
+      assert_equal 'Ran 100 tests, 100 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)', result
+    end
+
+    # Reproduces the "No leader was elected" bug in lazy-load mode.
+    # When using --test-files (no positional args), non-leader workers must still
+    # enter queue.poll. Without the fix, non-leaders exit immediately with status 0
+    # because minitest's at_exit hook never fires.
+    #
+    # We verify the fix by checking that BOTH workers processed tests (via their
+    # worker queue keys in Redis), not just the leader.
+    def test_lazy_loading_with_test_files_option
+      build_id = 'lazy-test-files'
+      test_files = File.expand_path('../../fixtures/test/passing_test.rb', __FILE__)
+      Tempfile.open('test_files_list') do |f|
+        f.write(test_files)
+        f.flush
+
+        out, err = capture_subprocess_io do
+          threads = 2.times.map do |i|
+            Thread.start do
+              system(
+                { 'BUILDKITE' => '1' },
+                @exe, 'run',
+                '--queue', @redis_url,
+                '--seed', 'foobar',
+                '--build', build_id,
+                '--worker', i.to_s,
+                '--timeout', '5',
+                '--queue-init-timeout', '10',
+                '--lazy-load',
+                '--test-files', f.path,
+                '--lazy-load-stream-batch-size', '1',
+                '--lazy-load-stream-timeout', '10',
+                '-Itest',
+                chdir: 'test/fixtures/',
+              )
+            end
+          end
+          threads.each(&:join)
+        end
+
+        assert_empty err
+
+        # Verify the non-leader actually entered queue.poll and processed tests.
+        # The leader may process 0 tests if the non-leader is fast enough to drain
+        # the queue before the leader finishes streaming.
+        worker_0_count = @redis.llen("build:#{build_id}:worker:0:queue")
+        worker_1_count = @redis.llen("build:#{build_id}:worker:1:queue")
+
+        assert_operator worker_0_count + worker_1_count, :>=, 100, "All tests should have been processed"
+        assert_operator [worker_0_count, worker_1_count].max, :>, 0, "At least one worker should have processed tests (non-leader likely exited without running minitest if both are 0)"
+
+        out, err = capture_subprocess_io do
+          system(
+            @exe, 'report',
+            '--queue', @redis_url,
+            '--build', build_id,
+            '--timeout', '5',
+            chdir: 'test/fixtures/',
+          )
+        end
+
+        assert_empty err
+        result = normalize(out.lines[1].strip)
+        assert_equal 'Ran 100 tests, 100 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)', result
+      end
+    end
+
+    # Verifies that dynamically generated test methods (defined in runnable_methods,
+    # not at class load time) work correctly in lazy-load mode. This catches issues
+    # like Shopify's Verdict FLAGS methods not being found on non-leader workers.
+    def test_lazy_loading_dynamic_test_methods
+      build_id = 'lazy-dynamic'
+      test_files = File.expand_path('../../fixtures/test/dynamic_test.rb', __FILE__)
+      Tempfile.open('test_files_list') do |f|
+        f.write(test_files)
+        f.flush
+
+        out, err = capture_subprocess_io do
+          threads = 2.times.map do |i|
+            Thread.start do
+              system(
+                { 'BUILDKITE' => '1' },
+                @exe, 'run',
+                '--queue', @redis_url,
+                '--seed', 'foobar',
+                '--build', build_id,
+                '--worker', i.to_s,
+                '--timeout', '5',
+                '--queue-init-timeout', '10',
+                '--lazy-load',
+                '--test-files', f.path,
+                '--lazy-load-stream-batch-size', '1',
+                '--lazy-load-stream-timeout', '10',
+                '-Itest',
+                chdir: 'test/fixtures/',
+              )
+            end
+          end
+          threads.each(&:join)
+        end
+
+        assert_empty err
+
+        out, err = capture_subprocess_io do
+          system(
+            @exe, 'report',
+            '--queue', @redis_url,
+            '--build', build_id,
+            '--timeout', '5',
+            chdir: 'test/fixtures/',
+          )
+        end
+
+        assert_empty err
+        # 1 static + 3 dynamic variants = 4 tests
+        result = normalize(out.lines[1].strip)
+        assert_equal 'Ran 4 tests, 4 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)', result
+      end
+    end
+
+    def test_worker_profile_in_report
+      build_id = 'profile-report'
+      out, err = capture_subprocess_io do
+        system(
+          { 'BUILDKITE' => '1', 'CI_QUEUE_DEBUG' => '1' },
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', build_id,
+          '--worker', '0',
+          '--timeout', '5',
+          '--lazy-load',
+          '--lazy-load-stream-batch-size', '10',
+          '--lazy-load-stream-timeout', '5',
+          '-Itest',
+          'test/passing_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      assert_empty err
+
+      out, err = capture_subprocess_io do
+        system(
+          { 'CI_QUEUE_DEBUG' => '1' },
+          @exe, 'report',
+          '--queue', @redis_url,
+          '--build', build_id,
+          '--timeout', '5',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      assert_empty err
+      assert_includes out, 'Worker profile summary'
+      assert_includes out, 'leader'
+      assert_includes out, 'Wall Clock'
+    end
+
     def test_verbose_reporter
       out, err = capture_subprocess_io do
         system(

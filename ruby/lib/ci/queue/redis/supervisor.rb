@@ -9,7 +9,7 @@ module CI
         end
 
         def total
-          wait_for_master(timeout: config.queue_init_timeout)
+          wait_for_master(timeout: config.queue_init_timeout, allow_streaming: true)
           redis.get(key('total')).to_i
         end
 
@@ -19,7 +19,7 @@ module CI
 
         def wait_for_workers
           duration = measure do
-            wait_for_master(timeout: config.queue_init_timeout)
+            wait_for_master(timeout: config.queue_init_timeout, allow_streaming: true)
           end
 
           yield if block_given?
@@ -30,7 +30,7 @@ module CI
             @time_left -= 1
             sleep 1
 
-            if active_workers?
+            if active_workers? || streaming?
               @time_left_with_no_workers = config.inactive_workers_timeout
             else
               @time_left_with_no_workers -= 1

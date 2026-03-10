@@ -13,11 +13,12 @@ module CI
         DEV_SCRIPTS_ROOT = ::File.expand_path('../../../../../../redis', __FILE__)
         RELEASE_SCRIPTS_ROOT = ::File.expand_path('../../redis', __FILE__)
 
-        def initialize(pipe, logger, redis_url, zset_key, processed_key, owners_key, worker_queue_key)
+        def initialize(pipe, logger, redis_url, zset_key, processed_key, owners_key, worker_queue_key, entry_delimiter)
           @zset_key = zset_key
           @processed_key = processed_key
           @owners_key = owners_key
           @worker_queue_key = worker_queue_key
+          @entry_delimiter = entry_delimiter
           @logger = logger
           @redis = ::Redis.new(url: redis_url, reconnect_attempts: [0, 0, 0.1, 0.5, 1, 3, 5])
           @shutdown = false
@@ -40,7 +41,7 @@ module CI
           eval_script(
             :heartbeat,
             keys: [@zset_key, @processed_key, @owners_key, @worker_queue_key],
-            argv: [Time.now.to_f, id]
+            argv: [Time.now.to_f, id, @entry_delimiter]
           )
         rescue => error
           @logger.info(error)
@@ -56,9 +57,21 @@ module CI
         end
 
         def read_script(name)
-          ::File.read(::File.join(DEV_SCRIPTS_ROOT, "#{name}.lua"))
+          resolve_lua_includes(
+            ::File.read(::File.join(DEV_SCRIPTS_ROOT, "#{name}.lua")),
+            DEV_SCRIPTS_ROOT,
+          )
         rescue SystemCallError
-          ::File.read(::File.join(RELEASE_SCRIPTS_ROOT, "#{name}.lua"))
+          resolve_lua_includes(
+            ::File.read(::File.join(RELEASE_SCRIPTS_ROOT, "#{name}.lua")),
+            RELEASE_SCRIPTS_ROOT,
+          )
+        end
+
+        def resolve_lua_includes(script, root)
+          script.gsub(/^-- @include (\S+)$/) do
+            ::File.read(::File.join(root, "#{$1}.lua"))
+          end
         end
 
         HEADER = 'L'
@@ -142,9 +155,10 @@ zset_key = ARGV[1]
 processed_key = ARGV[2]
 owners_key = ARGV[3]
 worker_queue_key = ARGV[4]
+entry_delimiter = ARGV[5]
 
 logger.debug("Starting monitor: #{redis_url} #{zset_key} #{processed_key}")
-manager = CI::Queue::Redis::Monitor.new($stdin, logger, redis_url, zset_key, processed_key, owners_key, worker_queue_key)
+manager = CI::Queue::Redis::Monitor.new($stdin, logger, redis_url, zset_key, processed_key, owners_key, worker_queue_key, entry_delimiter)
 
 # Notify the parent we're ready
 $stdout.puts(".")

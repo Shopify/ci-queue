@@ -137,11 +137,13 @@ module Minitest
       def error_location(exception)
         @error_location ||= begin
           last_before_assertion = ''
-          exception.backtrace.reverse_each do |s|
+          backtrace_for(exception).reverse_each do |s|
             break if s =~ /in .(assert|refute|flunk|pass|fail|raise|must|wont)/
 
             last_before_assertion = s
           end
+          return ['unknown', 0] if last_before_assertion.empty?
+
           path = last_before_assertion.sub(/:in .*$/, '')
           # the path includes the linenumber at the end,
           # which is seperated by a :
@@ -150,6 +152,17 @@ module Minitest
           # We return [path, linenumber] here
           [result.first, result.last.to_i]
         end
+      end
+
+      def backtrace_for(exception)
+        backtrace = exception.backtrace
+        return backtrace if backtrace && !backtrace.empty?
+
+        nested_exception = exception.respond_to?(:error) ? exception.error : nil
+        nested_backtrace = nested_exception&.backtrace
+        return nested_backtrace if nested_backtrace && !nested_backtrace.empty?
+
+        []
       end
     end
   end
