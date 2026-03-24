@@ -148,9 +148,10 @@ module CI
         def retry_queue
           failures = build.failed_tests.to_set
           log = redis.lrange(key('worker', worker_id, 'queue'), 0, -1)
-          log = log.map { |entry| CI::Queue::QueueEntry.test_id(entry) }
-          log.select! { |test_id| failures.include?(test_id) }
-          log.uniq!
+          # Keep full entries (test_id + file_path) so lazy loading can resolve them.
+          # Filter by test_id against failures without stripping file paths.
+          log.select! { |entry| failures.include?(CI::Queue::QueueEntry.test_id(entry)) }
+          log.uniq! { |entry| CI::Queue::QueueEntry.test_id(entry) }
           log.reverse!
           Retry.new(log, config, redis: redis)
         end

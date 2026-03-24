@@ -61,6 +61,149 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_equal retry_test_order, retry_test_order
   end
 
+  def test_retry_queue_preserves_full_entries_with_file_paths
+    # Use stream_populate with file-path entries (as in preresolved mode),
+    # then verify retry_queue preserves the full entry including the file path.
+    @redis.flushdb
+    build_id = 'retry-file-paths'
+    leader = worker(1, populate: false, lazy_load_streaming_timeout: 2, queue_init_timeout: 2, build_id: build_id)
+    consumer = worker(2, populate: false, lazy_load_streaming_timeout: 2, queue_init_timeout: 2, build_id: build_id)
+    consumer.entry_resolver = ->(entry) { entry }
+
+    tests = [
+      EntryTest.new('ATest#test_foo', CI::Queue::QueueEntry.format('ATest#test_foo', '/tmp/a_test.rb')),
+      EntryTest.new('ATest#test_bar', CI::Queue::QueueEntry.format('ATest#test_bar', '/tmp/a_test.rb')),
+    ]
+
+    leader_thread = Thread.new do
+      leader.stream_populate(tests, random: Random.new(0), batch_size: 10)
+    end
+
+    timeout_at = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2
+    loop do
+      status = @redis.get(leader.send(:key, 'master-status'))
+      break if status == 'ready'
+      raise "streaming status not set" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > timeout_at
+      sleep 0.01
+    end
+
+    # Consumer polls all tests, failing the first one
+    failed_entry = nil
+    consumer.poll do |entry|
+      if failed_entry.nil?
+        failed_entry = entry
+        consumer.report_failure!
+        # record_error calls acknowledge internally
+        consumer.build.record_error(entry, 'Failed')
+      else
+        consumer.report_success!
+        consumer.acknowledge(entry)
+      end
+    end
+
+    leader_thread.join(2)
+
+    retry_queue = consumer.retry_queue
+    refute_predicate retry_queue, :exhausted?
+
+    retry_entries = retry_queue.instance_variable_get(:@queue).dup
+    assert_equal 1, retry_entries.size
+    # The critical assertion: retry entry must be a JSON entry with file_path,
+    # not just the bare test ID. A regression in retry_queue would strip this.
+    parsed = CI::Queue::QueueEntry.parse(retry_entries.first)
+    assert parsed[:file_path], "Retry entry should preserve the full entry with file path"
+    failed_test_id = CI::Queue::QueueEntry.test_id(failed_entry)
+    assert_equal failed_test_id, CI::Queue::QueueEntry.test_id(retry_entries.first)
+  ensure
+    leader_thread&.kill
+  end
+
+  def test_retry_queue_stream_populate_is_noop
+    target = shuffled_test_list.first
+    @queue.poll do |test|
+      if test == target
+        @queue.report_failure!
+        # record_error calls acknowledge internally
+        @queue.build.record_error(test.queue_entry, 'Failed')
+      else
+        @queue.report_success!
+        @queue.acknowledge(test.queue_entry)
+      end
+    end
+
+    retry_queue = @queue.retry_queue
+    original_queue_contents = retry_queue.instance_variable_get(:@queue).dup
+    refute_empty original_queue_contents
+
+    # stream_populate should NOT replace the retry queue's contents
+    dummy_entries = Enumerator.new do |yielder|
+      yielder << CI::Queue::QueueEntry.format("ZTest#test_zzz", "/tmp/z_test.rb")
+    end
+    retry_queue.stream_populate(dummy_entries, random: Random.new(0))
+
+    assert_equal original_queue_contents, retry_queue.instance_variable_get(:@queue),
+      "stream_populate should not replace retry queue contents"
+  end
+
+  def test_retry_queue_works_with_entry_resolver
+    # Fail a test, then verify retry queue works with entry_resolver (lazy loading)
+    target = shuffled_test_list.first
+    @queue.poll do |test|
+      if test == target
+        @queue.report_failure!
+        # record_error calls acknowledge internally
+        @queue.build.record_error(test.queue_entry, 'Failed')
+      else
+        @queue.report_success!
+        @queue.acknowledge(test.queue_entry)
+      end
+    end
+
+    retry_queue = @queue.retry_queue
+
+    # Set up entry_resolver (as configure_lazy_queue would do)
+    resolved_entries = []
+    retry_queue.entry_resolver = ->(entry) {
+      resolved_entries << entry
+      entry
+    }
+
+    # stream_populate is a no-op, preserving the retry entries
+    retry_queue.stream_populate(Enumerator.new { |y| }, random: Random.new(0))
+
+    # Poll should use entry_resolver, not index.fetch — no KeyError crash
+    polled = []
+    retry_queue.poll do |test|
+      polled << test
+      retry_queue.acknowledge(test)
+    end
+
+    assert_equal retry_queue.total, polled.size
+    assert_equal polled.size, resolved_entries.size,
+      "All polled entries should have gone through entry_resolver"
+  end
+
+  def test_retry_queue_with_multiple_failures_deduplicates
+    # Fail multiple tests, verify retry queue deduplicates by test_id
+    failed_ids = []
+    @queue.poll do |test|
+      @queue.report_failure!
+      @queue.build.record_error(test.queue_entry, 'Failed')
+      failed_ids << test.id
+    end
+
+    assert_operator failed_ids.size, :>=, 2, "Need multiple failures for this test"
+
+    retry_queue = @queue.retry_queue
+    retry_entries = retry_queue.instance_variable_get(:@queue).dup
+
+    # Each failed test should appear exactly once (no duplicates from requeues)
+    retry_test_ids = retry_entries.map { |e| CI::Queue::QueueEntry.test_id(e) }
+    assert_equal retry_test_ids.uniq, retry_test_ids,
+      "Retry queue should not contain duplicate test IDs"
+    assert_equal failed_ids.uniq.sort, retry_test_ids.sort
+  end
+
   def test_shutdown
     poll(@queue) do
       @queue.shutdown!
