@@ -147,8 +147,7 @@ module CI
         def retry_queue
           failures = build.failed_tests.to_set
           log = redis.lrange(key('worker', worker_id, 'queue'), 0, -1)
-          log = log.map { |entry| queue_entry_test_id(entry) }
-          log.select! { |id| failures.include?(id) }
+          log.select! { |entry| failures.include?(entry) }
           log.uniq!
           log.reverse!
           Retry.new(log, config, redis: redis)
@@ -176,23 +175,21 @@ module CI
           build.report_worker_error(error)
         end
 
-        def acknowledge(test_key, error: nil, pipeline: redis)
-          test_id = normalize_test_id(test_key)
+        def acknowledge(entry, error: nil, pipeline: redis)
+          test_id = CI::Queue::QueueEntry.test_id(entry)
           assert_reserved!(test_id)
-          entry = reserved_entries.fetch(test_id, queue_entry_for(test_key))
           unreserve_entry(test_id)
           eval_script(
             :acknowledge,
             keys: [key('running'), key('processed'), key('owners'), key('error-reports'), key('requeued-by')],
-            argv: [entry, test_id, error.to_s, config.redis_ttl],
+            argv: [entry, error.to_s, config.redis_ttl],
             pipeline: pipeline,
           ) == 1
         end
 
-        def requeue(test, offset: Redis.requeue_offset)
-          test_id = normalize_test_id(test)
+        def requeue(entry, offset: Redis.requeue_offset)
+          test_id = CI::Queue::QueueEntry.test_id(entry)
           assert_reserved!(test_id)
-          entry = reserved_entries.fetch(test_id, queue_entry_for(test))
           unreserve_entry(test_id)
           global_max_requeues = config.global_max_requeues(total)
 
@@ -208,7 +205,7 @@ module CI
               key('error-reports'),
               key('requeued-by'),
             ],
-            argv: [config.max_requeues, global_max_requeues, entry, test_id, offset, config.redis_ttl],
+            argv: [config.max_requeues, global_max_requeues, entry, offset, config.redis_ttl],
           ) == 1
 
           unless requeued
@@ -255,7 +252,7 @@ module CI
         end
 
         def reserve_entry(entry)
-          test_id = queue_entry_test_id(entry)
+          test_id = CI::Queue::QueueEntry.test_id(entry)
           reserved_tests << test_id
           reserved_entries[test_id] = entry
           reserved_entry_ids[entry] = test_id
@@ -267,28 +264,12 @@ module CI
           reserved_entry_ids.delete(entry) if entry
         end
 
-        def normalize_test_id(test_key)
-          key = test_key.respond_to?(:id) ? test_key.id : test_key
-          if key.is_a?(String)
-            cached = reserved_entry_ids[key]
-            return cached if cached
-          end
-          queue_entry_test_id(key)
-        end
-
-        def queue_entry_test_id(entry)
-          CI::Queue::QueueEntry.test_id(entry)
-        end
-
         def queue_entry_for(test)
-          return test.queue_entry if test.respond_to?(:queue_entry)
-          return test.id if test.respond_to?(:id)
-
-          test
+          test.queue_entry
         end
 
         def resolve_entry(entry)
-          test_id = reserved_entry_ids[entry] || queue_entry_test_id(entry)
+          test_id = reserved_entry_ids[entry] || CI::Queue::QueueEntry.test_id(entry)
           if populated?
             return index[test_id] if index.key?(test_id)
           end
@@ -391,11 +372,11 @@ module CI
               key('worker', worker_id, 'queue'),
               key('owners'),
             ],
-            argv: [CI::Queue.time_now.to_f, timeout, CI::Queue::QueueEntry::DELIMITER],
+            argv: [CI::Queue.time_now.to_f, timeout],
           )
 
           if lost_test
-            build.record_warning(Warnings::RESERVED_LOST_TEST, test: lost_test, timeout: config.timeout)
+            build.record_warning(Warnings::RESERVED_LOST_TEST, test: CI::Queue::QueueEntry.test_id(lost_test), timeout: config.timeout)
           end
 
           lost_test

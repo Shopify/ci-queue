@@ -10,10 +10,10 @@ module QueueHelper
       failed = !(success.respond_to?(:call) ? success.call(test) : success)
       if failed
         queue.report_failure!
-        queue.requeue(test) || queue.acknowledge(test.id)
+        queue.requeue(test.queue_entry) || queue.acknowledge(test.queue_entry)
       else
         queue.report_success!
-        queue.acknowledge(test.id)
+        queue.acknowledge(test.queue_entry)
       end
     end
     test_order

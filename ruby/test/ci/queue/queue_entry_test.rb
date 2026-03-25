@@ -2,34 +2,47 @@
 require 'test_helper'
 
 class CI::Queue::QueueEntryTest < Minitest::Test
-  DELIMITER = CI::Queue::QueueEntry::DELIMITER
-
   def test_parse_without_file_path
-    entry = "FooTest#test_bar"
+    entry = CI::Queue::QueueEntry.format("FooTest#test_bar", nil)
     parsed = CI::Queue::QueueEntry.parse(entry)
     assert_equal "FooTest#test_bar", parsed[:test_id]
     assert_nil parsed[:file_path]
   end
 
   def test_parse_with_file_path
-    entry = "FooTest#test_bar#{DELIMITER}/tmp/foo_test.rb"
+    entry = CI::Queue::QueueEntry.format("FooTest#test_bar", "/tmp/foo_test.rb")
     parsed = CI::Queue::QueueEntry.parse(entry)
     assert_equal "FooTest#test_bar", parsed[:test_id]
     assert_equal "/tmp/foo_test.rb", parsed[:file_path]
   end
 
   def test_format_without_file_path
-    assert_equal "FooTest#test_bar", CI::Queue::QueueEntry.format("FooTest#test_bar", nil)
-    assert_equal "FooTest#test_bar", CI::Queue::QueueEntry.format("FooTest#test_bar", "")
+    parsed = JSON.parse(CI::Queue::QueueEntry.format("FooTest#test_bar", nil), symbolize_names: true)
+    assert_equal "FooTest#test_bar", parsed[:test_id]
+    assert_nil parsed[:file_path]
+
+    parsed = JSON.parse(CI::Queue::QueueEntry.format("FooTest#test_bar", ""), symbolize_names: true)
+    assert_equal "FooTest#test_bar", parsed[:test_id]
+    assert_equal "", parsed[:file_path]
   end
 
   def test_format_with_file_path
     entry = CI::Queue::QueueEntry.format("FooTest#test_bar", "/tmp/foo_test.rb")
-    assert_equal "FooTest#test_bar#{DELIMITER}/tmp/foo_test.rb", entry
+    parsed = JSON.parse(entry, symbolize_names: true)
+    assert_equal "FooTest#test_bar", parsed[:test_id]
+    assert_equal "/tmp/foo_test.rb", parsed[:file_path]
   end
 
   def test_parse_with_pipe_in_test_name
     test_id = "FooTest#test_status=[published_|_visible]_tag:elasticsearch:true"
+    entry = CI::Queue::QueueEntry.format(test_id, "/tmp/foo_test.rb")
+    parsed = CI::Queue::QueueEntry.parse(entry)
+    assert_equal test_id, parsed[:test_id]
+    assert_equal "/tmp/foo_test.rb", parsed[:file_path]
+  end
+
+  def test_parse_with_tab_in_test_name
+    test_id = "FooTest#test_xss_<IMG SRC=\"jav\tascript:alert('XSS');\">"
     entry = CI::Queue::QueueEntry.format(test_id, "/tmp/foo_test.rb")
     parsed = CI::Queue::QueueEntry.parse(entry)
     assert_equal test_id, parsed[:test_id]
@@ -43,6 +56,22 @@ class CI::Queue::QueueEntryTest < Minitest::Test
     parsed = CI::Queue::QueueEntry.parse(entry)
     assert_equal test_id, parsed[:test_id]
     assert_equal file_path, parsed[:file_path]
+  end
+
+  def test_test_id_without_file_path
+    entry = CI::Queue::QueueEntry.format("FooTest#test_bar", nil)
+    assert_equal "FooTest#test_bar", CI::Queue::QueueEntry.test_id(entry)
+  end
+
+  def test_test_id_with_file_path
+    entry = CI::Queue::QueueEntry.format("FooTest#test_bar", "/tmp/foo_test.rb")
+    assert_equal "FooTest#test_bar", CI::Queue::QueueEntry.test_id(entry)
+  end
+
+  def test_test_id_with_tab_in_test_name
+    test_id = "FooTest#test_xss_<IMG SRC=\"jav\tascript:alert('XSS');\">"
+    entry = CI::Queue::QueueEntry.format(test_id, "/tmp/foo_test.rb")
+    assert_equal test_id, CI::Queue::QueueEntry.test_id(entry)
   end
 
   def test_encode_decode_load_error

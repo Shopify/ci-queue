@@ -201,7 +201,7 @@ module Minitest
           queue.report_success!
         end
 
-        if failed && CI::Queue.requeueable?(result) && queue.requeue(example)
+        if failed && CI::Queue.requeueable?(result) && queue.requeue(example.queue_entry)
           result.requeue!
         end
         reporter.record(result)
@@ -327,7 +327,7 @@ module Minitest
       end
 
       def queue_entry
-        id
+        @queue_entry ||= CI::Queue::QueueEntry.format(id, nil)
       end
 
       def <=>(other)
