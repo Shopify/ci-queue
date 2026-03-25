@@ -47,7 +47,7 @@ module Integration
         all tests passed every time, grinding did not uncover any flakiness
       EOS
       assert_equal expected.strip, output
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
     end
 
     def test_grind_command_runs_tests
@@ -91,7 +91,7 @@ module Integration
         \tExpected false to be truthy.
         \t    test/dummy_test.rb:18:in `test_flaky'
       EOS
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       assert_equal expected.strip, output
     end
 
@@ -149,7 +149,7 @@ module Integration
 
       run_count = runs_line.scan(/\w+/).last.to_i
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       assert run_count < grind_count
     end
 
@@ -205,7 +205,7 @@ module Integration
         \t    test/dummy_test.rb:10:in `test_bar'
       EOS
       assert_equal expected.strip, output
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
     end
 
     def test_grind_max_test_duration_passing
@@ -248,7 +248,7 @@ module Integration
         The 50th of test execution time is within 1000.0 milliseconds.
       EOS
       assert_equal expected.strip, output
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
     end
 
     def test_grind_max_test_duration_failing
@@ -293,7 +293,7 @@ module Integration
         test_flaky_passes:
       EOS
       assert output.start_with?(expected.strip)
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
     end
 
     def test_grind_max_test_duration_percentile_outside_range

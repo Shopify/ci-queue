@@ -13,7 +13,7 @@ def change_test_dir(request, monkeypatch):
 
 
 def expected_messages(output):
-    assert '= 4 failed, 2 passed, 1 skipped, 1 xpassed, 6 errors in' in output, output
+    assert re.search(r'= 4 failed, 2 passed, 1 skipped, 1 xpassed, (1 warning, )?6 errors in', output), output
     assert re.search(r':\d+: skipping test message', output) is not None, \
         "did not find 'skipping test message' in output"
 
@@ -64,7 +64,7 @@ class TestIntegration(object):
             .format(queue, xml_file, filename)
 
         output = check_output(cmd.format(queue, filename))
-        assert '= 4 failed, 2 passed, 4 skipped, 1 xpassed, 6 errors in' in output, output
+        assert re.search(r'= 4 failed, 2 passed, 4 skipped, 1 xpassed, (1 warning, )?6 errors in', output), output
         assert ('integrations/pytest/test_all.py:27: skipping test message' in output
                 or 'integrations/pytest/test_all.py:28: skipping test message' in output), output
         assert ' WILL_RETRY ' in output, output

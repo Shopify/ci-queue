@@ -90,8 +90,14 @@ class Worker(Base):
     def acknowledge(self, test):
         return self._eval_script(
             'acknowledge',
-            keys=[self.key('running'), self.key('processed'), self.key('owners')],
-            args=[test],
+            keys=[
+                self.key('running'),
+                self.key('processed'),
+                self.key('owners'),
+                self.key('error-reports'),
+                self.key('requeued-by'),
+            ],
+            args=[test, test, '', 0],
         ) == 1
 
     def requeue(self, test, offset=42):
@@ -107,8 +113,10 @@ class Worker(Base):
                 self.key('running'),
                 self.key('worker', self.worker_id, 'queue'),
                 self.key('owners'),
+                self.key('error-reports'),
+                self.key('requeued-by'),
             ],
-            args=[self.max_requeues, self.global_max_requeues, test, offset],
+            args=[self.max_requeues, self.global_max_requeues, test, test, offset, 0],
         ) == 1
 
     def retry_queue(self):
@@ -173,9 +181,12 @@ class Worker(Base):
                 self.key('processed'),
                 self.key('worker', self.worker_id, 'queue'),
                 self.key('owners'),
+                self.key('requeued-by'),
+                self.key('workers'),
             ],
             args=[
                 time.time(),
+                42,
             ],
         )
 
