@@ -270,6 +270,27 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_instance_of CI::Queue::Redis::Worker, queue
   end
 
+  def test_circuit_breaker_does_not_count_requeued_failures
+    # Bug: report_failure! was called before the requeue check, so successfully
+    # requeued tests incremented the consecutive failure counter. With
+    # max_consecutive_failures=3 and 3+ deterministic failures that are all
+    # requeued, the circuit breaker fired prematurely and the worker exited,
+    # stranding requeued tests in the queue with no worker to process them.
+    queue = worker(1, max_requeues: 5, requeue_tolerance: 1.0, max_consecutive_failures: 3)
+
+    # All tests fail (deterministic failures that get requeued)
+    tests_processed = poll(queue, false)
+
+    # With 4 tests and max_requeues=5, all tests should be processed multiple
+    # times (requeued after each failure). The circuit breaker should NOT fire
+    # because requeued failures are transient, not consecutive "real" failures.
+    assert tests_processed.size > TEST_LIST.size,
+      "Expected tests to be requeued and re-processed, but only #{tests_processed.size} " \
+      "tests were processed (circuit breaker likely fired prematurely). " \
+      "Circuit breaker open? #{queue.config.circuit_breakers.any?(&:open?)}"
+  end
+
+
   private
 
   def shuffled_test_list

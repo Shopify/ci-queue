@@ -296,9 +296,35 @@ module Integration
         )
       end
 
+      # Requeued failures don't count toward the circuit breaker. The worker
+      # processes more tests than the old behavior (which stopped at 3).
+      # Exact count depends on queue ordering, but must be > 3.
+      output = normalize(out.lines.last.strip)
+      ran_count = output.match(/Ran (\d+) tests/)[1].to_i
+      assert ran_count > 3,
+        "Expected more than 3 tests to run (requeues shouldn't trip breaker), got: #{output}"
+    end
+
+    def test_circuit_breaker_without_requeues
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '--max-requeues', '0',
+          '--max-consecutive-failures', '3',
+          '-Itest',
+          'test/failing_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+
       assert_equal "This worker is exiting early because it encountered too many consecutive test failures, probably because of some corrupted state.\n", err
       output = normalize(out.lines.last.strip)
-      assert_equal 'Ran 3 tests, 3 assertions, 0 failures, 0 errors, 0 skips, 3 requeues in X.XXs', output
+      assert_equal 'Ran 3 tests, 3 assertions, 3 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
     end
 
     def test_redis_runner
