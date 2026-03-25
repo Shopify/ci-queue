@@ -6,26 +6,20 @@ require 'json'
 module CI
   module Queue
     module QueueEntry
-      DELIMITER = "\t"
       LOAD_ERROR_PREFIX = '__ciq_load_error__:'.freeze
 
       def self.test_id(entry)
-        pos = entry.index(DELIMITER)
-        pos ? entry[0, pos] : entry
+        JSON.parse(entry, symbolize_names: true)[:test_id]
       end
 
       def self.parse(entry)
-        return { test_id: entry, file_path: nil } unless entry.include?(DELIMITER)
-
-        test_id, file_path = entry.split(DELIMITER, 2)
-        file_path = nil if file_path == ""
-        { test_id: test_id, file_path: file_path }
+        JSON.parse(entry, symbolize_names: true)
       end
 
       def self.format(test_id, file_path)
         return test_id if file_path.nil? || file_path == ""
 
-        "#{test_id}#{DELIMITER}#{file_path}"
+        JSON.dump({ test_id: test_id, file_path: file_path })
       end
 
       def self.load_error_payload?(file_path)
