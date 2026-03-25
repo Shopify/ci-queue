@@ -40,15 +40,15 @@ module Minitest
         self.total_time = Minitest.clock_time - start_time
         
         # Determine what type of result this is and record it
-        test_id = "#{test.klass}##{test.name}"
+        entry = test.queue_entry
         delta = delta_for(test)
 
         acknowledged = if (test.failure || test.error?) && !test.skipped?
-          build.record_error(test_id, dump(test), stat_delta: delta)
+          build.record_error(entry, dump(test), stat_delta: delta)
         elsif test.requeued?
-          build.record_requeue(test_id)
+          build.record_requeue(entry)
         else
-          build.record_success(test_id, skip_flaky_record: test.skipped?)
+          build.record_success(entry, skip_flaky_record: test.skipped?)
         end
 
         if acknowledged

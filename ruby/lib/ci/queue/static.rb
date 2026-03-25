@@ -125,12 +125,12 @@ module CI
         test_failed >= config.max_test_failed
       end
 
-      def requeue(test)
-        test_key = test.id
-        return false unless should_requeue?(test_key)
+      def requeue(entry)
+        test_id = CI::Queue::QueueEntry.test_id(entry)
+        return false unless should_requeue?(test_id)
 
-        requeues[test_key] += 1
-        @queue.unshift(test_key)
+        requeues[test_id] += 1
+        @queue.unshift(test_id)
         true
       end
 

@@ -56,7 +56,7 @@ class CI::Queue::RedisTest < Minitest::Test
     retry_queue = @queue.retry_queue
     populate(retry_queue)
     retry_test_order = poll(retry_queue) do |test|
-      @queue.build.record_error(test.id, 'Failed')
+      @queue.build.record_error(test.queue_entry, 'Failed')
     end
     assert_equal retry_test_order, retry_test_order
   end
@@ -188,7 +188,7 @@ class CI::Queue::RedisTest < Minitest::Test
       monitor.synchronize do
         condition.wait_until { acquired }
         second_queue.poll do |test|
-          assert_equal true, second_queue.acknowledge(test.id)
+          assert_equal true, second_queue.acknowledge(test.queue_entry)
         end
         done = true
         condition.signal
@@ -201,7 +201,7 @@ class CI::Queue::RedisTest < Minitest::Test
       monitor.synchronize do
         condition.signal
         condition.wait_until { done }
-        assert_equal false, @queue.acknowledge(test.id)
+        assert_equal false, @queue.acknowledge(test.queue_entry)
       end
     end
 
@@ -221,7 +221,7 @@ class CI::Queue::RedisTest < Minitest::Test
           queue = worker(i, tests: [TEST_LIST.first], build_id: '24')
           queue.poll do |test|
             sleep 1 # timeout
-            queue.acknowledge(test.id)
+            queue.acknowledge(test.queue_entry)
           end
         end
       end
@@ -283,10 +283,9 @@ class CI::Queue::RedisTest < Minitest::Test
   def test_reserve_lost_ignores_processed_entry_with_path
     queue = worker(1, populate: false)
     entry = CI::Queue::QueueEntry.format('ATest#test_foo', '/tmp/a_test.rb')
-    test_id = 'ATest#test_foo'
 
     @redis.zadd(queue.send(:key, 'running'), 0, entry)
-    @redis.sadd(queue.send(:key, 'completed'), test_id)
+    @redis.sadd(queue.send(:key, 'processed'), entry)
     @redis.hset(queue.send(:key, 'owners'), entry, queue.send(:key, 'worker', queue.config.worker_id, 'queue'))
 
     lost = queue.send(:try_to_reserve_lost_test)
@@ -325,12 +324,11 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_equal entry, second_try
   end
 
-  def test_heartbeat_uses_test_id_for_processed_check
+  def test_heartbeat_uses_entry_for_processed_check
     queue = worker(1, populate: false)
     entry = CI::Queue::QueueEntry.format('ATest#test_foo', '/tmp/a_test.rb')
-    test_id = 'ATest#test_foo'
 
-    @redis.sadd(queue.send(:key, 'processed'), test_id)
+    @redis.sadd(queue.send(:key, 'processed'), entry)
 
     result = queue.send(
       :eval_script,
@@ -367,7 +365,7 @@ class CI::Queue::RedisTest < Minitest::Test
             queue = worker(i, tests: [TEST_LIST.first], build_id: '24')
             queue.poll do |test|
               sleep 1 # timeout
-              queue.acknowledge(test.id)
+              queue.acknowledge(test.queue_entry)
             end
           end
         end
@@ -461,6 +459,7 @@ class CI::Queue::RedisTest < Minitest::Test
     w3.send(:register)
 
     id_for = ->(test) { test.respond_to?(:id) ? test.id : CI::Queue::QueueEntry.test_id(test) }
+    entry_for = ->(test) { test.respond_to?(:queue_entry) ? test.queue_entry : test }
 
     requeued_test_id = nil
     picked_up_requeue = {}
@@ -481,7 +480,7 @@ class CI::Queue::RedisTest < Minitest::Test
             cond.broadcast
             cond.wait_until { release_other_workers }
           end
-          w2.acknowledge(test_id)
+          w2.acknowledge(entry_for.call(test))
         end
       end,
       Thread.new do
@@ -493,7 +492,7 @@ class CI::Queue::RedisTest < Minitest::Test
             cond.broadcast
             cond.wait_until { release_other_workers }
           end
-          w3.acknowledge(test_id)
+          w3.acknowledge(entry_for.call(test))
         end
       end,
     ]
@@ -512,14 +511,14 @@ class CI::Queue::RedisTest < Minitest::Test
         first_test = false
         requeued_test_id = test_id
         w1.report_failure!
-        assert_equal true, w1.requeue(test)
+        assert_equal true, w1.requeue(entry_for.call(test))
         mon.synchronize do
           release_other_workers = true
           cond.broadcast
         end
       else
         worker_one_picked_its_own_requeue = true if test_id == requeued_test_id
-        w1.acknowledge(test_id)
+        w1.acknowledge(entry_for.call(test))
       end
     end
 

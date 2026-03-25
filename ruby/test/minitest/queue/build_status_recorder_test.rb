@@ -152,27 +152,35 @@ module Minitest::Queue
     def test_build_record_methods_return_boolean
       # Redis build: first to ack returns true, duplicate returns false
       reserve(@queue, "a")
-      assert_equal true, @queue.build.record_success("Minitest::Test#a")
-      assert_equal true, @queue.build.record_requeue("Minitest::Test#b")
+      entry_a = CI::Queue::QueueEntry.format("Minitest::Test#a", nil)
+      assert_equal true, @queue.build.record_success(entry_a)
+      entry_b = CI::Queue::QueueEntry.format("Minitest::Test#b", nil)
+      assert_equal true, @queue.build.record_requeue(entry_b)
 
       second_queue = worker(2)
       reserve(second_queue, "a")
-      assert_equal false, second_queue.build.record_success("Minitest::Test#a")
+      assert_equal false, second_queue.build.record_success(entry_a)
     end
 
     def test_static_build_record_returns_true
       static_queue = CI::Queue::Static.new(['test_example'], CI::Queue::Configuration.new(build_id: '42', worker_id: '1'))
       build = static_queue.build
 
-      assert_equal true, build.record_success("test_example")
-      assert_equal true, build.record_requeue("test_example")
-      assert_equal true, build.record_error("test_example", "payload")
+      entry = CI::Queue::QueueEntry.format("test_example", nil)
+      assert_equal true, build.record_success(entry)
+      assert_equal true, build.record_requeue(entry)
+      assert_equal true, build.record_error(entry, "payload")
     end
 
     private
 
     def reserve(queue, method_name)
-      queue.instance_variable_set(:@reserved_tests, Concurrent::Set.new([Minitest::Queue::SingleExample.new("Minitest::Test", method_name).id]))
+      test_id = Minitest::Queue::SingleExample.new("Minitest::Test", method_name).id
+      entry = CI::Queue::QueueEntry.format(test_id, nil)
+      queue.instance_variable_set(:@reserved_tests, Concurrent::Set.new([test_id]))
+      reserved_entries = queue.instance_variable_get(:@reserved_entries) || Concurrent::Map.new
+      reserved_entries[test_id] = entry
+      queue.instance_variable_set(:@reserved_entries, reserved_entries)
     end
 
     def worker(id)

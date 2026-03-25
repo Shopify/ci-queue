@@ -9,15 +9,15 @@ module QueueHelper
       test_order << test
       failed = !(success.respond_to?(:call) ? success.call(test) : success)
       if failed
-        if queue.requeue(test)
+        if queue.requeue(test.queue_entry)
           # Requeued — don't report to circuit breaker
         else
           queue.report_failure!
-          queue.acknowledge(test.id)
+          queue.acknowledge(test.queue_entry)
         end
       else
         queue.report_success!
-        queue.acknowledge(test.id)
+        queue.acknowledge(test.queue_entry)
       end
     end
     test_order

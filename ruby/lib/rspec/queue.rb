@@ -253,6 +253,10 @@ module RSpec
         example.id
       end
 
+      def queue_entry
+        @queue_entry ||= CI::Queue::QueueEntry.format(id, nil)
+      end
+
       def <=>(other)
         id <=> other.id
       end
@@ -411,7 +415,7 @@ module RSpec
       end
 
       def requeue
-        @queue.requeue(@example)
+        @queue.requeue(@example.queue_entry)
       end
 
       def cancel_run!
@@ -422,7 +426,7 @@ module RSpec
       end
 
       def acknowledge
-        @queue.acknowledge(@example)
+        @queue.acknowledge(@example.queue_entry)
       end
     end
 

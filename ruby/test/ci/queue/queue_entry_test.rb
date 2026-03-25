@@ -3,7 +3,7 @@ require 'test_helper'
 
 class CI::Queue::QueueEntryTest < Minitest::Test
   def test_parse_without_file_path
-    entry = "FooTest#test_bar"
+    entry = CI::Queue::QueueEntry.format("FooTest#test_bar", nil)
     parsed = CI::Queue::QueueEntry.parse(entry)
     assert_equal "FooTest#test_bar", parsed[:test_id]
     assert_nil parsed[:file_path]
@@ -17,8 +17,15 @@ class CI::Queue::QueueEntryTest < Minitest::Test
   end
 
   def test_format_without_file_path
-    assert_equal "FooTest#test_bar", CI::Queue::QueueEntry.format("FooTest#test_bar", nil)
-    assert_equal "FooTest#test_bar", CI::Queue::QueueEntry.format("FooTest#test_bar", "")
+    entry_nil = CI::Queue::QueueEntry.format("FooTest#test_bar", nil)
+    parsed_nil = JSON.parse(entry_nil, symbolize_names: true)
+    assert_equal "FooTest#test_bar", parsed_nil[:test_id]
+    assert_nil parsed_nil[:file_path]
+
+    entry_empty = CI::Queue::QueueEntry.format("FooTest#test_bar", "")
+    parsed_empty = JSON.parse(entry_empty, symbolize_names: true)
+    assert_equal "FooTest#test_bar", parsed_empty[:test_id]
+    assert_equal "", parsed_empty[:file_path]
   end
 
   def test_format_with_file_path
@@ -54,7 +61,8 @@ class CI::Queue::QueueEntryTest < Minitest::Test
   end
 
   def test_test_id_without_file_path
-    assert_equal "FooTest#test_bar", CI::Queue::QueueEntry.test_id("FooTest#test_bar")
+    entry = CI::Queue::QueueEntry.format("FooTest#test_bar", nil)
+    assert_equal "FooTest#test_bar", CI::Queue::QueueEntry.test_id(entry)
   end
 
   def test_test_id_with_file_path

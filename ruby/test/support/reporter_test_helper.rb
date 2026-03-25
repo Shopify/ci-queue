@@ -5,6 +5,7 @@ module ReporterTestHelper
   def result(name, **kwargs)
     result = Minitest::Result.from(runnable(name, **kwargs))
     result.source_location = ["#{Minitest::Queue.project_root}/test/my_test.rb", 12]
+    result.queue_entry = CI::Queue::QueueEntry.format("#{result.klass}##{result.name}", nil) if result.respond_to?(:queue_entry=)
     result
   end
 
