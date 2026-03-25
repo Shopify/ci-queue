@@ -195,14 +195,14 @@ module Minitest
           # When we do a bisect, we don't care about the result other than the test we're running the bisect on
           result.mark_as_flaked!
           failed = false
-        elsif failed
-          queue.report_failure!
-        else
-          queue.report_success!
         end
 
         if failed && CI::Queue.requeueable?(result) && queue.requeue(example)
           result.requeue!
+        elsif failed
+          queue.report_failure!
+        else
+          queue.report_success!
         end
         reporter.record(result)
       end
