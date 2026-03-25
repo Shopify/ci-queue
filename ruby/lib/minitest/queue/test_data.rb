@@ -138,7 +138,7 @@ module Minitest
         @error_location ||= begin
           last_before_assertion = ''
           backtrace_for(exception).reverse_each do |s|
-            break if s =~ /in .(assert|refute|flunk|pass|fail|raise|must|wont)/
+            break if s =~ /in [`'](?:[\w:]*[#.])?(assert|refute|flunk|pass|fail|raise|must|wont)/
 
             last_before_assertion = s
           end

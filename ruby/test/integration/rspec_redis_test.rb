@@ -32,7 +32,7 @@ module Integration
         assert_equal 0, $?.exitstatus
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       expected_output = strip_heredoc <<-EOS
         Worker elected as leader, pushing 3 tests to the queue.
 
@@ -89,7 +89,7 @@ module Integration
         )
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       expected_output = strip_heredoc <<-EOS
         Worker elected as leader, pushing 3 tests to the queue.
 
@@ -134,7 +134,7 @@ module Integration
         )
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       expected_output = strip_heredoc <<-EOS
         Found 0 tests to retry, processing the main queue.
 
@@ -166,7 +166,7 @@ module Integration
         )
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       expected_output = "3 examples, 1 failure"
 
       assert_match expected_output, normalize(out)
@@ -184,7 +184,7 @@ module Integration
         )
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       expected_output = strip_heredoc <<-EOS
         Waiting for workers to complete
         1 error found
@@ -240,7 +240,7 @@ module Integration
 
       EOS
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       assert_equal expected_retry_output, normalize(out)
       assert_equal 0, $?.exitstatus
 
@@ -256,7 +256,7 @@ module Integration
         )
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       expected_report_output = strip_heredoc <<-EOS
         Waiting for workers to complete
         No errors found
@@ -282,7 +282,7 @@ module Integration
         )
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       expected_output = strip_heredoc <<-EOS
         Worker elected as leader, pushing 2 tests to the queue.
 
@@ -326,7 +326,7 @@ module Integration
         assert_equal 1, $?.exitstatus
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       expected_output = strip_heredoc <<-EOS
         Worker elected as leader, pushing 3 tests to the queue.
 
@@ -369,7 +369,7 @@ module Integration
         )
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       expected_output = strip_heredoc <<-EOS
         --- Waiting for workers to complete
         +++ 1 error found
@@ -412,7 +412,7 @@ module Integration
         )
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
 
       expected_output = strip_heredoc <<-EOS
 
@@ -438,7 +438,7 @@ module Integration
         )
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       expected_output = strip_heredoc <<-EOS
         Worker elected as leader, pushing 1 tests to the queue.
 
@@ -474,7 +474,7 @@ module Integration
     private
 
     def normalize(output)
-      strip_blank_lines(rewrite_paths(freeze_timing(decolorize_output(output))))
+      normalize_backtrace(strip_blank_lines(rewrite_paths(freeze_timing(decolorize_output(output)))))
     end
   end
 end

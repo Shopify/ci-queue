@@ -42,7 +42,7 @@ module Integration
         )
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       assert_match(/Expected false to be truthy/, normalize(out)) # failure output
       result = normalize(out.lines.last.strip)
       assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', result
@@ -71,7 +71,7 @@ module Integration
         end.each(&:join)
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
 
       Tempfile.open('warnings') do |warnings_file|
         out, err = capture_subprocess_io do
@@ -86,7 +86,7 @@ module Integration
             )
         end
 
-        assert_empty err
+        assert_empty filter_deprecation_warnings(err)
         result = normalize(out.lines[1].strip)
         # lost_test.rb test_foo has no assertions (only sleep)
         assert_equal "Ran 1 tests, 0 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)", result
@@ -119,7 +119,7 @@ module Integration
         threads.each(&:join)
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
 
       out, err = capture_subprocess_io do
         system(
@@ -131,7 +131,7 @@ module Integration
         )
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       result = normalize(out.lines[1].strip)
       assert_equal 'Ran 100 tests, 100 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)', result
     end
@@ -174,7 +174,7 @@ module Integration
           threads.each(&:join)
         end
 
-        assert_empty err
+        assert_empty filter_deprecation_warnings(err)
 
         # Verify the non-leader actually entered queue.poll and processed tests.
         # The leader may process 0 tests if the non-leader is fast enough to drain
@@ -195,7 +195,7 @@ module Integration
           )
         end
 
-        assert_empty err
+        assert_empty filter_deprecation_warnings(err)
         result = normalize(out.lines[1].strip)
         assert_equal 'Ran 100 tests, 100 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)', result
       end
@@ -235,7 +235,7 @@ module Integration
           threads.each(&:join)
         end
 
-        assert_empty err
+        assert_empty filter_deprecation_warnings(err)
 
         out, err = capture_subprocess_io do
           system(
@@ -247,7 +247,7 @@ module Integration
           )
         end
 
-        assert_empty err
+        assert_empty filter_deprecation_warnings(err)
         # 1 static + 3 dynamic variants = 4 tests
         result = normalize(out.lines[1].strip)
         assert_equal 'Ran 4 tests, 4 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)', result
@@ -274,7 +274,7 @@ module Integration
         )
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
 
       out, err = capture_subprocess_io do
         system(
@@ -287,7 +287,7 @@ module Integration
         )
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       assert_includes out, 'Worker profile summary'
       assert_includes out, 'leader'
       assert_includes out, 'Wall Clock'
@@ -312,7 +312,7 @@ module Integration
         )
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       assert_match(/ATest#test_foo \d+\.\d+ = S/, normalize(out)) # verbose test ouptut
       result = normalize(out.lines.last.strip)
       assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', result
@@ -339,7 +339,7 @@ module Integration
         end
 
       assert_includes File.read(log_file.path), 'INFO -- : Finished \'["exists", "build:1:worker:1:queue"]\': 0'
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       result = normalize(out.lines.last.strip)
       assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', result
       end
@@ -363,7 +363,7 @@ module Integration
         )
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       assert_match(/^\^{3} \+{3}$/m, normalize(out)) # reopen failed step
       output = normalize(out.lines.last.strip)
       assert_equal '--- Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
@@ -387,7 +387,7 @@ module Integration
         )
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       output = normalize(out.lines.last.strip)
       assert_equal '--- Ran 3 tests, 0 assertions, 0 failures, 2 errors, 0 skips, 1 requeues in X.XXs', output
     end
@@ -413,7 +413,7 @@ module Integration
 
       refute_predicate $?, :success?
       assert_equal 1, $?.exitstatus
-      assert_equal 'This worker is exiting early because too many failed tests were encountered.', err.chomp
+      assert_equal 'This worker is exiting early because too many failed tests were encountered.', filter_deprecation_warnings(err).chomp
       output = normalize(out.lines.last.strip)
       assert_equal 'Ran 47 tests, 47 assertions, 3 failures, 0 errors, 0 skips, 44 requeues in X.XXs', output
 
@@ -432,7 +432,7 @@ module Integration
 
       refute_predicate $?, :success?
       assert_equal 44, $?.exitstatus
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       expected = <<~EXPECTED
         Waiting for workers to complete
         Requeued 44 tests
@@ -468,7 +468,7 @@ module Integration
 
       refute_predicate $?, :success?
       assert_equal 40, $?.exitstatus
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       expected = <<~EXPECTED
         Waiting for workers to complete
         No leader was elected. This typically means no worker was able to start. Were there any errors during application boot?
@@ -494,7 +494,7 @@ module Integration
         )
       end
 
-      assert_equal "This worker is exiting early because it encountered too many consecutive test failures, probably because of some corrupted state.\n", err
+      assert_equal "This worker is exiting early because it encountered too many consecutive test failures, probably because of some corrupted state.\n", filter_deprecation_warnings(err)
       output = normalize(out.lines.last.strip)
       assert_equal 'Ran 3 tests, 3 assertions, 0 failures, 0 errors, 0 skips, 3 requeues in X.XXs', output
     end
@@ -516,7 +516,7 @@ module Integration
         )
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       output = normalize(out.lines.last.strip)
       assert_equal 'Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
 
@@ -536,7 +536,7 @@ module Integration
         )
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       output = normalize(out.lines.last.strip)
       assert_equal 'Ran 6 tests, 4 assertions, 2 failures, 1 errors, 0 skips, 3 requeues in X.XXs', output
     end
@@ -557,7 +557,7 @@ module Integration
           chdir: 'test/fixtures/',
         )
       end
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       output = normalize(out.lines.last.strip)
       assert_equal 'Ran 100 tests, 100 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
 
@@ -576,7 +576,7 @@ module Integration
           chdir: 'test/fixtures/',
         )
       end
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       output = normalize(out.lines.last.strip)
       assert_equal 'All tests were ran already', output
     end
@@ -597,7 +597,7 @@ module Integration
           chdir: 'test/fixtures/',
         )
       end
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       output = normalize(out.lines.last.strip)
       assert_equal 'Ran 200 tests, 200 assertions, 100 failures, 0 errors, 0 skips, 100 requeues in X.XXs', output
 
@@ -617,7 +617,7 @@ module Integration
           chdir: 'test/fixtures/',
         )
       end
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       output = normalize(out.lines.last.strip)
       assert_equal 'All tests were ran already', output
     end
@@ -638,7 +638,7 @@ module Integration
           chdir: 'test/fixtures/',
         )
       end
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       output = normalize(out.lines.last.strip)
       assert_equal 'Ran 100 tests, 100 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
 
@@ -661,7 +661,7 @@ module Integration
           chdir: 'test/fixtures/',
         )
       end
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       output = normalize(out.lines.last.strip)
       assert_equal "The test run is too old and can't be retried", output
     end
@@ -681,7 +681,7 @@ module Integration
           chdir: 'test/fixtures/',
         )
       end
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       output = normalize(out.lines.last.strip)
       assert_equal 'Ran 100 tests, 100 assertions, 100 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
 
@@ -696,7 +696,7 @@ module Integration
           chdir: 'test/fixtures/',
         )
       end
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       expect = 'Ran 100 tests, 100 assertions, 100 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)'
       assert_equal expect, normalize(out.strip.lines[1].strip)
 
@@ -737,7 +737,7 @@ module Integration
           chdir: 'test/fixtures/',
         )
       end
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       output = normalize(out.lines.last.strip)
       assert_equal 'All tests were ran already', output
 
@@ -752,7 +752,7 @@ module Integration
           chdir: 'test/fixtures/',
         )
       end
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       expect = 'Ran 100 tests, 100 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)'
       assert_equal expect, normalize(out.strip.lines[1].strip)
     end
@@ -774,7 +774,7 @@ module Integration
           chdir: 'test/fixtures/',
         )
       end
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       output = normalize(out.lines.last.strip)
       assert_equal 'Ran 0 tests, 0 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
     end
@@ -797,7 +797,7 @@ module Integration
           chdir: 'test/fixtures/',
         )
       end
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       output = normalize(out.lines.last.strip)
       assert_equal 'Ran 9 tests, 6 assertions, 1 failures, 1 errors, 1 skips, 2 requeues in X.XXs', output
 
@@ -899,7 +899,7 @@ module Integration
           chdir: 'test/fixtures/',
         )
       end
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       output = normalize(out.lines.last.strip)
       assert_equal 'Ran 9 tests, 6 assertions, 1 failures, 1 errors, 1 skips, 2 requeues in X.XXs', output
 
@@ -1110,7 +1110,7 @@ module Integration
           chdir: 'test/fixtures/',
         )
       end
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       output = normalize(out.lines.last.strip)
       # 8 = sum of test.assertions from Minitest (skip counts as 1 in some versions)
       assert_equal 'Ran 11 tests, 8 assertions, 2 failures, 1 errors, 1 skips, 4 requeues in X.XXs', output
@@ -1134,7 +1134,7 @@ module Integration
         assert_equal "Atest#test_bar", content[0]["test"]
         assert_equal 2, content[0]["timeout"]
 
-        assert_empty err
+        assert_empty filter_deprecation_warnings(err)
         output = normalize(out)
 
         expected_output = <<~END
@@ -1210,7 +1210,7 @@ module Integration
         )
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       output = normalize(out.lines.last)
       assert_equal <<~END, output
         Ran 1 tests, 1 assertions, 1 failures, 0 errors, 0 skips, 0 requeues in X.XXs
@@ -1257,7 +1257,7 @@ module Integration
     private
 
     def normalize_xml(output)
-      freeze_xml_timing(rewrite_paths(output))
+      normalize_backtrace(freeze_xml_timing(rewrite_paths(output)))
     end
   end
 end

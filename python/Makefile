@@ -26,7 +26,7 @@ autolint: autopep8 lint
 run_tests: clean
 	tox -e ${TOX_ENV} -- --durations=10 -vv tests
 
-test: autopep8 run_tests
+test: run_tests
 
 install:
 	pip install --ignore-installed six -e .[test]

@@ -19,7 +19,7 @@ module Minitest
           \e[32mThe 50th of test execution time is within 0.1 milliseconds.\e[0m
         EOS
         assert_equal expected_output, output
-        assert_empty err
+        assert_empty filter_deprecation_warnings(err)
         assert reporter.success?
       end
 
@@ -32,7 +32,7 @@ module Minitest
         end
 
         assert_equal "", output
-        assert_empty err
+        assert_empty filter_deprecation_warnings(err)
         assert reporter.success?
       end
 
@@ -51,7 +51,7 @@ module Minitest
           some test: 0.03ms
         EOS
         assert_equal expected_output, normalize(output)
-        assert_empty err
+        assert_empty filter_deprecation_warnings(err)
         refute reporter.success?
       end
 

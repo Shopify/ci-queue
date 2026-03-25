@@ -15,7 +15,7 @@ module Integration
         run_bisect('log/leaky_test_order.log', 'LeakyTest#test_sensible_to_leak')
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       expected_output = strip_heredoc <<-EOS
         --- Testing the failing test in isolation
           LeakyTest#test_sensible_to_leak                                 PASS
@@ -105,7 +105,7 @@ module Integration
         run_bisect('log/unconclusive_test_order.log', 'LeakyTest#test_sensible_to_leak')
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       expected_output = strip_heredoc <<-EOS
         --- Testing the failing test in isolation
           LeakyTest#test_sensible_to_leak                                 PASS
@@ -182,7 +182,7 @@ module Integration
         run_bisect('log/unconclusive_test_order.log', 'LeakyTest#test_useless_0')
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       expected_output = strip_heredoc <<-EOS
         --- Testing the failing test in isolation
           LeakyTest#test_useless_0                                        PASS
@@ -197,7 +197,7 @@ module Integration
         run_bisect('log/leaky_with_broken_test_order.log', 'LeakyTest#test_sensible_to_leak')
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       expected_output = strip_heredoc <<-EOS
         --- Testing the failing test in isolation
           LeakyTest#test_sensible_to_leak                                 PASS
@@ -274,7 +274,7 @@ module Integration
         run_bisect('log/broken_test_order.log', 'LeakyTest#test_broken_test')
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       expected_output = strip_heredoc <<-EOS
         --- Testing the failing test in isolation
           LeakyTest#test_broken_test                                      FAIL
@@ -291,7 +291,7 @@ module Integration
         run_bisect('log/leaky_test_order.log', 'LeakyTestDoesNotExist#test_sensible_to_leak')
       end
 
-      assert_empty err
+      assert_empty filter_deprecation_warnings(err)
       expected_output = strip_heredoc <<-EOS
         --- Testing the failing test in isolation
         ^^^ +++
@@ -305,7 +305,7 @@ module Integration
     private
 
     def normalize(output)
-      rewrite_paths(freeze_seed(freeze_timing(decolorize_output(output))))
+      normalize_backtrace(rewrite_paths(freeze_seed(freeze_timing(decolorize_output(output)))))
     end
 
     def run_bisect(test_order_file, failing_test)

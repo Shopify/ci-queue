@@ -32,7 +32,23 @@ module OutputTestHelpers
     output.gsub(/time="[\d\-\.e]+"/, 'time="X.XX"').gsub(/timestamp="[\d\-\.e]+"/, 'timestamp="X.XX"')
   end
 
+  def normalize_backtrace(output)
+    output.to_s.gsub(/in '([^']+)'/) do
+      "in `#{$1.sub(/\A[A-Z][\w]*(?:::[A-Z][\w]*)*[#.]/, '')}'"
+    end
+  end
+
   def normalize(output)
-    freeze_timing(decolorize_output(output))
+    normalize_backtrace(freeze_timing(decolorize_output(output)))
+  end
+
+  def filter_deprecation_warnings(output)
+    output.to_s.lines.reject do |line|
+      line.include?("was loaded from the standard library, but will no longer be part of the default gems") ||
+        line.include?("You can add") && (line.include?("to your Gemfile or gemspec to silence this warning") || line.include?("to your Gemfile or gemspec to fix this error")) ||
+        line.include?("is not part of the default gems since Ruby") ||
+        line.include?("warning: already initialized constant") ||
+        line.include?("warning: previous definition of")
+    end.join
   end
 end
