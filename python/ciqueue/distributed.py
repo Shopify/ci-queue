@@ -97,7 +97,7 @@ class Worker(Base):
                 self.key('error-reports'),
                 self.key('requeued-by'),
             ],
-            args=[test, test, '', 0],
+            args=[test, '', 0],
         ) == 1
 
     def requeue(self, test, offset=42):
@@ -116,7 +116,7 @@ class Worker(Base):
                 self.key('error-reports'),
                 self.key('requeued-by'),
             ],
-            args=[self.max_requeues, self.global_max_requeues, test, test, offset, 0],
+            args=[self.max_requeues, self.global_max_requeues, test, offset, 0],
         ) == 1
 
     def retry_queue(self):

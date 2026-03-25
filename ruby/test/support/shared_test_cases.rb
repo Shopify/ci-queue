@@ -15,6 +15,10 @@ module SharedTestCases
       name
     end
 
+    def queue_entry
+      CI::Queue::QueueEntry.format(id, nil)
+    end
+
     def to_s
       inspect
     end

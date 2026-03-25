@@ -33,14 +33,14 @@ module CI
         end
 
         def failed_tests
-          redis.hkeys(key('error-reports'))
+          redis.hkeys(key('error-reports')).map { |entry| CI::Queue::QueueEntry.test_id(entry) }
         end
 
         TOTAL_KEY = "___total___"
         def requeued_tests
           requeues = redis.hgetall(key('requeues-count'))
           requeues.delete(TOTAL_KEY)
-          requeues
+          requeues.transform_keys { |entry| CI::Queue::QueueEntry.test_id(entry) }
         end
 
         def pop_warnings
@@ -56,39 +56,39 @@ module CI
           redis.rpush(key('warnings'), Marshal.dump([type, attributes]))
         end
 
-        def record_error(id, payload, stat_delta: nil)
+        def record_error(entry, payload, stat_delta: nil)
           # Run acknowledge first so we know whether we're the first to ack
-          acknowledged = @queue.acknowledge(id, error: payload)
+          acknowledged = @queue.acknowledge(entry, error: payload)
 
           if acknowledged
             # We were the first to ack; another worker already ack'd would get falsy from SADD
             @queue.increment_test_failed
             # Only the acknowledging worker's stats include this failure (others skip increment when ack=false).
             # Store so we can subtract it if another worker records success later.
-            store_error_report_delta(id, stat_delta) if stat_delta && stat_delta.any?
+            store_error_report_delta(entry, stat_delta) if stat_delta && stat_delta.any?
           end
           # Return so caller can roll back local counter when not acknowledged
           !!acknowledged
         end
 
-        def record_success(id, skip_flaky_record: false)
+        def record_success(entry, skip_flaky_record: false)
           acknowledged, error_reports_deleted_count, requeued_count, delta_json = redis.multi do |transaction|
-            @queue.acknowledge(id, pipeline: transaction)
-            transaction.hdel(key('error-reports'), id)
-            transaction.hget(key('requeues-count'), id)
-            transaction.hget(key('error-report-deltas'), id)
+            @queue.acknowledge(entry, pipeline: transaction)
+            transaction.hdel(key('error-reports'), entry)
+            transaction.hget(key('requeues-count'), entry)
+            transaction.hget(key('error-report-deltas'), entry)
           end
           # When we're replacing a failure, subtract the (single) acknowledging worker's stat contribution
           if error_reports_deleted_count.to_i > 0 && delta_json
             apply_error_report_delta_correction(delta_json)
-            redis.hdel(key('error-report-deltas'), id)
+            redis.hdel(key('error-report-deltas'), entry)
           end
-          record_flaky(id) if !skip_flaky_record && (error_reports_deleted_count.to_i > 0 || requeued_count.to_i > 0)
+          record_flaky(entry) if !skip_flaky_record && (error_reports_deleted_count.to_i > 0 || requeued_count.to_i > 0)
           # Count this run when we ack'd or when we replaced a failure (so stats delta is applied)
           !!(acknowledged || error_reports_deleted_count.to_i > 0)
         end
 
-        def record_requeue(id)
+        def record_requeue(entry)
           true
         end
 
@@ -142,11 +142,11 @@ module CI
         end
 
         def error_reports
-          redis.hgetall(key('error-reports'))
+          redis.hgetall(key('error-reports')).transform_keys { |entry| CI::Queue::QueueEntry.test_id(entry) }
         end
 
         def flaky_reports
-          redis.smembers(key('flaky-reports'))
+          redis.smembers(key('flaky-reports')).map { |entry| CI::Queue::QueueEntry.test_id(entry) }
         end
 
         def record_worker_profile(profile)
@@ -187,10 +187,10 @@ module CI
           ['build', config.build_id, *args].join(':')
         end
 
-        def store_error_report_delta(test_id, stat_delta)
+        def store_error_report_delta(entry, stat_delta)
           # Only the acknowledging worker's stats include this test; store their delta for correction on success
           payload = { 'worker_id' => config.worker_id.to_s }.merge(stat_delta)
-          redis.hset(key('error-report-deltas'), test_id, JSON.generate(payload))
+          redis.hset(key('error-report-deltas'), entry, JSON.generate(payload))
           redis.expire(key('error-report-deltas'), config.redis_ttl)
         end
 

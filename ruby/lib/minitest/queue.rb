@@ -197,8 +197,11 @@ module Minitest
           failed = false
         end
 
-        if failed && CI::Queue.requeueable?(result) && queue.requeue(example)
+        if failed && CI::Queue.requeueable?(result) && queue.requeue(example.queue_entry)
           result.requeue!
+          if CI::Queue.debug?
+            $stderr.puts "[ci-queue][requeue] test_id=#{example.id} error_class=#{result.failures.first&.class} error=#{result.failures.first&.message&.lines&.first&.chomp}"
+          end
         elsif failed
           queue.report_failure!
         else
@@ -327,7 +330,7 @@ module Minitest
       end
 
       def queue_entry
-        id
+        @queue_entry ||= CI::Queue::QueueEntry.format(id, nil)
       end
 
       def <=>(other)

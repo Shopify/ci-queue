@@ -18,17 +18,17 @@ module CI
         @queue.exhausted?
       end
 
-      def record_error(id, payload, stat_delta: nil)
-        error_reports[id] = payload
+      def record_error(entry, payload, stat_delta: nil)
+        error_reports[entry] = payload
         true
       end
 
-      def record_success(id, skip_flaky_record: false, acknowledge: true)
-        error_reports.delete(id)
+      def record_success(entry, skip_flaky_record: false, acknowledge: true)
+        error_reports.delete(entry)
         true
       end
 
-      def record_requeue(id)
+      def record_requeue(entry)
         true
       end
 

@@ -737,8 +737,12 @@ module Integration
       assert_equal 100, error_reports.size
 
       error_reports.keys.each_with_index do |test_id, index|
+        entry = CI::Queue::QueueEntry.format(test_id, nil)
         queue.instance_variable_set(:@reserved_tests, Concurrent::Set.new([test_id]))
-        queue.build.record_success(test_id.dup)
+        reserved_entries = queue.instance_variable_get(:@reserved_entries) || Concurrent::Map.new
+        reserved_entries[test_id] = entry
+        queue.instance_variable_set(:@reserved_entries, reserved_entries)
+        queue.build.record_success(entry)
         queue.build.record_stats({
           'assertions' => index + 1,
           'errors' => 0,

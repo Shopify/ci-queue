@@ -17,8 +17,6 @@ module CI
       end
 
       def self.format(test_id, file_path)
-        return test_id if file_path.nil? || file_path == ""
-
         JSON.dump({ test_id: test_id, file_path: file_path })
       end
 
