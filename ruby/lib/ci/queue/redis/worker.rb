@@ -13,6 +13,11 @@ module CI
       self.requeue_offset = 42
       self.max_sleep_time = 2
 
+      # Minimal wrapper returned by resolve_entry when neither @index nor entry_resolver
+      # is available. Provides the interface callers expect (.id, .queue_entry) so that
+      # downstream code doesn't crash with NoMethodError on a raw String.
+      UnresolvedEntry = Struct.new(:id, :queue_entry)
+
       class Worker < Base
         attr_accessor :entry_resolver
         attr_reader :first_reserve_at
@@ -295,7 +300,7 @@ module CI
 
           return entry_resolver.call(entry) if entry_resolver
 
-          entry
+          UnresolvedEntry.new(test_id, entry)
         end
 
         def still_streaming?

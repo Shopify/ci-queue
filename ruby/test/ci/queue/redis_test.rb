@@ -358,6 +358,16 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_equal "resolved:MissingTest#test_bar#{DELIMITER}/tmp/missing.rb", resolved
   end
 
+  def test_resolve_entry_returns_unresolved_entry_without_index_or_resolver
+    queue = worker(1, populate: false)
+
+    result = queue.send(:resolve_entry, "MissingTest#test_bar#{DELIMITER}/tmp/missing.rb")
+
+    assert_instance_of CI::Queue::Redis::UnresolvedEntry, result
+    assert_equal "MissingTest#test_bar", result.id
+    assert_equal "MissingTest#test_bar#{DELIMITER}/tmp/missing.rb", result.queue_entry
+  end
+
   def test_continuously_timing_out_tests
     3.times do
       @redis.flushdb

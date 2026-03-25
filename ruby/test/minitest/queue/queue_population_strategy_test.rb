@@ -59,6 +59,30 @@ module Minitest::Queue
       Object.send(:remove_const, class_name) if class_name && Object.const_defined?(class_name)
     end
 
+    def test_eager_mode_sets_entry_resolver_as_fallback
+      queue = FakeQueue.new
+      config = CI::Queue::Configuration.new(lazy_load: false)
+      class_name = "StrategyEagerResolver#{Process.pid}#{rand(1000)}"
+
+      Dir.mktmpdir do |dir|
+        file = File.join(dir, "strategy_eager_resolver_test.rb")
+        File.write(file, "class #{class_name} < Minitest::Test\n  def test_resolver\n    assert true\n  end\nend\n")
+        strategy = QueuePopulationStrategy.new(
+          queue: queue,
+          queue_config: config,
+          argv: [file],
+          test_files_file: nil,
+          ordering_seed: Random.new(123),
+        )
+        strategy.load_and_populate!
+      end
+
+      assert_instance_of Minitest::Queue::LazyEntryResolver, queue.entry_resolver,
+        "eager mode should set entry_resolver as fallback for resolve_entry"
+    ensure
+      Object.send(:remove_const, class_name) if class_name && Object.const_defined?(class_name)
+    end
+
     def test_preresolved_mode_streams_entries
       queue = FakeQueue.new
       config = CI::Queue::Configuration.new(lazy_load: true)
