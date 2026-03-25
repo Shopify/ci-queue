@@ -391,7 +391,7 @@ module CI
               key('worker', worker_id, 'queue'),
               key('owners'),
             ],
-            argv: [CI::Queue.time_now.to_f, timeout, CI::Queue::QueueEntry::DELIMITER],
+            argv: [CI::Queue.time_now.to_f, timeout],
           )
 
           if lost_test

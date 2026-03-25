@@ -264,13 +264,12 @@ module CI
         end
 
         class HeartbeatProcess
-          def initialize(redis_url, zset_key, processed_key, owners_key, worker_queue_key, entry_delimiter:)
+          def initialize(redis_url, zset_key, processed_key, owners_key, worker_queue_key)
             @redis_url = redis_url
             @zset_key = zset_key
             @processed_key = processed_key
             @owners_key = owners_key
             @worker_queue_key = worker_queue_key
-            @entry_delimiter = entry_delimiter
           end
 
           def boot!
@@ -285,7 +284,6 @@ module CI
               @processed_key,
               @owners_key,
               @worker_queue_key,
-              @entry_delimiter,
               in: child_read,
               out: child_write,
             )
@@ -360,7 +358,6 @@ module CI
             key('processed'),
             key('owners'),
             key('worker', worker_id, 'queue'),
-            entry_delimiter: CI::Queue::QueueEntry::DELIMITER,
           )
         end
 
