@@ -183,7 +183,7 @@ module CI
           unreserve_entry(test_id)
           eval_script(
             :acknowledge,
-            keys: [key('running'), key('processed'), key('owners'), key('error-reports'), key('requeued-by')],
+            keys: [key('running'), key('processed'), key('owners'), key('error-reports'), key('requeued-by'), key('worker', worker_id, 'queue')],
             argv: [entry, error.to_s, config.redis_ttl],
             pipeline: pipeline,
           ) == 1
