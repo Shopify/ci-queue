@@ -13,8 +13,11 @@ local entry = ARGV[3]
 local offset = ARGV[4]
 local ttl = tonumber(ARGV[5])
 
-if redis.call('hget', owners_key, entry) == worker_queue_key then
-   redis.call('hdel', owners_key, entry)
+-- Only the current owner can requeue a test.
+-- If ownership was transferred (e.g. via reserve_lost), reject the stale worker's
+-- requeue so the running entry stays intact for the new owner.
+if redis.call('hget', owners_key, entry) ~= worker_queue_key then
+  return false
 end
 
 if redis.call('sismember', processed_key, entry) == 1 then
@@ -48,6 +51,7 @@ if ttl and ttl > 0 then
   redis.call('expire', requeued_by_key, ttl)
 end
 
+redis.call('hdel', owners_key, entry)
 redis.call('zrem', zset_key, entry)
 
 return true

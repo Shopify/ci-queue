@@ -550,6 +550,201 @@ class CI::Queue::RedisTest < Minitest::Test
       "Circuit breaker open? #{queue.config.circuit_breakers.any?(&:open?)}"
   end
 
+  def test_stolen_test_acknowledge_does_not_remove_running_entry
+    @redis.flushdb
+    single_test = [TEST_LIST.first]
+    queue_a = worker(1, tests: single_test)
+    queue_b = worker(2, tests: single_test)
+
+    acquired = false
+    stolen = false
+    a_acked = false
+    monitor = Monitor.new
+    condition = monitor.new_cond
+
+    thread = Thread.start do
+      monitor.synchronize { condition.wait_until { acquired } }
+      queue_b.poll do |test|
+        monitor.synchronize do
+          stolen = true
+          condition.signal
+          condition.wait_until { a_acked }
+        end
+        queue_b.acknowledge(test.queue_entry)
+      end
+    end
+
+    worker_a_ack_result = nil
+    queue_a.poll do |test|
+      # Simulate stale heartbeat by setting score to 0 (immediately reclaimable)
+      @redis.zadd('build:42:running', 0, test.queue_entry)
+      acquired = true
+      monitor.synchronize do
+        condition.signal
+        condition.wait_until { stolen }
+      end
+      # Worker B has stolen the test via reserve_lost. Worker A acknowledges.
+      # The result (sadd) succeeds, but the running entry must NOT be removed
+      # because Worker B still owns it.
+      worker_a_ack_result = queue_a.acknowledge(test.queue_entry)
+      # Entry should still be in running (Worker B owns it, zrem was skipped)
+      assert_operator @redis.zcard('build:42:running'), :>, 0,
+        "Running entry must not be removed by non-owner acknowledge"
+      monitor.synchronize do
+        a_acked = true
+        condition.signal
+      end
+    end
+
+    thread.join(5)
+
+    assert_equal true, worker_a_ack_result, "First finisher's acknowledge should succeed (sadd)"
+    assert_predicate queue_a, :exhausted?
+  end
+
+  def test_stolen_test_requeue_is_rejected_by_ownership_check
+    @redis.flushdb
+    single_test = [TEST_LIST.first]
+    queue_a = worker(1, tests: single_test, max_requeues: 5, requeue_tolerance: 1.0)
+    queue_b = worker(2, tests: single_test, max_requeues: 5, requeue_tolerance: 1.0)
+
+    acquired = false
+    stolen = false
+    a_requeued = false
+    monitor = Monitor.new
+    condition = monitor.new_cond
+
+    thread = Thread.start do
+      monitor.synchronize { condition.wait_until { acquired } }
+      queue_b.poll do |test|
+        monitor.synchronize do
+          stolen = true
+          condition.signal
+          condition.wait_until { a_requeued }
+        end
+        queue_b.acknowledge(test.queue_entry)
+      end
+    end
+
+    worker_a_requeue_result = nil
+    queue_a.poll do |test|
+      @redis.zadd('build:42:running', 0, test.queue_entry)
+      acquired = true
+      monitor.synchronize do
+        condition.signal
+        condition.wait_until { stolen }
+      end
+      # Worker A tries to requeue — should fail (ownership transferred)
+      worker_a_requeue_result = queue_a.requeue(test.queue_entry)
+      # Entry should still be in running (Worker B owns it)
+      assert_operator @redis.zcard('build:42:running'), :>, 0
+      monitor.synchronize do
+        a_requeued = true
+        condition.signal
+      end
+    end
+
+    thread.join(5)
+
+    assert_equal false, worker_a_requeue_result, "Stale worker's requeue should be rejected"
+    assert_predicate queue_a, :exhausted?
+  end
+
+  def test_supervisor_not_exhausted_while_stolen_test_in_flight
+    @redis.flushdb
+    single_test = [TEST_LIST.first]
+    queue_a = worker(1, tests: single_test)
+    queue_b = worker(2, tests: single_test)
+    supervisor = CI::Queue::Redis::Supervisor.new(
+      @redis_url,
+      CI::Queue::Configuration.new(build_id: '42', timeout: 0.2),
+    )
+
+    acquired = false
+    stolen = false
+    a_acked = false
+    monitor = Monitor.new
+    condition = monitor.new_cond
+
+    thread = Thread.start do
+      monitor.synchronize { condition.wait_until { acquired } }
+      queue_b.poll do |test|
+        monitor.synchronize do
+          stolen = true
+          condition.signal
+          condition.wait_until { a_acked }
+        end
+        # Supervisor should NOT be exhausted yet: Worker B still has the test
+        refute_predicate supervisor, :exhausted?, "Supervisor should not be exhausted while stolen test is still in-flight"
+        queue_b.acknowledge(test.queue_entry)
+      end
+    end
+
+    queue_a.poll do |test|
+      @redis.zadd('build:42:running', 0, test.queue_entry)
+      acquired = true
+      monitor.synchronize do
+        condition.signal
+        condition.wait_until { stolen }
+      end
+      queue_a.acknowledge(test.queue_entry)
+      monitor.synchronize do
+        a_acked = true
+        condition.signal
+      end
+    end
+
+    thread.join(5)
+
+    # Now supervisor should be exhausted
+    assert_predicate supervisor, :exhausted?
+  end
+
+  def test_ownership_stress_many_workers_stealing_tests
+    # Stress test: multiple workers compete for tests, with frequent lease expiry
+    # and stealing. Verifies that exhausted? is never true while tests are in-flight.
+    @redis.flushdb
+    num_workers = 6
+    num_tests = 12
+    test_names = num_tests.times.map { |i| "StressTest#test_#{i}" }
+    tests = test_names.map { |n| SharedTestCases::TestCase.new(n) }
+
+    queues = num_workers.times.map do |i|
+      worker(i + 1, tests: tests, timeout: 0.2, max_requeues: 0, requeue_tolerance: 0, max_consecutive_failures: num_tests)
+    end
+    supervisor = CI::Queue::Redis::Supervisor.new(
+      @redis_url,
+      CI::Queue::Configuration.new(build_id: '42', timeout: 0.2),
+    )
+
+    mutex = Mutex.new
+    all_acknowledged = 0
+    errors = []
+
+    threads = queues.map.with_index do |queue, idx|
+      Thread.new do
+        queue.poll do |test|
+          # Randomly simulate stale heartbeat for ~30% of tests
+          if idx > 0 && rand < 0.3
+            @redis.zadd('build:42:running', 0, test.queue_entry)
+            sleep(rand * 0.05) # Tiny jitter to increase contention
+          end
+
+          result = queue.acknowledge(test.queue_entry)
+          mutex.synchronize { all_acknowledged += 1 } if result
+        end
+      rescue => e
+        mutex.synchronize { errors << "Worker #{idx}: #{e.class}: #{e.message}" }
+      end
+    end
+
+    threads.each { |t| t.join(10) }
+    threads.each { |t| t.kill if t.alive? }
+
+    assert_predicate supervisor, :exhausted?, "All tests should be done. Errors: #{errors.join('; ')}"
+    assert_equal num_tests, all_acknowledged, "All #{num_tests} tests should be acknowledged exactly once. Errors: #{errors.join('; ')}"
+  end
+
   private
 
   def shuffled_test_list

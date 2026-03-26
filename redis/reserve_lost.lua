@@ -13,6 +13,12 @@ for _, test in ipairs(lost_tests) do
     redis.call('lpush', worker_queue_key, test)
     redis.call('hset', owners_key, test, worker_queue_key) -- Take ownership
     return test
+  else
+    -- Test is already processed but still in running (stale). This can happen when
+    -- a non-owner worker acknowledged the test (marking it processed) but could not
+    -- remove it from running due to the ownership guard. Clean it up.
+    redis.call('zrem', zset_key, test)
+    redis.call('hdel', owners_key, test)
   end
 end
 

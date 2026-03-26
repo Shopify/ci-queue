@@ -369,19 +369,12 @@ module CI
           Thread.current.name = "CI::Queue#heartbeat"
           Thread.current.abort_on_exception = true
 
-          timeout = config.timeout.to_i
           loop do
-            command = nil
             command = heartbeat_state.wait(1) # waits for max 1 second but wakes up immediately if we receive a command
 
             case command&.first
             when :tick
-              if timeout > 0
-                heartbeat_process.tick!(command.last)
-                timeout -= 1
-              end
-            when :reset
-              timeout = config.timeout.to_i
+              heartbeat_process.tick!(command.last)
             when :stop
               break
             end
