@@ -91,7 +91,9 @@ module Integration
         # lost_test.rb test_foo has no assertions (only sleep)
         assert_equal "Ran 1 tests, 0 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)", result
         warnings = warnings_file.read.lines.map { |line| JSON.parse(line) }
-        assert_equal 1, warnings.size
+        # With lease-based heartbeat, the heartbeat keeps the entry alive for the
+        # full test duration, so the test is never stolen and no warning is generated.
+        assert_equal 0, warnings.size
       end
     end
 
