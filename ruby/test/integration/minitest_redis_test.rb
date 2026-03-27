@@ -62,7 +62,7 @@ module Integration
               '--timeout', '1',
               '--max-requeues', '1',
               '--requeue-tolerance', '1',
-              '--heartbeat', '1',
+              '--heartbeat', '5',
               '-Itest',
               'test/lost_test.rb',
               chdir: 'test/fixtures/',
