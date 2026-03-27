@@ -74,7 +74,7 @@ class Worker(Base):
             while not self.shutdown_required and len(self):  # pylint: disable=len-as-condition
                 test = self._reserve()
                 if test:
-                    yield test.decode()
+                    yield test.decode() if isinstance(test, bytes) else test
                 else:
                     time.sleep(0.05)
 
@@ -163,15 +163,12 @@ class Worker(Base):
         if result:
             if isinstance(result, list):
                 entry, lease = result[0], result[1]
-                if isinstance(entry, bytes):
-                    entry = entry.decode()
-                if isinstance(lease, bytes):
-                    lease = lease.decode()
-                self._leases[entry] = lease
-                return entry
+                # Store lease keyed by the decoded entry (acknowledge receives decoded strings)
+                entry_str = entry.decode() if isinstance(entry, bytes) else entry
+                lease_str = lease.decode() if isinstance(lease, bytes) else str(lease)
+                self._leases[entry_str] = lease_str
+                return entry  # Return raw (bytes or str) — poll() handles .decode()
             else:
-                if isinstance(result, bytes):
-                    result = result.decode()
                 return result
         return result
 
