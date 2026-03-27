@@ -50,8 +50,12 @@ module CI
         self
       end
 
-      def with_heartbeat(id)
+      def with_heartbeat(id, lease: nil)
         yield
+      end
+
+      def lease_for(entry)
+        nil
       end
 
       def ensure_heartbeat_thread_alive!; end

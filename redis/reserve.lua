@@ -5,6 +5,8 @@ local worker_queue_key = KEYS[4]
 local owners_key = KEYS[5]
 local requeued_by_key = KEYS[6]
 local workers_key = KEYS[7]
+local leases_key = KEYS[8]
+local lease_counter_key = KEYS[9]
 
 local current_time = ARGV[1]
 local defer_offset = tonumber(ARGV[2]) or 0
@@ -19,6 +21,15 @@ local function insert_with_offset(test)
   end
 end
 
+local function claim_test(test)
+  local lease = redis.call('incr', lease_counter_key)
+  redis.call('zadd', zset_key, current_time, test)
+  redis.call('lpush', worker_queue_key, test)
+  redis.call('hset', owners_key, test, worker_queue_key)
+  redis.call('hset', leases_key, test, lease)
+  return {test, tostring(lease)}
+end
+
 for attempt = 1, max_skip_attempts do
   local test = redis.call('rpop', queue_key)
   if not test then
@@ -30,10 +41,7 @@ for attempt = 1, max_skip_attempts do
     -- If this build only has one worker, allow immediate self-pickup.
     if redis.call('scard', workers_key) <= 1 then
       redis.call('hdel', requeued_by_key, test)
-      redis.call('zadd', zset_key, current_time, test)
-      redis.call('lpush', worker_queue_key, test)
-      redis.call('hset', owners_key, test, worker_queue_key)
-      return test
+      return claim_test(test)
     end
 
     insert_with_offset(test)
@@ -46,10 +54,7 @@ for attempt = 1, max_skip_attempts do
     end
   else
     redis.call('hdel', requeued_by_key, test)
-    redis.call('zadd', zset_key, current_time, test)
-    redis.call('lpush', worker_queue_key, test)
-    redis.call('hset', owners_key, test, worker_queue_key)
-    return test
+    return claim_test(test)
   end
 end
 

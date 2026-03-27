@@ -19,6 +19,7 @@ module CI
 
         def initialize(redis, config)
           @reserved_tests = Concurrent::Set.new
+          @reserved_leases = Concurrent::Map.new
           @shutdown_required = false
           @first_reserve_at = nil
           super(redis, config)
@@ -172,6 +173,11 @@ module CI
           nil
         end
 
+        def lease_for(entry)
+          test_id = CI::Queue::QueueEntry.test_id(entry)
+          @reserved_leases[test_id]
+        end
+
         def report_worker_error(error)
           build.report_worker_error(error)
         end
@@ -180,11 +186,12 @@ module CI
           test_id = CI::Queue::QueueEntry.test_id(entry)
           assert_reserved!(test_id)
           entry = reserved_entries.fetch(test_id, entry)
+          lease = @reserved_leases.delete(test_id)
           unreserve_entry(test_id)
           eval_script(
             :acknowledge,
-            keys: [key('running'), key('processed'), key('owners'), key('error-reports'), key('requeued-by'), key('worker', worker_id, 'queue')],
-            argv: [entry, error.to_s, config.redis_ttl],
+            keys: [key('running'), key('processed'), key('owners'), key('error-reports'), key('requeued-by'), key('leases')],
+            argv: [entry, error.to_s, config.redis_ttl, lease.to_s],
             pipeline: pipeline,
           ) == 1
         end
@@ -193,6 +200,7 @@ module CI
           test_id = CI::Queue::QueueEntry.test_id(entry)
           assert_reserved!(test_id)
           entry = reserved_entries.fetch(test_id, entry)
+          lease = @reserved_leases[test_id]
           unreserve_entry(test_id)
           global_max_requeues = config.global_max_requeues(total)
 
@@ -207,8 +215,9 @@ module CI
               key('owners'),
               key('error-reports'),
               key('requeued-by'),
+              key('leases'),
             ],
-            argv: [config.max_requeues, global_max_requeues, entry, offset, config.redis_ttl],
+            argv: [config.max_requeues, global_max_requeues, entry, offset, config.redis_ttl, lease.to_s],
           ) == 1
 
           unless requeued
@@ -222,7 +231,7 @@ module CI
         def release!
           eval_script(
             :release,
-            keys: [key('running'), key('worker', worker_id, 'queue'), key('owners')],
+            keys: [key('running'), key('worker', worker_id, 'queue'), key('owners'), key('leases')],
             argv: [],
           )
           nil
@@ -254,11 +263,12 @@ module CI
           end
         end
 
-        def reserve_entry(entry)
+        def reserve_entry(entry, lease = nil)
           test_id = CI::Queue::QueueEntry.test_id(entry)
           reserved_tests << test_id
           reserved_entries[test_id] = entry
           reserved_entry_ids[entry] = test_id
+          @reserved_leases[test_id] = lease if lease
         end
 
         def unreserve_entry(test_id)
@@ -343,12 +353,12 @@ module CI
         end
 
         def reserve
-          (try_to_reserve_lost_test || try_to_reserve_test).tap do |entry|
-            if entry
-              @first_reserve_at ||= Process.clock_gettime(Process::CLOCK_MONOTONIC)
-              reserve_entry(entry)
-            end
+          entry, lease = try_to_reserve_lost_test || try_to_reserve_test || [nil, nil]
+          if entry
+            @first_reserve_at ||= Process.clock_gettime(Process::CLOCK_MONOTONIC)
+            reserve_entry(entry, lease)
           end
+          entry
         end
 
         def try_to_reserve_test
@@ -362,6 +372,8 @@ module CI
               key('owners'),
               key('requeued-by'),
               key('workers'),
+              key('leases'),
+              key('lease-counter'),
             ],
             argv: [CI::Queue.time_now.to_f, Redis.requeue_offset],
           )
@@ -370,25 +382,28 @@ module CI
         def try_to_reserve_lost_test
           timeout = config.max_missed_heartbeat_seconds ? config.max_missed_heartbeat_seconds : config.timeout
 
-          lost_test = eval_script(
+          result = eval_script(
             :reserve_lost,
             keys: [
               key('running'),
               key('processed'),
               key('worker', worker_id, 'queue'),
               key('owners'),
+              key('leases'),
+              key('lease-counter'),
             ],
             argv: [CI::Queue.time_now.to_f, timeout],
           )
 
-          if lost_test
-            build.record_warning(Warnings::RESERVED_LOST_TEST, test: CI::Queue::QueueEntry.test_id(lost_test), timeout: config.timeout)
+          if result
+            entry = result.is_a?(Array) ? result[0] : result
+            build.record_warning(Warnings::RESERVED_LOST_TEST, test: CI::Queue::QueueEntry.test_id(entry), timeout: config.timeout)
             if CI::Queue.debug?
-              $stderr.puts "[ci-queue][reserve_lost] worker=#{worker_id} test_id=#{CI::Queue::QueueEntry.test_id(lost_test)}"
+              $stderr.puts "[ci-queue][reserve_lost] worker=#{worker_id} test_id=#{CI::Queue::QueueEntry.test_id(entry)}"
             end
           end
 
-          lost_test
+          result
         end
 
         def push(entries)
