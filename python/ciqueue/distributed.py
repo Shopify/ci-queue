@@ -62,6 +62,7 @@ class Worker(Base):
         super(Worker, self).__init__(redis=redis, build_id=build_id)
         self.timeout = timeout
         self.total = len(tests)
+        self._leases = {}
         self.max_requeues = max_requeues
         self.global_max_requeues = math.ceil(len(tests) * requeue_tolerance)
         self.worker_id = worker_id
@@ -88,6 +89,7 @@ class Worker(Base):
         self.shutdown_required = True
 
     def acknowledge(self, test):
+        lease = self._leases.pop(test, '')
         return self._eval_script(
             'acknowledge',
             keys=[
@@ -96,14 +98,16 @@ class Worker(Base):
                 self.key('owners'),
                 self.key('error-reports'),
                 self.key('requeued-by'),
+                self.key('leases'),
             ],
-            args=[test, '', 0],
+            args=[test, '', 0, lease],
         ) == 1
 
     def requeue(self, test, offset=42):
         if not (self.max_requeues > 0 and self.global_max_requeues > 0.0):
             return False
 
+        lease = self._leases.get(test, '')
         return self._eval_script(
             'requeue',
             keys=[
@@ -115,8 +119,9 @@ class Worker(Base):
                 self.key('owners'),
                 self.key('error-reports'),
                 self.key('requeued-by'),
+                self.key('leases'),
             ],
-            args=[self.max_requeues, self.global_max_requeues, test, offset, 0],
+            args=[self.max_requeues, self.global_max_requeues, test, offset, 0, lease],
         ) == 1
 
     def retry_queue(self):
@@ -154,7 +159,21 @@ class Worker(Base):
         self.redis.sadd(self.key('workers'), self.worker_id)
 
     def _reserve(self):
-        return self._try_to_reserve_lost_test() or self._try_to_reserve_test()
+        result = self._try_to_reserve_lost_test() or self._try_to_reserve_test()
+        if result:
+            if isinstance(result, list):
+                entry, lease = result[0], result[1]
+                if isinstance(entry, bytes):
+                    entry = entry.decode()
+                if isinstance(lease, bytes):
+                    lease = lease.decode()
+                self._leases[entry] = lease
+                return entry
+            else:
+                if isinstance(result, bytes):
+                    result = result.decode()
+                return result
+        return result
 
     def _try_to_reserve_lost_test(self):
         if self.timeout:
@@ -168,6 +187,8 @@ class Worker(Base):
                         self.worker_id,
                         'queue'),
                     self.key('owners'),
+                    self.key('leases'),
+                    self.key('lease-counter'),
                 ],
                 args=[time.time(), self.timeout],
             )
@@ -183,6 +204,8 @@ class Worker(Base):
                 self.key('owners'),
                 self.key('requeued-by'),
                 self.key('workers'),
+                self.key('leases'),
+                self.key('lease-counter'),
             ],
             args=[
                 time.time(),
