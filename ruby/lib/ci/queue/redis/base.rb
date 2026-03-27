@@ -60,10 +60,10 @@ module CI
           [0, 0, 0.1, 0.5, 1, 3, 5]
         end
 
-        def with_heartbeat(id)
+        def with_heartbeat(id, lease: nil)
           if heartbeat_enabled?
             ensure_heartbeat_thread_alive!
-            heartbeat_state.set(:tick, id)
+            heartbeat_state.set(:tick, id, lease)
           end
 
           yield
@@ -264,12 +264,11 @@ module CI
         end
 
         class HeartbeatProcess
-          def initialize(redis_url, zset_key, processed_key, owners_key, worker_queue_key)
+          def initialize(redis_url, zset_key, owners_key, leases_key)
             @redis_url = redis_url
             @zset_key = zset_key
-            @processed_key = processed_key
             @owners_key = owners_key
-            @worker_queue_key = worker_queue_key
+            @leases_key = leases_key
           end
 
           def boot!
@@ -281,9 +280,8 @@ module CI
               ::File.join(__dir__, "monitor.rb"),
               @redis_url,
               @zset_key,
-              @processed_key,
               @owners_key,
-              @worker_queue_key,
+              @leases_key,
               in: child_read,
               out: child_write,
             )
@@ -313,8 +311,8 @@ module CI
             end
           end
 
-          def tick!(id)
-            send_message(:tick!, id: id)
+          def tick!(id, lease)
+            send_message(:tick!, id: id, lease: lease.to_s)
           end
 
           private
@@ -355,9 +353,8 @@ module CI
           @heartbeat_process ||= HeartbeatProcess.new(
             @redis_url,
             key('running'),
-            key('processed'),
             key('owners'),
-            key('worker', worker_id, 'queue'),
+            key('leases'),
           )
         end
 
@@ -374,7 +371,8 @@ module CI
 
             case command&.first
             when :tick
-              heartbeat_process.tick!(command.last)
+              # command = [:tick, entry_id, lease_id]
+              heartbeat_process.tick!(command[1], command[2])
             when :stop
               break
             end

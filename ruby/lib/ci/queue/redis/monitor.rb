@@ -13,11 +13,10 @@ module CI
         DEV_SCRIPTS_ROOT = ::File.expand_path('../../../../../../redis', __FILE__)
         RELEASE_SCRIPTS_ROOT = ::File.expand_path('../../redis', __FILE__)
 
-        def initialize(pipe, logger, redis_url, zset_key, processed_key, owners_key, worker_queue_key)
+        def initialize(pipe, logger, redis_url, zset_key, owners_key, leases_key)
           @zset_key = zset_key
-          @processed_key = processed_key
           @owners_key = owners_key
-          @worker_queue_key = worker_queue_key
+          @leases_key = leases_key
           @logger = logger
           @redis = ::Redis.new(url: redis_url, reconnect_attempts: [0, 0, 0.1, 0.5, 1, 3, 5])
           @shutdown = false
@@ -36,11 +35,11 @@ module CI
           @self_pipe_writer << '.'
         end
 
-        def process_tick!(id:)
+        def process_tick!(id:, lease:)
           eval_script(
             :heartbeat,
-            keys: [@zset_key, @processed_key, @owners_key, @worker_queue_key],
-            argv: [Time.now.to_f, id]
+            keys: [@zset_key, @leases_key],
+            argv: [Time.now.to_f, id, lease]
           )
         rescue => error
           @logger.info(error)
@@ -151,12 +150,11 @@ end
 
 redis_url = ARGV[0]
 zset_key = ARGV[1]
-processed_key = ARGV[2]
-owners_key = ARGV[3]
-worker_queue_key = ARGV[4]
+owners_key = ARGV[2]
+leases_key = ARGV[3]
 
-logger.debug("Starting monitor: #{redis_url} #{zset_key} #{processed_key}")
-manager = CI::Queue::Redis::Monitor.new($stdin, logger, redis_url, zset_key, processed_key, owners_key, worker_queue_key)
+logger.debug("Starting monitor: #{redis_url} #{zset_key} #{leases_key}")
+manager = CI::Queue::Redis::Monitor.new($stdin, logger, redis_url, zset_key, owners_key, leases_key)
 
 # Notify the parent we're ready
 $stdout.puts(".")

@@ -321,27 +321,35 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_nil @redis.hget(requeued_by_key, entry)
 
     second_try = queue.send(:try_to_reserve_test)
-    assert_equal entry, second_try
+    assert_equal entry, second_try[0]
   end
 
-  def test_heartbeat_uses_entry_for_processed_check
+  def test_heartbeat_only_checks_lease
     queue = worker(1, populate: false)
     entry = CI::Queue::QueueEntry.format('ATest#test_foo', '/tmp/a_test.rb')
+    lease = "42"
 
+    # Set up: entry is in running with a matching lease
+    @redis.zadd(queue.send(:key, 'running'), 0, entry)
+    @redis.hset(queue.send(:key, 'leases'), entry, lease)
+
+    # Heartbeat with matching lease should succeed (even if processed)
     @redis.sadd(queue.send(:key, 'processed'), entry)
-
     result = queue.send(
       :eval_script,
       :heartbeat,
-      keys: [
-        queue.send(:key, 'running'),
-        queue.send(:key, 'processed'),
-        queue.send(:key, 'owners'),
-        queue.send(:key, 'worker', queue.config.worker_id, 'queue'),
-      ],
-      argv: [CI::Queue.time_now.to_f, entry],
+      keys: [queue.send(:key, 'running'), queue.send(:key, 'leases')],
+      argv: [CI::Queue.time_now.to_f, entry, lease],
     )
+    assert_equal 0, result # zadd returns 0 for update (not new)
 
+    # Heartbeat with wrong lease should be no-op
+    result = queue.send(
+      :eval_script,
+      :heartbeat,
+      keys: [queue.send(:key, 'running'), queue.send(:key, 'leases')],
+      argv: [CI::Queue.time_now.to_f, entry, "wrong-lease"],
+    )
     assert_nil result
   end
 

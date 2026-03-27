@@ -163,7 +163,7 @@ module Minitest
         rescue_run_errors do
           begin
             queue.poll do |example|
-              result = queue.with_heartbeat(example.queue_entry) do
+              result = queue.with_heartbeat(example.queue_entry, lease: queue.lease_for(example.queue_entry)) do
                 example.run
               end
 

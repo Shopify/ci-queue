@@ -6,17 +6,19 @@ local worker_queue_key = KEYS[5]
 local owners_key = KEYS[6]
 local error_reports_key = KEYS[7]
 local requeued_by_key = KEYS[8]
+local leases_key = KEYS[9]
 
 local max_requeues = tonumber(ARGV[1])
 local global_max_requeues = tonumber(ARGV[2])
 local entry = ARGV[3]
 local offset = ARGV[4]
 local ttl = tonumber(ARGV[5])
+local lease_id = ARGV[6]
 
--- Only the current owner can requeue a test.
--- If ownership was transferred (e.g. via reserve_lost), reject the stale worker's
--- requeue so the running entry stays intact for the new owner.
-if redis.call('hget', owners_key, entry) ~= worker_queue_key then
+-- Only the current lease holder can requeue a test.
+-- If the lease was transferred (e.g. via reserve_lost), reject the stale
+-- worker's requeue so the running entry stays intact for the new holder.
+if tostring(redis.call('hget', leases_key, entry)) ~= lease_id then
   return false
 end
 
@@ -52,6 +54,7 @@ if ttl and ttl > 0 then
 end
 
 redis.call('hdel', owners_key, entry)
+redis.call('hdel', leases_key, entry)
 redis.call('zrem', zset_key, entry)
 
 return true
