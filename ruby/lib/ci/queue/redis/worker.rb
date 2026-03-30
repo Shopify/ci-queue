@@ -200,7 +200,7 @@ module CI
           test_id = CI::Queue::QueueEntry.test_id(entry)
           assert_reserved!(test_id)
           entry = reserved_entries.fetch(test_id, entry)
-          lease = @reserved_leases[test_id]
+          lease = @reserved_leases.delete(test_id)
           unreserve_entry(test_id)
           global_max_requeues = config.global_max_requeues(total)
 
@@ -224,6 +224,7 @@ module CI
             reserved_tests << test_id
             reserved_entries[test_id] = entry
             reserved_entry_ids[entry] = test_id
+            @reserved_leases[test_id] = lease if lease
           end
           requeued
         end
