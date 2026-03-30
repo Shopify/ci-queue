@@ -373,6 +373,9 @@ module CI
             when :tick
               # command = [:tick, entry_id, lease_id]
               heartbeat_process.tick!(command[1], command[2])
+            when :reset
+              # Test finished, stop ticking until next test starts
+              nil
             when :stop
               break
             end
