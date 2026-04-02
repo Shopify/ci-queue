@@ -118,6 +118,15 @@ module Minitest
           # minitest/autorun's at_exit hook, which may not be registered since
           # test files haven't been loaded yet. exit! prevents double-execution
           # if minitest/autorun was loaded by the leader during streaming.
+          #
+          # Re-check exhausted? after booting: slow workers may arrive after the queue
+          # has been fully drained by faster workers. In that case exit cleanly (0)
+          # rather than letting Minitest return false for a 0-test run.
+          if queue.rescue_connection_errors { queue.exhausted? }
+            puts green('All tests were ran already')
+            verify_reporters!(reporters)
+            exit!(0)
+          end
           passed = Minitest.run []
           verify_reporters!(reporters)
           exit!(passed ? 0 : 1)
