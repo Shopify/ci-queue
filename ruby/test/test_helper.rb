@@ -9,6 +9,7 @@ require 'ci/queue'
 require 'ci/queue/redis'
 require 'minitest/queue'
 require 'minitest/autorun'
+require 'mocha/minitest'
 
 Minitest::Reporters.use!([Minitest::Reporters::SpecReporter.new])
 

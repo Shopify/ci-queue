@@ -1,0 +1,55 @@
+# frozen_string_literal: true
+require 'test_helper'
+
+class CI::Queue::Redis::Base::HeartbeatProcessTest < Minitest::Test
+  MAX = CI::Queue::Redis::Base::HeartbeatProcess::MAX_RESTART_ATTEMPTS
+
+  def setup
+    @hp = CI::Queue::Redis::Base::HeartbeatProcess.new(
+      'redis://localhost:6379/0',
+      'zset', 'owners', 'leases'
+    )
+    # boot! and restart! must not spawn real processes
+    @hp.stubs(:boot!)
+    @hp.stubs(:restart!)
+  end
+
+  def test_tick_retries_after_pipe_ioerror
+    @hp.expects(:send_message).twice.raises(IOError, "closed stream").then.returns(nil)
+
+    @hp.tick!("test_id", "lease_id")
+  end
+
+  def test_tick_retries_after_epipe
+    @hp.expects(:send_message).twice.raises(Errno::EPIPE).then.returns(nil)
+
+    @hp.tick!("test_id", "lease_id")
+  end
+
+  def test_tick_calls_restart_on_pipe_error
+    @hp.stubs(:send_message).raises(IOError, "closed stream").then.returns(nil)
+    @hp.expects(:restart!).once
+
+    @hp.tick!("test_id", "lease_id")
+  end
+
+  def test_tick_raises_after_max_restart_attempts
+    @hp.stubs(:send_message).raises(IOError, "closed stream")
+
+    assert_raises(IOError) do
+      (MAX + 1).times { @hp.tick!("test_id", "lease_id") }
+    end
+  end
+
+  def test_restart_counter_resets_after_success
+    # Build a sequence: [raise, return] * (MAX+1).
+    # Without @restart_attempts = 0 on success, the (MAX+1)th failure would exceed MAX and raise.
+    stub = @hp.stubs(:send_message)
+    (MAX + 1).times do |i|
+      stub = stub.raises(IOError, "closed stream").then.returns(nil)
+      stub = stub.then unless i == MAX
+    end
+
+    (MAX + 1).times { @hp.tick!("test_id", "lease_id") }
+  end
+end

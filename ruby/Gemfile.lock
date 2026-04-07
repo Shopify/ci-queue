@@ -43,6 +43,8 @@ GEM
       builder
       minitest (>= 5.0)
       ruby-progressbar
+    mocha (3.1.0)
+      ruby2_keywords (>= 0.0.5)
     msgpack (1.8.0)
     parallel (1.27.0)
     parser (3.3.10.2)
@@ -86,6 +88,7 @@ GEM
       parser (>= 3.3.7.2)
       prism (~> 1.7)
     ruby-progressbar (1.13.0)
+    ruby2_keywords (0.0.5)
     securerandom (0.4.1)
     simplecov (0.22.0)
       docile (~> 1.1)
@@ -112,6 +115,7 @@ DEPENDENCIES
   ci-queue!
   minitest (~> 5.11)
   minitest-reporters (~> 1.1)
+  mocha
   msgpack
   rake
   redis
