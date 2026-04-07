@@ -10,6 +10,12 @@ module CI
         end
       end
 
+      # Grind always eagerly loads test files and populates @index via
+      # Static#populate, so poll uses the @index path. Bypass entry_resolver
+      # to avoid JSON-formatting overhead on potentially millions of entries.
+      def entry_resolver; nil; end
+      def entry_resolver=(_); end
+
       def initialize(path, config)
         io = path == '-' ? STDIN : ::File.open(path)
 
