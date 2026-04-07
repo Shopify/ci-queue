@@ -264,6 +264,8 @@ module CI
         end
 
         class HeartbeatProcess
+          MAX_RESTART_ATTEMPTS = 3
+
           def initialize(redis_url, zset_key, owners_key, leases_key)
             @redis_url = redis_url
             @zset_key = zset_key
@@ -313,9 +315,27 @@ module CI
 
           def tick!(id, lease)
             send_message(:tick!, id: id, lease: lease.to_s)
+            @restart_attempts = 0
+          rescue IOError, Errno::EPIPE => error
+            @restart_attempts = (@restart_attempts || 0) + 1
+            raise if @restart_attempts > MAX_RESTART_ATTEMPTS
+
+            restart!
+            retry
           end
 
           private
+
+          def restart!
+            @pipe.close rescue nil
+            begin
+              Process.kill(:TERM, @pid)
+              Process.waitpid2(@pid)
+            rescue Errno::ESRCH, Errno::ECHILD
+              nil
+            end
+            boot!
+          end
 
           def send_message(*message)
             payload = message.to_json

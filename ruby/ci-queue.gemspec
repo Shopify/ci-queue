@@ -40,6 +40,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency 'redis'
   spec.add_development_dependency 'simplecov', '~> 0.12'
   spec.add_development_dependency 'minitest-reporters', '~> 1.1'
+  spec.add_development_dependency 'mocha'
 
   spec.add_development_dependency 'rexml'
   spec.add_development_dependency 'snappy'
