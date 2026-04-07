@@ -35,6 +35,7 @@ module Minitest
           configure_lazy_queue
           queue.stream_populate(lazy_test_enumerator, random: ordering_seed, batch_size: queue_config.lazy_load_stream_batch_size)
         else
+          configure_lazy_queue
           queue.populate(Minitest.loaded_tests, random: ordering_seed)
         end
       end
