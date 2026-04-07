@@ -650,6 +650,126 @@ module Integration
       assert_equal 'All tests were ran already', output
     end
 
+    def test_automatic_retry_reruns_failed_tests_so_report_can_succeed
+      # Simulate the scenario from the Sam O'Brien / Steph Sachrajda incident:
+      # A test fails on the first run (flaky infra timeout). Buildkite auto-retries
+      # the step (LSO). The retried worker finds the main queue exhausted and exits 0,
+      # making the step green. But error_reports persist in Redis, so the separate
+      # "Post Merge Testing Summary" (report command) still fails.
+      #
+      # Expected fix: automatic retry should re-run failed tests (retry_queue),
+      # not silently exit 0 when there are unresolved failures.
+
+      # First run: the flaky test fails (FLAKY_TEST_PASS not set → assert_equal '1', nil fails)
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '-Itest',
+          'test/flaky_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty filter_deprecation_warnings(err)
+      output = normalize(out.lines.last.strip)
+      assert_equal 'Ran 2 tests, 2 assertions, 1 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
+
+      # Buildkite auto-retries the step. The flaky condition is resolved (FLAKY_TEST_PASS=1).
+      # BUG: with BUILDKITE_RETRY_TYPE=automatic, manual_retry? returns false, so the runner
+      # skips retry_queue and finds the main queue exhausted → exits 0 without re-running
+      # the failed test. Error report stays in Redis.
+      out, err = capture_subprocess_io do
+        system(
+          { 'BUILDKITE_RETRY_COUNT' => '1', 'BUILDKITE_RETRY_TYPE' => 'automatic', 'FLAKY_TEST_PASS' => '1' },
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '-Itest',
+          'test/flaky_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty filter_deprecation_warnings(err)
+      # After the fix, the automatic retry should re-run the failed test and report success.
+      # Currently this is "All tests were ran already" (the bug: test was NOT re-run).
+      assert_match(/Retrying failed tests/, out)
+
+      # The report step runs after all workers complete. After the fix, the failed test
+      # passed on automatic retry so error_reports should be empty → report succeeds.
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'report',
+          '--queue', @redis_url,
+          '--build', '1',
+          '--timeout', '1',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty filter_deprecation_warnings(err)
+      assert_match(/0 failures/, normalize(out))
+    end
+
+    def test_automatic_retry_report_still_fails_when_test_keeps_failing
+      # Inverse of test_automatic_retry_reruns_failed_tests_so_report_can_succeed.
+      # When the failing test also fails on automatic retry, the report must still
+      # report the failure — we must not incorrectly suppress errors.
+
+      # First run: flaky test fails
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '-Itest',
+          'test/flaky_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty filter_deprecation_warnings(err)
+      output = normalize(out.lines.last.strip)
+      assert_equal 'Ran 2 tests, 2 assertions, 1 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
+
+      # Automatic retry: FLAKY_TEST_PASS still not set → test fails again on retry
+      out, err = capture_subprocess_io do
+        system(
+          { 'BUILDKITE_RETRY_COUNT' => '1', 'BUILDKITE_RETRY_TYPE' => 'automatic' },
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '-Itest',
+          'test/flaky_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty filter_deprecation_warnings(err)
+
+      # Report must still fail — the test failed on retry too
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'report',
+          '--queue', @redis_url,
+          '--build', '1',
+          '--timeout', '1',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty filter_deprecation_warnings(err)
+      assert_match(/1 failures/, normalize(out))
+    end
+
     def test_retry_fails_when_test_run_is_expired
       out, err = capture_subprocess_io do
         system(
