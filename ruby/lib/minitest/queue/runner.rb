@@ -71,6 +71,16 @@ module Minitest
             puts "Retrying failed tests."
             self.queue = retry_queue
           end
+        elsif retry? && !queue.rescue_connection_errors { queue.build.failed_tests }.empty?
+          # Automatic Buildkite retry (BUILDKITE_RETRY_TYPE=automatic): the main queue is
+          # exhausted but error_reports from the previous run still exist. Re-run failed
+          # tests so the report step can succeed if they pass this time.
+          reset_counters
+          retry_queue = queue.retry_queue
+          unless retry_queue.exhausted?
+            puts "Retrying failed tests."
+            self.queue = retry_queue
+          end
         end
 
         queue.rescue_connection_errors { queue.created_at = CI::Queue.time_now.to_f }
