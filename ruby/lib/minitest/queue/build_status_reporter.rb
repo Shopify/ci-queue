@@ -267,8 +267,16 @@ module Minitest
       end
 
       def aggregates
-        success = failures.zero? && errors.zero?
-        failures_count = "#{failures} failures, #{errors} errors,"
+        # error-reports is authoritative when workers die before flushing per-test stats.
+        # Floor the displayed count so the summary line is never misleadingly green.
+        known_error_count = error_reports.size
+        effective_total = [failures + errors, known_error_count].max
+        success = effective_total.zero?
+        failures_count = if failures + errors >= known_error_count
+          "#{failures} failures, #{errors} errors,"
+        else
+          "#{effective_total} failures,"
+        end
 
         step([
           'Ran %d tests, %d assertions,' % [progress, assertions],
