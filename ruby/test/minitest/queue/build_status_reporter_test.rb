@@ -52,6 +52,34 @@ module Minitest::Queue
       assert_includes out, "All workers died."
     end
 
+    def test_aggregate_floors_failures_to_error_reports_when_stats_are_zero
+      # Simulate a worker that recorded a test failure in error-reports but died
+      # before flushing its per-worker stats (stats show 0 failures).
+      queue = worker(1)
+      queue.poll { |_test| queue.shutdown! }
+
+      entry = CI::Queue::QueueEntry.format("FakeTest#test_failure", "/tmp/fake_test.rb")
+      payload = Minitest::Queue::ErrorReport.new(
+        test_name: "test_failure",
+        test_suite: "FakeTest",
+        test_file: "/tmp/fake_test.rb",
+        test_line: 1,
+        error_class: "RuntimeError",
+        output: "FakeTest#test_failure: failed",
+      ).dump
+      @redis.hset("build:42:error-reports", entry, payload)
+
+      @supervisor.instance_variable_set(:@time_left, 1)
+      @supervisor.instance_variable_set(:@time_left_with_no_workers, 0)
+
+      out, _ = capture_subprocess_io do
+        @reporter.report
+      end
+
+      assert_includes out, "1 failures,", "should floor failure count to error_reports.size"
+      refute_includes out, "0 failures, 0 errors,", "should not show misleadingly green zero-failure line"
+    end
+
     private
 
     def worker(id)
