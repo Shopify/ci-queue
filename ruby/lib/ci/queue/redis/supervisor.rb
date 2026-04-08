@@ -39,6 +39,23 @@ module CI
             yield if block_given?
           end
 
+          # On retry runs (BUILDKITE_RETRY_COUNT > 0), the main queue is already
+          # exhausted from the original run. A retry worker may have found unresolved
+          # failures via the error-reports fallback and be running them via the Retry
+          # queue — but those tests are NOT in the Redis running set so active_workers?
+          # returns false and the loop above exits immediately.
+          #
+          # Wait up to inactive_workers_timeout for retry workers to clear error-reports.
+          # This prevents the summary from canceling retry workers before they finish.
+          if exhausted? && config.retry? && !rescue_connection_errors { build.failed_tests }.empty?
+            @time_left_with_no_workers = config.inactive_workers_timeout
+            until rescue_connection_errors { build.failed_tests }.empty? ||
+                @time_left_with_no_workers <= 0
+              sleep 1
+              @time_left_with_no_workers -= 1
+            end
+          end
+
           exhausted?
         rescue CI::Queue::Redis::LostMaster
           false

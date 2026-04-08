@@ -99,6 +99,11 @@ module CI
         @lazy_load_test_helpers.split(',').map(&:strip)
       end
 
+      def retry?
+        ENV.fetch("BUILDKITE_RETRY_COUNT", "0").to_i > 0 ||
+          ENV["SEMAPHORE_PIPELINE_RERUN"] == "true"
+      end
+
       def queue_init_timeout
         @queue_init_timeout || timeout
       end
