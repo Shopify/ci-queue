@@ -64,9 +64,7 @@ module Minitest::Queue
             worker_id: id.to_s,
             timeout: 0.2,
           ),
-        ).populate([
-          Minitest::Queue::SingleExample.new("Minitest::Test", "a")
-        ])
+        ).populate([Minitest::Queue.fake_entry("a")])
       end
       result
     end

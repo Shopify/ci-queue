@@ -16,7 +16,7 @@ module SharedTestCases
     end
 
     def queue_entry
-      CI::Queue::QueueEntry.format(id, nil)
+      CI::Queue::QueueEntry.format(id, __FILE__)
     end
 
     def to_s

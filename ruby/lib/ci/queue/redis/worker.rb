@@ -158,6 +158,15 @@ module CI
           log.select! { |entry| failures.include?(CI::Queue::QueueEntry.test_id(entry)) }
           log.uniq! { |entry| CI::Queue::QueueEntry.test_id(entry) }
           log.reverse!
+
+          if log.empty?
+            # Per-worker log has no matching failures — this worker didn't run
+            # the failing tests (e.g. Buildkite rebuild with new worker IDs,
+            # or a different parallel slot). Fall back to ALL unresolved
+            # failures from error-reports so any worker can retry them.
+            log = redis.hkeys(key('error-reports'))
+          end
+
           Retry.new(log, config, redis: redis)
         end
 

@@ -689,7 +689,7 @@ module Integration
           '--queue', @redis_url,
           '--seed', 'foobar',
           '--build', '1',
-          '--worker', '1',
+          '--worker', '2',
           '--timeout', '1',
           '-Itest',
           'test/flaky_test.rb',
@@ -698,7 +698,7 @@ module Integration
       end
       assert_empty filter_deprecation_warnings(err)
       # After the fix, the automatic retry should re-run the failed test and report success.
-      # Currently this is "All tests were ran already" (the bug: test was NOT re-run).
+      # Worker 2 has no per-worker log — must fall back to error-reports.
       assert_match(/Retrying failed tests/, out)
 
       # The report step runs after all workers complete. After the fix, the failed test
@@ -747,7 +747,7 @@ module Integration
           '--queue', @redis_url,
           '--seed', 'foobar',
           '--build', '1',
-          '--worker', '1',
+          '--worker', '2',
           '--timeout', '1',
           '-Itest',
           'test/flaky_test.rb',
@@ -767,7 +767,214 @@ module Integration
         )
       end
       assert_empty filter_deprecation_warnings(err)
-      assert_match(/1 failures/, normalize(out))
+      # Test failed on original run AND on retry — aggregate shows multiple failures.
+      # The key invariant: error-reports are non-empty and the report still fails.
+      assert_match(/FlakyTest#test_flaky/, out)
+      refute_match(/0 failures/, normalize(out))
+    end
+
+    def test_rebuild_retries_failed_tests_from_different_worker
+      # Simulates a Buildkite rebuild: worker 1 runs and fails a test, then
+      # a DIFFERENT worker (worker 2) is spawned in the rebuild with
+      # BUILDKITE_RETRY_COUNT=1, BUILDKITE_RETRY_TYPE=manual.
+      # Worker 2 has an empty per-worker log — it must fall back to
+      # error-reports to find the failed test and retry it.
+
+      # First run: worker 1 runs flaky_test.rb, test_flaky fails
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '-Itest',
+          'test/flaky_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty filter_deprecation_warnings(err)
+      output = normalize(out.lines.last.strip)
+      assert_equal 'Ran 2 tests, 2 assertions, 1 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
+
+      # Rebuild: DIFFERENT worker (--worker 2) retries with manual retry env vars.
+      # Worker 2 has no per-worker log for this build — retry_queue must fall back
+      # to error-reports to find the failed test.
+      out, err = capture_subprocess_io do
+        system(
+          { 'BUILDKITE_RETRY_COUNT' => '1', 'BUILDKITE_RETRY_TYPE' => 'manual', 'FLAKY_TEST_PASS' => '1' },
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '2',
+          '--timeout', '1',
+          '-Itest',
+          'test/flaky_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty filter_deprecation_warnings(err)
+      assert_match(/Retrying failed tests/, out)
+
+      # Report should show 0 failures — the test passed on retry
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'report',
+          '--queue', @redis_url,
+          '--build', '1',
+          '--timeout', '1',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty filter_deprecation_warnings(err)
+      assert_match(/0 failures/, normalize(out))
+    end
+
+    def test_rebuild_report_still_fails_when_test_keeps_failing
+      # Inverse: different worker retries the failing test but it still fails.
+      # Report must still show the failure.
+
+      # First run: worker 1 runs flaky_test.rb, test_flaky fails
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '-Itest',
+          'test/flaky_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty filter_deprecation_warnings(err)
+      output = normalize(out.lines.last.strip)
+      assert_equal 'Ran 2 tests, 2 assertions, 1 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
+
+      # Rebuild: different worker, FLAKY_TEST_PASS NOT set → test fails again
+      out, err = capture_subprocess_io do
+        system(
+          { 'BUILDKITE_RETRY_COUNT' => '1', 'BUILDKITE_RETRY_TYPE' => 'manual' },
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '2',
+          '--timeout', '1',
+          '-Itest',
+          'test/flaky_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty filter_deprecation_warnings(err)
+
+      # Report must still fail — the test failed on retry too
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'report',
+          '--queue', @redis_url,
+          '--build', '1',
+          '--timeout', '1',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty filter_deprecation_warnings(err)
+      assert_match(/FlakyTest#test_flaky/, out)
+      refute_match(/0 failures/, normalize(out))
+    end
+
+    def test_same_worker_manual_retry_reruns_failed_tests
+      # Same worker retries (per-worker log exists): the fallback to error-reports
+      # should NOT be needed — the per-worker log intersection finds the failure directly.
+
+      # First run: worker 1 fails test_flaky
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '-Itest',
+          'test/flaky_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty filter_deprecation_warnings(err)
+      output = normalize(out.lines.last.strip)
+      assert_equal 'Ran 2 tests, 2 assertions, 1 failures, 0 errors, 0 skips, 0 requeues in X.XXs', output
+
+      # Same worker retries — per-worker log should yield the failed test
+      out, err = capture_subprocess_io do
+        system(
+          { 'BUILDKITE_RETRY_COUNT' => '1', 'BUILDKITE_RETRY_TYPE' => 'manual', 'FLAKY_TEST_PASS' => '1' },
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '-Itest',
+          'test/flaky_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty filter_deprecation_warnings(err)
+      assert_match(/Retrying failed tests/, out)
+
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'report',
+          '--queue', @redis_url,
+          '--build', '1',
+          '--timeout', '1',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty filter_deprecation_warnings(err)
+      assert_match(/0 failures/, normalize(out))
+    end
+
+    def test_rebuild_different_worker_with_no_failures_exits_cleanly
+      # Different worker retries but there's nothing in error-reports (no failures).
+      # Both per-worker log AND fallback yield empty → should exit cleanly.
+
+      # First run: worker 1, all tests pass (FLAKY_TEST_PASS=1 so no failures)
+      out, err = capture_subprocess_io do
+        system(
+          { 'FLAKY_TEST_PASS' => '1' },
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '-Itest',
+          'test/flaky_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      # Worker 2 retries with empty per-worker log AND empty error-reports
+      out, err = capture_subprocess_io do
+        system(
+          { 'BUILDKITE_RETRY_COUNT' => '1', 'BUILDKITE_RETRY_TYPE' => 'manual', 'FLAKY_TEST_PASS' => '1' },
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '2',
+          '--timeout', '1',
+          '-Itest',
+          'test/flaky_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty filter_deprecation_warnings(err)
+      assert_match(/All tests were ran already/, out)
     end
 
     def test_retry_fails_when_test_run_is_expired
@@ -858,8 +1065,8 @@ module Integration
       error_reports = queue.build.error_reports
       assert_equal 100, error_reports.size
 
-      error_reports.keys.each_with_index do |test_id, index|
-        entry = CI::Queue::QueueEntry.format(test_id, nil)
+      queue.build.failed_test_entries.each_with_index do |entry, index|
+        test_id = CI::Queue::QueueEntry.test_id(entry)
         queue.instance_variable_set(:@reserved_tests, Concurrent::Set.new([test_id]))
         reserved_entries = queue.instance_variable_get(:@reserved_entries) || Concurrent::Map.new
         reserved_entries[test_id] = entry

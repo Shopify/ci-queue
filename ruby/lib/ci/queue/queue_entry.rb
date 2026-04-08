@@ -17,7 +17,9 @@ module CI
       end
 
       def self.format(test_id, file_path)
-        JSON.dump({ test_id: test_id, file_path: file_path })
+        raise ArgumentError, "file_path is required for '#{test_id}' — the test file path must be resolvable" if file_path.nil? || file_path.empty?
+        canonical = load_error_payload?(file_path) ? file_path : ::File.expand_path(file_path)
+        JSON.dump({ test_id: test_id, file_path: canonical })
       end
 
       def self.load_error_payload?(file_path)

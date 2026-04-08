@@ -145,6 +145,10 @@ module CI
           redis.hgetall(key('error-reports')).transform_keys { |entry| CI::Queue::QueueEntry.test_id(entry) }
         end
 
+        def failed_test_entries
+          redis.hkeys(key('error-reports'))
+        end
+
         def flaky_reports
           redis.smembers(key('flaky-reports')).map { |entry| CI::Queue::QueueEntry.test_id(entry) }
         end
@@ -177,6 +181,16 @@ module CI
               pipeline.hdel(key(stat_name), config.worker_id)
             end
           end
+          # Purge any error-report-deltas that reference this worker so that
+          # apply_error_report_delta_correction cannot double-subtract from
+          # the now-zeroed counters on a subsequent successful retry.
+          deltas = redis.hgetall(key('error-report-deltas'))
+          to_delete = deltas.filter_map do |entry, delta_json|
+            entry if JSON.parse(delta_json)['worker_id'].to_s == config.worker_id.to_s
+          rescue JSON::ParserError
+            nil
+          end
+          redis.hdel(key('error-report-deltas'), *to_delete) unless to_delete.empty?
         end
 
         private

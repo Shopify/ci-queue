@@ -254,7 +254,10 @@ module RSpec
       end
 
       def queue_entry
-        @queue_entry ||= CI::Queue::QueueEntry.format(id, nil)
+        @queue_entry ||= begin
+          file_path = example.metadata[:absolute_file_path] || example.file_path
+          CI::Queue::QueueEntry.format(id, file_path)
+        end
       end
 
       def <=>(other)

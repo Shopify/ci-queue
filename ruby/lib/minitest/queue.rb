@@ -330,7 +330,16 @@ module Minitest
       end
 
       def queue_entry
-        @queue_entry ||= CI::Queue::QueueEntry.format(id, nil)
+        @queue_entry ||= begin
+          unless runnable.is_a?(Module)
+            raise ArgumentError, "runnable must be a Module (got #{runnable.class}). " \
+              "Do not create SingleExample with string class names."
+          end
+          file_path = runnable.instance_method(method_name).source_location&.first
+          raise ArgumentError, "Cannot resolve source file for #{id} — " \
+            "ensure the test method is defined in a Ruby source file" if file_path.nil?
+          CI::Queue::QueueEntry.format(id, file_path)
+        end
       end
 
       def <=>(other)
