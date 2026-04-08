@@ -977,6 +977,74 @@ module Integration
       assert_match(/All tests were ran already/, out)
     end
 
+    def test_report_waits_for_retry_worker_to_clear_failures
+      # Simulates the race condition seen in build 900737:
+      # - Report step starts (BUILDKITE_RETRY_COUNT=1), sees queue exhausted immediately,
+      #   but error-reports still has a failure from the original run.
+      # - A retry worker is concurrently running the failed test.
+      # - Without the fix, report exits immediately and cancels the retry worker.
+      # - With the fix, report waits up to inactive_workers_timeout for
+      #   retry workers to clear error-reports before reporting.
+
+      # First run: worker 1 fails a test
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '1',
+          '--timeout', '1',
+          '-Itest',
+          'test/flaky_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty filter_deprecation_warnings(err)
+      assert_match(/1 failures/, normalize(out))
+
+      # Start the report concurrently — it should block waiting for retry workers
+      report_out = nil
+      report_err = nil
+      report_thread = Thread.new do
+        report_out, report_err = capture_subprocess_io do
+          system(
+            { 'BUILDKITE_RETRY_COUNT' => '1', 'BUILDKITE_RETRY_TYPE' => 'manual' },
+            @exe, 'report',
+            '--queue', @redis_url,
+            '--build', '1',
+            '--timeout', '1',
+            '--inactive-workers-timeout', '10',
+            chdir: 'test/fixtures/',
+          )
+        end
+      end
+
+      # Give the report a moment to start, then run the retry worker which
+      # re-runs the failed test and clears error-reports
+      sleep 0.3
+      out, err = capture_subprocess_io do
+        system(
+          { 'BUILDKITE_RETRY_COUNT' => '1', 'BUILDKITE_RETRY_TYPE' => 'manual', 'FLAKY_TEST_PASS' => '1' },
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', '1',
+          '--worker', '2',
+          '--timeout', '1',
+          '-Itest',
+          'test/flaky_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+      assert_empty filter_deprecation_warnings(err)
+      assert_match(/Retrying failed tests/, out)
+
+      report_thread.join(15)
+      assert_empty filter_deprecation_warnings(report_err || '')
+      assert_match(/0 failures/, normalize(report_out || ''))
+    end
+
     def test_retry_fails_when_test_run_is_expired
       out, err = capture_subprocess_io do
         system(
