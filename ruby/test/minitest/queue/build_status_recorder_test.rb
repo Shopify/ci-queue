@@ -3,6 +3,17 @@ require 'test_helper'
 require 'concurrent/set'
 
 module Minitest::Queue
+  # Lightweight stand-in for a test object in unit tests that don't run real tests.
+  # Holds test_id and file_path directly so no source_location lookup is needed.
+  FakeEntry = Struct.new(:id, :queue_entry, :method_name)
+
+  def self.fake_entry(method_name)
+    test_id = "Minitest::Test##{method_name}"
+    # Use the same file_path as ReporterTestHelper#result so entries match across reserve/record calls
+    file_path = "#{Minitest::Queue.project_root}/test/my_test.rb"
+    FakeEntry.new(test_id, CI::Queue::QueueEntry.format(test_id, file_path), method_name)
+  end
+
   class BuildStatusRecorderTest < Minitest::Test
     include ReporterTestHelper
 
@@ -152,9 +163,9 @@ module Minitest::Queue
     def test_build_record_methods_return_boolean
       # Redis build: first to ack returns true, duplicate returns false
       reserve(@queue, "a")
-      entry_a = CI::Queue::QueueEntry.format("Minitest::Test#a", nil)
+      entry_a = Minitest::Queue.fake_entry("a").queue_entry
       assert_equal true, @queue.build.record_success(entry_a)
-      entry_b = CI::Queue::QueueEntry.format("Minitest::Test#b", nil)
+      entry_b = Minitest::Queue.fake_entry("b").queue_entry
       assert_equal true, @queue.build.record_requeue(entry_b)
 
       second_queue = worker(2)
@@ -166,7 +177,7 @@ module Minitest::Queue
       static_queue = CI::Queue::Static.new(['test_example'], CI::Queue::Configuration.new(build_id: '42', worker_id: '1'))
       build = static_queue.build
 
-      entry = CI::Queue::QueueEntry.format("test_example", nil)
+      entry = CI::Queue::QueueEntry.format("test_example", __FILE__)
       assert_equal true, build.record_success(entry)
       assert_equal true, build.record_requeue(entry)
       assert_equal true, build.record_error(entry, "payload")
@@ -175,11 +186,10 @@ module Minitest::Queue
     private
 
     def reserve(queue, method_name)
-      test_id = Minitest::Queue::SingleExample.new("Minitest::Test", method_name).id
-      entry = CI::Queue::QueueEntry.format(test_id, nil)
-      queue.instance_variable_set(:@reserved_tests, Concurrent::Set.new([test_id]))
+      entry = Minitest::Queue.fake_entry(method_name)
+      queue.instance_variable_set(:@reserved_tests, Concurrent::Set.new([entry.id]))
       reserved_entries = queue.instance_variable_get(:@reserved_entries) || Concurrent::Map.new
-      reserved_entries[test_id] = entry
+      reserved_entries[entry.id] = entry.queue_entry
       queue.instance_variable_set(:@reserved_entries, reserved_entries)
     end
 
@@ -193,9 +203,7 @@ module Minitest::Queue
             worker_id: id.to_s,
             timeout: 0.2,
           ),
-        ).populate([
-          Minitest::Queue::SingleExample.new("Minitest::Test", "a")
-        ])
+        ).populate([Minitest::Queue.fake_entry("a")])
       end
       result
     end

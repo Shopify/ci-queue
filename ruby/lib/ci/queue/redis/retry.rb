@@ -28,9 +28,24 @@ module CI
           self
         end
 
+        # Queue a Redis SADD so that BuildRecord#record_success can include this
+        # in its multi-exec transaction. Without this, Static#acknowledge returns
+        # a Ruby value (not a Redis future), shifting the result indices and
+        # breaking the stats delta correction.
+        def acknowledge(entry, error: nil, pipeline: redis)
+          @progress += 1
+          return @progress unless pipeline
+          test_id = CI::Queue::QueueEntry.test_id(entry)
+          pipeline.sadd(key('processed'), test_id)
+        end
+
         private
 
         attr_reader :redis
+
+        def key(*args)
+          ['build', config.build_id, *args].join(':')
+        end
       end
     end
   end

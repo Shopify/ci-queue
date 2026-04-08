@@ -18,13 +18,13 @@ module RSpec
 
       def example_passed(notification)
         example = notification.example
-        entry = CI::Queue::QueueEntry.format(example.id, nil)
+        entry = CI::Queue::QueueEntry.format(example.id, example.file_path)
         build.record_success(entry)
       end
 
       def example_failed(notification)
         example = notification.example
-        entry = CI::Queue::QueueEntry.format(example.id, nil)
+        entry = CI::Queue::QueueEntry.format(example.id, example.file_path)
         build.record_error(entry, dump(notification))
       end
 
