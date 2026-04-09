@@ -530,6 +530,59 @@ class CI::Queue::RedisTest < Minitest::Test
     queue&.stop_heartbeat!
   end
 
+  def test_heartbeat_cap_resets_between_tests
+    two_tests = TEST_LIST.first(2)
+    queue = worker(1, max_missed_heartbeat_seconds: 2, heartbeat_max_test_duration: 1, tests: two_tests, build_id: 'hb-reset')
+    queue.boot_heartbeat_process!
+
+    tests_run = []
+    queue.poll do |test|
+      entry = test.queue_entry
+      lease = queue.lease_for(entry)
+      tests_run << entry
+
+      queue.with_heartbeat(entry, lease: lease) do
+        if tests_run.size == 1
+          # First test: sleep past the cap so capped=true inside the thread
+          sleep 2
+          score = @redis.zscore(queue.send(:key, 'running'), entry)
+          assert score < CI::Queue.time_now.to_f - 1, "First test score should be stale after cap"
+        else
+          # Second test: cap should have been reset; heartbeat should be ticking
+          sleep 0.5
+          score = @redis.zscore(queue.send(:key, 'running'), entry)
+          assert score > CI::Queue.time_now.to_f - 2, "Second test score should be fresh after reset"
+        end
+      end
+
+      queue.acknowledge(entry)
+    end
+
+    assert_equal 2, tests_run.size, "Both tests should have run"
+  ensure
+    queue&.stop_heartbeat!
+  end
+
+  def test_heartbeat_cap_doesnt_affect_fast_test
+    queue = worker(1, max_missed_heartbeat_seconds: 2, heartbeat_max_test_duration: 10, tests: [TEST_LIST.first], build_id: 'hb-fast')
+    queue.boot_heartbeat_process!
+
+    queue.poll do |test|
+      entry = test.queue_entry
+      lease = queue.lease_for(entry)
+
+      queue.with_heartbeat(entry, lease: lease) do
+        sleep 0.5  # well under the 10s cap
+        score = @redis.zscore(queue.send(:key, 'running'), entry)
+        assert score > CI::Queue.time_now.to_f - 2, "Score should be fresh -- cap should not have fired"
+      end
+
+      queue.acknowledge(entry)
+    end
+  ensure
+    queue&.stop_heartbeat!
+  end
+
   def test_resolve_entry_falls_back_to_resolver
     queue = worker(1, populate: false)
     queue.instance_variable_set(:@index, { 'ATest#test_foo' => :ok })
