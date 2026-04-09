@@ -216,6 +216,83 @@ module Integration
       end
     end
 
+    def test_heartbeat_cap_resets_between_tests
+      # Worker 0 is the sole run worker: it processes test_alpha first (cap fires at 1s,
+      # test completes at 2s — not stolen), then :reset clears capped and it picks up
+      # test_beta. A thief (worker 1) starts only after test_beta is in `running` so it
+      # cannot grab it from the queue; it can only steal if test_beta goes stale.
+      #
+      # With reset working: test_beta heartbeat ticks until cap at t_B+1s, stale at t_B+3s,
+      # finishes at t_B+2.5s → NOT stolen → 0 warnings.
+      # With broken reset: no ticks for test_beta, stale at t_B+2s, finishes at t_B+2.5s
+      # → stolen by the thief → 1 warning.
+      _, err = capture_subprocess_io do
+        t0 = Thread.start do
+          system(
+            { 'BUILDKITE' => '1' },
+            @exe, 'run',
+            '--queue', @redis_url,
+            '--seed', 'foobar',
+            '--build', '1',
+            '--worker', '0',
+            '--timeout', '1',
+            '--max-requeues', '1',
+            '--requeue-tolerance', '1',
+            '--heartbeat', '2',
+            '--heartbeat-max-test-duration', '1',
+            '-Itest',
+            'test/consecutive_capped_tests.rb',
+            chdir: 'test/fixtures/',
+          )
+        end
+
+        # Wait for worker 0 to finish test_alpha (2s sleep + up to ~2s startup) and claim
+        # test_beta. Once test_beta is in `running`, the thief cannot grab it from the queue.
+        sleep 5
+
+        t1 = Thread.start do
+          system(
+            { 'BUILDKITE' => '1' },
+            @exe, 'run',
+            '--queue', @redis_url,
+            '--seed', 'foobar',
+            '--build', '1',
+            '--worker', '1',
+            '--timeout', '1',
+            '--max-requeues', '1',
+            '--requeue-tolerance', '1',
+            '--heartbeat', '2',
+            '--heartbeat-max-test-duration', '1',
+            '-Itest',
+            'test/consecutive_capped_tests.rb',
+            chdir: 'test/fixtures/',
+          )
+        end
+
+        [t0, t1].each(&:join)
+      end
+
+      assert_empty filter_deprecation_warnings(err)
+
+      Tempfile.open('warnings') do |warnings_file|
+        out, err = capture_subprocess_io do
+          system(
+            @exe, 'report',
+            '--queue', @redis_url,
+            '--build', '1',
+            '--timeout', '1',
+            '--warnings-file', warnings_file.path,
+            '--heartbeat',
+            chdir: 'test/fixtures/',
+          )
+        end
+
+        assert_empty filter_deprecation_warnings(err)
+        warnings = warnings_file.read.lines.map { |line| JSON.parse(line) }
+        assert_equal 0, warnings.size, "No tests should be stolen — heartbeat cap must reset between consecutive tests"
+      end
+    end
+
     def test_lazy_loading_streaming
       out, err = capture_subprocess_io do
         threads = 2.times.map do |i|
