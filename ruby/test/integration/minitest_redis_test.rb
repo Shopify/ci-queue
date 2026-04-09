@@ -169,6 +169,53 @@ module Integration
       end
     end
 
+    def test_heartbeat_cap_doesnt_affect_fast_tests
+      # With cap enabled, fast-passing tests should complete normally with no entries
+      # going stale. The heartbeat cap should be a no-op when tests finish quickly.
+      _, err = capture_subprocess_io do
+        2.times.map do |i|
+          Thread.start do
+            system(
+              { 'BUILDKITE' => '1' },
+              @exe, 'run',
+              '--queue', @redis_url,
+              '--seed', 'foobar',
+              '--build', '1',
+              '--worker', i.to_s,
+              '--timeout', '1',
+              '--heartbeat', '5',
+              '--heartbeat-max-test-duration', '60',
+              '-Itest',
+              'test/passing_test.rb',
+              chdir: 'test/fixtures/',
+            )
+          end
+        end.each(&:join)
+      end
+
+      assert_empty filter_deprecation_warnings(err)
+
+      Tempfile.open('warnings') do |warnings_file|
+        out, err = capture_subprocess_io do
+          system(
+            @exe, 'report',
+            '--queue', @redis_url,
+            '--build', '1',
+            '--timeout', '1',
+            '--warnings-file', warnings_file.path,
+            '--heartbeat',
+            chdir: 'test/fixtures/',
+          )
+        end
+
+        assert_empty filter_deprecation_warnings(err)
+        result = normalize(out.lines[1].strip)
+        assert_equal "Ran 100 tests, 100 assertions, 0 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)", result
+        warnings = warnings_file.read.lines.map { |line| JSON.parse(line) }
+        assert_equal 0, warnings.size, "No tests should be stolen -- heartbeat cap should not have fired"
+      end
+    end
+
     def test_lazy_loading_streaming
       out, err = capture_subprocess_io do
         threads = 2.times.map do |i|
