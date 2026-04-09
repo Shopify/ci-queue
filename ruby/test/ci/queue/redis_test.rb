@@ -496,6 +496,40 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_nil result
   end
 
+  def test_heartbeat_max_test_duration_stops_heartbeat
+    queue = worker(1, max_missed_heartbeat_seconds: 2, heartbeat_max_test_duration: 1, tests: [TEST_LIST.first], build_id: 'hb-cap')
+    queue.boot_heartbeat_process!
+
+    entry = nil
+    lease = nil
+    queue.poll do |test|
+      entry = test.queue_entry
+      lease = queue.lease_for(entry)
+
+      # Score should be updating while heartbeat ticks
+      queue.with_heartbeat(entry, lease: lease) do
+        sleep 0.5
+        score_while_ticking = @redis.zscore(queue.send(:key, 'running'), entry)
+        refute_nil score_while_ticking, "Entry should be in running set while heartbeat ticks"
+
+        # Sleep past the heartbeat cap (1s) + extra buffer
+        sleep 1.5
+
+        # After cap, score should have stopped updating.
+        # The entry should now be stale enough for reserve_lost to reclaim.
+        score_after_cap = @redis.zscore(queue.send(:key, 'running'), entry)
+        # Score should be frozen (not updated for >1s since cap at ~1s)
+        assert score_after_cap < CI::Queue.time_now.to_f - 1, "Score should be stale after heartbeat cap"
+      end
+
+      queue.acknowledge(entry)
+    end
+
+    refute_nil entry, "Test should have been reserved"
+  ensure
+    queue&.stop_heartbeat!
+  end
+
   def test_resolve_entry_falls_back_to_resolver
     queue = worker(1, populate: false)
     queue.instance_variable_set(:@index, { 'ATest#test_foo' => :ok })

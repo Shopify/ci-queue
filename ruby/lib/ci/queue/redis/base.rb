@@ -63,7 +63,7 @@ module CI
         def with_heartbeat(id, lease: nil)
           if heartbeat_enabled?
             ensure_heartbeat_thread_alive!
-            heartbeat_state.set(:tick, id, lease)
+            heartbeat_state.set(:tick, id, lease, Process.clock_gettime(Process::CLOCK_MONOTONIC))
           end
 
           yield
@@ -386,16 +386,32 @@ module CI
           Thread.current.name = "CI::Queue#heartbeat"
           Thread.current.abort_on_exception = true
 
+          capped = false
+
           loop do
             command = heartbeat_state.wait(1) # waits for max 1 second but wakes up immediately if we receive a command
 
             case command&.first
             when :tick
-              # command = [:tick, entry_id, lease_id]
+              next if capped
+
+              max_duration = config.heartbeat_max_test_duration
+              if max_duration
+                # command = [:tick, entry_id, lease_id, started_at]
+                # Use the absolute start time from when with_heartbeat was called so that
+                # the elapsed calculation is not skewed by heartbeat thread startup delay.
+                elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - command[3]
+                if elapsed >= max_duration
+                  capped = true
+                  next
+                end
+              end
+
+              # command = [:tick, entry_id, lease_id, started_at]
               heartbeat_process.tick!(command[1], command[2])
             when :reset
               # Test finished, stop ticking until next test starts
-              nil
+              capped = false
             when :stop
               break
             end

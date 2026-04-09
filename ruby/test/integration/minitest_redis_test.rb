@@ -97,6 +97,78 @@ module Integration
       end
     end
 
+    def test_lost_test_with_heartbeat_max_duration
+      # Start worker 0 first so it claims the test before worker 1 starts polling.
+      # Worker 0 heartbeat caps at 0.3s → entry stale at ~t=2 → worker 1 steals at ~t=2.
+      # lost_test sleeps 3s, giving a ~1s window for the steal before the test finishes.
+      _, err = capture_subprocess_io do
+        t0 = Thread.start do
+          system(
+            { 'BUILDKITE' => '1' },
+            @exe, 'run',
+            '--queue', @redis_url,
+            '--seed', 'foobar',
+            '--build', '1',
+            '--worker', '0',
+            '--timeout', '1',
+            '--max-requeues', '1',
+            '--requeue-tolerance', '1',
+            '--heartbeat', '2',
+            '--heartbeat-max-test-duration', '0.3',
+            '-Itest',
+            'test/lost_test.rb',
+            chdir: 'test/fixtures/',
+          )
+        end
+
+        # Give worker 0 time to claim the test before worker 1 starts polling.
+        sleep 0.5
+
+        t1 = Thread.start do
+          system(
+            { 'BUILDKITE' => '1' },
+            @exe, 'run',
+            '--queue', @redis_url,
+            '--seed', 'foobar',
+            '--build', '1',
+            '--worker', '1',
+            '--timeout', '1',
+            '--max-requeues', '1',
+            '--requeue-tolerance', '1',
+            '--heartbeat', '2',
+            '--heartbeat-max-test-duration', '0.3',
+            '-Itest',
+            'test/lost_test.rb',
+            chdir: 'test/fixtures/',
+          )
+        end
+
+        [t0, t1].each(&:join)
+      end
+
+      assert_empty filter_deprecation_warnings(err)
+
+      Tempfile.open('warnings') do |warnings_file|
+        out, err = capture_subprocess_io do
+          system(
+            @exe, 'report',
+            '--queue', @redis_url,
+            '--build', '1',
+            '--timeout', '1',
+            '--warnings-file', warnings_file.path,
+            '--heartbeat',
+            chdir: 'test/fixtures/',
+          )
+        end
+
+        assert_empty filter_deprecation_warnings(err)
+        warnings = warnings_file.read.lines.map { |line| JSON.parse(line) }
+        # Worker 0's heartbeat caps at 0.3s; the entry goes stale ~2s after the last tick
+        # (before lost_test finishes at t=3). Worker 1 steals it, generating a warning.
+        assert warnings.size >= 1, "Expected at least 1 RESERVED_LOST_TEST warning, got #{warnings.size}"
+      end
+    end
+
     def test_lazy_loading_streaming
       out, err = capture_subprocess_io do
         threads = 2.times.map do |i|

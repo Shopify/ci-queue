@@ -6,6 +6,7 @@ module CI
       attr_accessor :requeue_tolerance, :namespace, :failing_test, :statsd_endpoint
       attr_accessor :max_test_duration, :max_test_duration_percentile, :track_test_duration
       attr_accessor :max_test_failed, :redis_ttl, :warnings_file, :debug_log, :max_missed_heartbeat_seconds
+      attr_writer :heartbeat_max_test_duration
       attr_accessor :lazy_load, :lazy_load_stream_batch_size
       attr_writer :lazy_load_streaming_timeout
       attr_accessor :lazy_load_test_helpers
@@ -57,7 +58,7 @@ module CI
         grind_count: nil, max_duration: nil, failure_file: nil, max_test_duration: nil,
         max_test_duration_percentile: 0.5, track_test_duration: false, max_test_failed: nil,
         queue_init_timeout: nil, redis_ttl: 8 * 60 * 60, report_timeout: nil, inactive_workers_timeout: nil,
-        export_flaky_tests_file: nil, warnings_file: nil, debug_log: nil, max_missed_heartbeat_seconds: nil,
+        export_flaky_tests_file: nil, warnings_file: nil, debug_log: nil, max_missed_heartbeat_seconds: nil, heartbeat_max_test_duration: nil,
         lazy_load: false, lazy_load_stream_batch_size: nil, lazy_load_streaming_timeout: nil, lazy_load_test_helpers: nil,
         skip_stale_tests: false)
         @build_id = build_id
@@ -86,6 +87,7 @@ module CI
         @warnings_file = warnings_file
         @debug_log = debug_log
         @max_missed_heartbeat_seconds = max_missed_heartbeat_seconds
+        @heartbeat_max_test_duration = heartbeat_max_test_duration
         @lazy_load = lazy_load
         @lazy_load_stream_batch_size = lazy_load_stream_batch_size || 5_000
         @lazy_load_streaming_timeout = lazy_load_streaming_timeout
@@ -151,6 +153,10 @@ module CI
 
       def inactive_workers_timeout
         @inactive_workers_timeout || timeout
+      end
+
+      def heartbeat_max_test_duration
+        @heartbeat_max_test_duration || (timeout * 10 if max_missed_heartbeat_seconds)
       end
 
       def max_consecutive_failures=(max)
