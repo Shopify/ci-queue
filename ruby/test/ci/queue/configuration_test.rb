@@ -200,5 +200,19 @@ module CI::Queue
       assert_equal ["test/test_helper.rb", "test/support/helper.rb"], config.lazy_load_test_helper_paths
     end
 
+    def test_heartbeat_max_test_duration_defaults
+      # defaults to timeout*10 when heartbeat is enabled
+      config = Configuration.new(timeout: 5, max_missed_heartbeat_seconds: 1)
+      assert_equal 50, config.heartbeat_max_test_duration
+
+      # nil when heartbeat is disabled (no max_missed_heartbeat_seconds)
+      config = Configuration.new(timeout: 5)
+      assert_nil config.heartbeat_max_test_duration
+
+      # explicit value overrides the default
+      config = Configuration.new(timeout: 5, max_missed_heartbeat_seconds: 1, heartbeat_max_test_duration: 3)
+      assert_equal 3, config.heartbeat_max_test_duration
+    end
+
   end
 end
