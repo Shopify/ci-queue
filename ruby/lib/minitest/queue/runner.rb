@@ -736,6 +736,16 @@ module Minitest
             queue_config.max_missed_heartbeat_seconds = time || 30
           end
 
+          help = <<~EOS
+            Maximum duration in seconds that the heartbeat will tick for a single test.
+            If a test runs longer than this, the heartbeat stops and the test entry becomes
+            eligible for reclamation by another worker.
+            Defaults to timeout * 10 when heartbeat is enabled.
+          EOS
+          opts.on("--heartbeat-max-test-duration SECONDS", Float, help) do |seconds|
+            queue_config.heartbeat_max_test_duration = seconds
+          end
+
 
           opts.on("-v", "--verbose", "Verbose. Show progress processing files.") do
             self.verbose = true
