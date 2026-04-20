@@ -266,6 +266,11 @@ module CI
         class HeartbeatProcess
           MAX_RESTART_ATTEMPTS = 3
 
+          # Cached command marker. Passing this frozen String instead of the
+          # :tick! Symbol avoids allocating a 'tick!' String (from Symbol#to_s)
+          # on every heartbeat, which fires once per running test per worker.
+          TICK_COMMAND = 'tick!'.freeze
+
           def initialize(redis_url, zset_key, owners_key, leases_key)
             @redis_url = redis_url
             @zset_key = zset_key
@@ -314,7 +319,7 @@ module CI
           end
 
           def tick!(id, lease)
-            send_message(:tick!, id: id, lease: lease.to_s)
+            send_message(TICK_COMMAND, id: id, lease: lease.to_s)
             @restart_attempts = 0
           rescue IOError, Errno::EPIPE => error
             @restart_attempts = (@restart_attempts || 0) + 1

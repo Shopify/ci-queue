@@ -1,8 +1,25 @@
 # frozen_string_literal: true
 require 'test_helper'
+require 'objspace'
 
 class CI::Queue::Redis::Base::HeartbeatProcessTest < Minitest::Test
   MAX = CI::Queue::Redis::Base::HeartbeatProcess::MAX_RESTART_ATTEMPTS
+
+  # StringIO#write only accepts a single argument on TruffleRuby, so we fake a
+  # pipe that supports the multi-argument IO#write signature the production
+  # code relies on.
+  class FakePipe
+    attr_reader :buffer
+
+    def initialize
+      @buffer = +"".b
+    end
+
+    def write(*parts)
+      parts.each { |part| @buffer << part.b }
+      @buffer.bytesize
+    end
+  end
 
   def setup
     @hp = CI::Queue::Redis::Base::HeartbeatProcess.new(
@@ -51,5 +68,44 @@ class CI::Queue::Redis::Base::HeartbeatProcessTest < Minitest::Test
     end
 
     (MAX + 1).times { @hp.tick!("test_id", "lease_id") }
+  end
+
+  def test_tick_does_not_allocate_tick_marker_string
+    @hp.instance_variable_set(:@pipe, FakePipe.new)
+    @hp.tick!("test_id", "lease_id") # warm up any one-time caches
+
+    ObjectSpace.trace_object_allocations_start
+    begin
+      @hp.tick!("test_id", "lease_id")
+    ensure
+      ObjectSpace.trace_object_allocations_stop
+    end
+
+    tick_allocations = []
+    ObjectSpace.each_object(String) do |s|
+      next unless s == "tick!"
+      file = ObjectSpace.allocation_sourcefile(s)
+      next unless file # already-allocated strings have no source
+      tick_allocations << [file, ObjectSpace.allocation_sourceline(s)]
+    end
+
+    assert_empty tick_allocations,
+      "A 'tick!' String was allocated per heartbeat tick — the command marker should be cached as a frozen String"
+  ensure
+    ObjectSpace.trace_object_allocations_clear
+  end
+
+  def test_tick_sends_valid_tick_payload
+    pipe = FakePipe.new
+    @hp.instance_variable_set(:@pipe, pipe)
+
+    @hp.tick!("test_id", "lease_id")
+
+    raw = pipe.buffer
+    header_size = [0].pack("L").bytesize
+    size = raw.byteslice(0, header_size).unpack1("L")
+    payload = raw.byteslice(header_size, size)
+
+    assert_equal ["tick!", { "id" => "test_id", "lease" => "lease_id" }], JSON.parse(payload)
   end
 end
