@@ -5,6 +5,22 @@ require 'objspace'
 class CI::Queue::Redis::Base::HeartbeatProcessTest < Minitest::Test
   MAX = CI::Queue::Redis::Base::HeartbeatProcess::MAX_RESTART_ATTEMPTS
 
+  # StringIO#write only accepts a single argument on TruffleRuby, so we fake a
+  # pipe that supports the multi-argument IO#write signature the production
+  # code relies on.
+  class FakePipe
+    attr_reader :buffer
+
+    def initialize
+      @buffer = +"".b
+    end
+
+    def write(*parts)
+      parts.each { |part| @buffer << part.b }
+      @buffer.bytesize
+    end
+  end
+
   def setup
     @hp = CI::Queue::Redis::Base::HeartbeatProcess.new(
       'redis://localhost:6379/0',
@@ -55,7 +71,7 @@ class CI::Queue::Redis::Base::HeartbeatProcessTest < Minitest::Test
   end
 
   def test_tick_does_not_allocate_tick_marker_string
-    @hp.instance_variable_set(:@pipe, StringIO.new)
+    @hp.instance_variable_set(:@pipe, FakePipe.new)
     @hp.tick!("test_id", "lease_id") # warm up any one-time caches
 
     ObjectSpace.trace_object_allocations_start
@@ -80,12 +96,12 @@ class CI::Queue::Redis::Base::HeartbeatProcessTest < Minitest::Test
   end
 
   def test_tick_sends_valid_tick_payload
-    pipe = StringIO.new
+    pipe = FakePipe.new
     @hp.instance_variable_set(:@pipe, pipe)
 
     @hp.tick!("test_id", "lease_id")
 
-    raw = pipe.string
+    raw = pipe.buffer
     header_size = [0].pack("L").bytesize
     size = raw.byteslice(0, header_size).unpack1("L")
     payload = raw.byteslice(header_size, size)
