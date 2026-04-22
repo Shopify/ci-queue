@@ -115,6 +115,8 @@ module Minitest
             puts "#{remaining} tests left and #{running} workers running."
             if remaining <= running
               puts green("Queue almost empty, exiting early...")
+              verify_reporters!(reporters)
+              exit!(0)
             else
               prepare_queue_for_execution
             end

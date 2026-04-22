@@ -687,6 +687,10 @@ class CI::Queue::RedisTest < Minitest::Test
     w1 = worker(1, tests: test_list, build_id: 'self-requeue', timeout: 10, max_requeues: 1, requeue_tolerance: 1.0)
     w2 = worker(2, populate: false, build_id: 'self-requeue', timeout: 10, max_requeues: 1, requeue_tolerance: 1.0)
     w3 = worker(3, populate: false, build_id: 'self-requeue', timeout: 10, max_requeues: 1, requeue_tolerance: 1.0)
+    # Identity resolver so poll yields the raw queue entry (poll now skips
+    # UnresolvedEntry values, and these workers don't share w1's @index).
+    w2.entry_resolver = ->(entry) { entry }
+    w3.entry_resolver = ->(entry) { entry }
     w2.send(:register)
     w3.send(:register)
 
