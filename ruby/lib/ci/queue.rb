@@ -17,6 +17,7 @@ require 'ci/queue/bisect'
 require 'ci/queue/queue_entry'
 require 'ci/queue/class_resolver'
 require 'ci/queue/file_loader'
+require 'ci/queue/local'
 
 module CI
   module Queue
@@ -81,6 +82,8 @@ module CI
         Static
       when 'file', nil
         File
+      when 'local'
+        Local
       when 'redis', 'rediss'
         require 'ci/queue/redis'
         Redis
