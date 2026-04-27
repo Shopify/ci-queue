@@ -205,15 +205,21 @@ module Minitest
           failed = false
         end
 
-        # In file-affinity mode, the test entry is not individually reserved
-        # (the enclosing file is), so queue.requeue cannot run here. Inline
-        # per-test requeue lands in a follow-up commit that adds a dedicated
-        # requeue_test_entry path. For now, in-file failures fall through to
-        # the standard failure-recording path; Buildkite-level retry can
-        # still pick them up via the existing retry_queue.
-        in_file_reservation = reservation&.file?
+        # Dispatch requeue per-entry. In file-affinity mode the test entry
+        # was never individually reserved (only the enclosing file is), so
+        # we use requeue_test_entry which pushes via requeue_test_only.lua
+        # without touching running/leases/owners. Standalone test entries
+        # (e.g. retried via this exact path on a later worker, or non-
+        # file-affinity mode) keep the existing queue.requeue contract.
+        requeued = if failed && CI::Queue.requeueable?(result)
+          if reservation&.file?
+            queue.requeue_test_entry(example.queue_entry) if queue.respond_to?(:requeue_test_entry)
+          else
+            queue.requeue(example.queue_entry)
+          end
+        end
 
-        if failed && CI::Queue.requeueable?(result) && !in_file_reservation && queue.requeue(example.queue_entry)
+        if requeued
           result.requeue!
           if CI::Queue.debug?
             $stderr.puts "[ci-queue][requeue] test_id=#{example.id} error_class=#{result.failures.first&.class} error=#{result.failures.first&.message&.lines&.first&.chomp}"

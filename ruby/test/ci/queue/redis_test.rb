@@ -84,6 +84,67 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_includes consumer.send(:reserved_tests), 'FooTest#test_bar'
   end
 
+  def test_requeue_test_entry_pushes_to_queue_under_caps
+    @redis.flushdb
+    consumer = worker(1, populate: false, max_requeues: 3, requeue_tolerance: 1.0, build_id: 'rqte')
+    test_entry = CI::Queue::QueueEntry.format('FooTest#test_bar', '/tmp/foo_test.rb')
+
+    # Seed total so global_max_requeues = total * tolerance is non-zero.
+    @redis.set(consumer.send(:key, 'total'), 10)
+
+    assert consumer.requeue_test_entry(test_entry)
+    queued = @redis.lrange(consumer.send(:key, 'queue'), 0, -1)
+    assert_includes queued, test_entry
+    assert_equal '1', @redis.hget(consumer.send(:key, 'requeues-count'), test_entry)
+    assert_equal '1', @redis.hget(consumer.send(:key, 'requeues-count'), '___total___')
+
+    # Another requeue: still under caps.
+    assert consumer.requeue_test_entry(test_entry)
+    assert_equal '2', @redis.hget(consumer.send(:key, 'requeues-count'), test_entry)
+  end
+
+  def test_requeue_test_entry_respects_per_entry_cap
+    @redis.flushdb
+    consumer = worker(1, populate: false, max_requeues: 1, requeue_tolerance: 1.0, build_id: 'rqte-cap')
+    test_entry = CI::Queue::QueueEntry.format('FooTest#test_bar', '/tmp/foo_test.rb')
+    @redis.set(consumer.send(:key, 'total'), 10)
+
+    assert consumer.requeue_test_entry(test_entry)
+    refute consumer.requeue_test_entry(test_entry), "per-entry cap should reject second requeue"
+  end
+
+  def test_requeue_test_entry_skips_when_already_terminally_recorded
+    @redis.flushdb
+    consumer = worker(1, populate: false, max_requeues: 5, requeue_tolerance: 1.0, build_id: 'rqte-final')
+    test_entry = CI::Queue::QueueEntry.format('FooTest#test_bar', '/tmp/foo_test.rb')
+    @redis.set(consumer.send(:key, 'total'), 10)
+
+    # Mark terminally recorded.
+    @redis.sadd(consumer.send(:key, 'processed-tests'), test_entry)
+
+    refute consumer.requeue_test_entry(test_entry),
+           "should not requeue an entry that already has a terminal result"
+  end
+
+  def test_requeue_test_entry_uses_discovered_tests_counter_for_global_cap
+    @redis.flushdb
+    # total = 1 file, but discovered = 100 tests — so the global cap
+    # should be computed from 100, not 1.
+    consumer = worker(1, populate: false, max_requeues: 5, requeue_tolerance: 0.05, build_id: 'rqte-disc')
+    test_entry = CI::Queue::QueueEntry.format('FooTest#test_bar', '/tmp/foo_test.rb')
+    @redis.set(consumer.send(:key, 'total'), 1)
+    @redis.set(consumer.send(:key, 'file-affinity-discovered-tests'), 100)
+
+    # 5% of 100 = 5 allowed global requeues; 5% of 1 = 0.05 -> 1 allowed.
+    # First requeue must succeed; under the file-count denominator alone
+    # the global cap would be hit immediately on the second, but with the
+    # discovered-tests denominator we should be able to do several.
+    3.times do |i|
+      entry = CI::Queue::QueueEntry.format("FooTest#test_#{i}", '/tmp/foo_test.rb')
+      assert consumer.requeue_test_entry(entry), "requeue #{i} should succeed under discovered-tests denominator"
+    end
+  end
+
   def test_record_test_result_failure_is_idempotent_under_reclaim
     @redis.flushdb
     consumer = worker(1)

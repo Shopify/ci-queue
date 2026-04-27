@@ -262,6 +262,31 @@ module CI
           ) == 1
         end
 
+        # File-affinity inline requeue: push a failed test entry back onto
+        # the queue while the enclosing file is still reserved. Honors the
+        # per-entry and global requeue caps; the global denominator uses
+        # the larger of `total` (file count in this mode) and the
+        # cluster-wide discovered-tests counter so `--requeue-tolerance`
+        # converges to the per-test denominator we'd have under eager mode.
+        def requeue_test_entry(entry, offset: Redis.requeue_offset)
+          base = [total, file_affinity_discovered_tests].max
+          global_max_requeues = config.global_max_requeues(base)
+          return false if config.max_requeues <= 0 || global_max_requeues <= 0
+
+          eval_script(
+            :requeue_test_only,
+            keys: [
+              key('processed-tests'),
+              key('requeues-count'),
+              key('queue'),
+              key('worker', worker_id, 'queue'),
+              key('error-reports'),
+              key('requeued-by'),
+            ],
+            argv: [config.max_requeues, global_max_requeues, entry, offset, config.redis_ttl],
+          ) == 1
+        end
+
         def requeue(entry, offset: Redis.requeue_offset)
           reservation = CI::Queue::QueueEntry.reservation_key(entry)
           assert_reserved!(reservation)
