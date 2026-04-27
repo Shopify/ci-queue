@@ -189,8 +189,7 @@ module CI
         end
 
         def lease_for(entry)
-          test_id = CI::Queue::QueueEntry.test_id(entry)
-          @reserved_leases[test_id]
+          @reserved_leases[CI::Queue::QueueEntry.reservation_key(entry)]
         end
 
         def report_worker_error(error)
@@ -198,11 +197,11 @@ module CI
         end
 
         def acknowledge(entry, error: nil, pipeline: redis)
-          test_id = CI::Queue::QueueEntry.test_id(entry)
-          assert_reserved!(test_id)
-          entry = reserved_entries.fetch(test_id, entry)
-          lease = @reserved_leases.delete(test_id)
-          unreserve_entry(test_id)
+          reservation = CI::Queue::QueueEntry.reservation_key(entry)
+          assert_reserved!(reservation)
+          entry = reserved_entries.fetch(reservation, entry)
+          lease = @reserved_leases.delete(reservation)
+          unreserve_entry(reservation)
           eval_script(
             :acknowledge,
             keys: [key('running'), key('processed'), key('owners'), key('error-reports'), key('requeued-by'), key('leases')],
@@ -212,11 +211,11 @@ module CI
         end
 
         def requeue(entry, offset: Redis.requeue_offset)
-          test_id = CI::Queue::QueueEntry.test_id(entry)
-          assert_reserved!(test_id)
-          entry = reserved_entries.fetch(test_id, entry)
-          lease = @reserved_leases.delete(test_id)
-          unreserve_entry(test_id)
+          reservation = CI::Queue::QueueEntry.reservation_key(entry)
+          assert_reserved!(reservation)
+          entry = reserved_entries.fetch(reservation, entry)
+          lease = @reserved_leases.delete(reservation)
+          unreserve_entry(reservation)
           global_max_requeues = config.global_max_requeues(total)
 
           requeued = config.max_requeues > 0 && global_max_requeues > 0 && eval_script(
@@ -236,10 +235,10 @@ module CI
           ) == 1
 
           unless requeued
-            reserved_tests << test_id
-            reserved_entries[test_id] = entry
-            reserved_entry_ids[entry] = test_id
-            @reserved_leases[test_id] = lease if lease
+            reserved_tests << reservation
+            reserved_entries[reservation] = entry
+            reserved_entry_ids[entry] = reservation
+            @reserved_leases[reservation] = lease if lease
           end
           requeued
         end
@@ -273,23 +272,23 @@ module CI
           config.worker_id
         end
 
-        def assert_reserved!(test_id)
-          unless reserved_tests.include?(test_id)
-            raise ReservationError, "Acknowledged #{test_id.inspect} but only #{reserved_tests.map(&:inspect).join(", ")} reserved"
+        def assert_reserved!(reservation)
+          unless reserved_tests.include?(reservation)
+            raise ReservationError, "Acknowledged #{reservation.inspect} but only #{reserved_tests.map(&:inspect).join(", ")} reserved"
           end
         end
 
         def reserve_entry(entry, lease = nil)
-          test_id = CI::Queue::QueueEntry.test_id(entry)
-          reserved_tests << test_id
-          reserved_entries[test_id] = entry
-          reserved_entry_ids[entry] = test_id
-          @reserved_leases[test_id] = lease if lease
+          reservation = CI::Queue::QueueEntry.reservation_key(entry)
+          reserved_tests << reservation
+          reserved_entries[reservation] = entry
+          reserved_entry_ids[entry] = reservation
+          @reserved_leases[reservation] = lease if lease
         end
 
-        def unreserve_entry(test_id)
-          entry = reserved_entries.delete(test_id)
-          reserved_tests.delete(test_id)
+        def unreserve_entry(reservation)
+          entry = reserved_entries.delete(reservation)
+          reserved_tests.delete(reservation)
           reserved_entry_ids.delete(entry) if entry
         end
 
@@ -301,8 +300,17 @@ module CI
         end
 
         def resolve_entry(entry)
-          test_id = reserved_entry_ids[entry] || CI::Queue::QueueEntry.test_id(entry)
-          if populated?
+          # Index lookups are keyed by test_id (from populate). Reservation
+          # keys may include a `file:<path>` prefix for file entries, so we
+          # only honour `reserved_entry_ids` when it stores a test-id-shaped
+          # value. For test entries this preserves today's behaviour;
+          # for file entries (handled by process_file_entry, not this path)
+          # we fall through to entry_resolver / UnresolvedEntry.
+          test_id = CI::Queue::QueueEntry.test_id(entry)
+          reserved_key = reserved_entry_ids[entry]
+          test_id ||= reserved_key if reserved_key && !reserved_key.start_with?('file:')
+
+          if populated? && test_id
             return index[test_id] if index.key?(test_id)
           end
 

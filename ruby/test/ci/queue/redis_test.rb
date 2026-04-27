@@ -51,6 +51,39 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_equal [], retry_test_order
   end
 
+  # ----------------------------------------------------------------
+  # Reservation-key refactor: multiple file entries reserved by the
+  # same worker must not collide on a nil test_id key. Today nothing
+  # in the worker pipeline produces file entries (that comes later);
+  # this exercises the bookkeeping primitives directly.
+  # ----------------------------------------------------------------
+
+  def test_reserve_entry_distinguishes_multiple_file_entries
+    consumer = worker(99, populate: false)
+    file_a = CI::Queue::QueueEntry.format_file('/tmp/a_test.rb')
+    file_b = CI::Queue::QueueEntry.format_file('/tmp/b_test.rb')
+
+    consumer.send(:reserve_entry, file_a, 'lease-a')
+    consumer.send(:reserve_entry, file_b, 'lease-b')
+
+    assert_equal 'lease-a', consumer.lease_for(file_a)
+    assert_equal 'lease-b', consumer.lease_for(file_b)
+
+    reserved = consumer.send(:reserved_tests)
+    assert_includes reserved, CI::Queue::QueueEntry.reservation_key(file_a)
+    assert_includes reserved, CI::Queue::QueueEntry.reservation_key(file_b)
+    assert_equal 2, reserved.size
+  end
+
+  def test_reserve_entry_for_test_entry_keys_by_test_id
+    consumer = worker(98, populate: false)
+    test_entry = CI::Queue::QueueEntry.format('FooTest#test_bar', '/tmp/foo_test.rb')
+
+    consumer.send(:reserve_entry, test_entry, 'lease-1')
+    assert_equal 'lease-1', consumer.lease_for(test_entry)
+    assert_includes consumer.send(:reserved_tests), 'FooTest#test_bar'
+  end
+
   def test_retry_queue_with_all_tests_passing_2
     poll(@queue)
     retry_queue = @queue.retry_queue
