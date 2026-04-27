@@ -70,5 +70,104 @@ module Minitest::Queue
       ENV['CI_QUEUE_DEBUG'] = original
       CI::Queue.reset_debug!
     end
+
+    def test_print_summary_file_affinity_mode
+      profiles = {
+        '0' => {
+          'worker_id' => '0',
+          'mode' => 'file_affinity',
+          'role' => 'leader',
+          'time_to_first_test' => 0.5,
+          'total_wall_clock' => 90.0,
+          'memory_rss_kb' => 900_000,
+          'files_run' => 7,
+          'tests_discovered' => 32,
+          'file_timings_ms' => [14_640, 30, 22, 18, 15, 12, 10],
+          'slow_files' => [
+            ['/abs/path/to/test/lib/graphql_sorbet_enum_test.rb', 14.64],
+            ['/abs/path/to/test/lib/category_database_diff_test.rb', 0.03],
+          ],
+        },
+        '1' => {
+          'worker_id' => '1',
+          'mode' => 'file_affinity',
+          'role' => 'non-leader',
+          'time_to_first_test' => 0.6,
+          'total_wall_clock' => 14.9,
+          'memory_rss_kb' => 910_000,
+          'files_run' => 1,
+          'tests_discovered' => 32,
+          'file_timings_ms' => [14_800],
+          'slow_files' => [
+            ['/abs/path/to/test/lib/sample_image_test.rb', 14.80],
+          ],
+        },
+      }
+
+      supervisor = Struct.new(:workers_count, :build).new(
+        2,
+        Struct.new(:worker_profiles).new(profiles),
+      )
+      out = StringIO.new
+
+      original = ENV['CI_QUEUE_DEBUG']
+      ENV['CI_QUEUE_DEBUG'] = '1'
+      CI::Queue.reset_debug!
+      WorkerProfileReporter.new(supervisor, out: out).print_summary
+
+      text = out.string
+      assert_includes text, "Worker profile summary (2 workers, mode: file_affinity):"
+      # File-affinity table headers (Files / Tests / 1st Test / Wall Clock / File P95)
+      assert_includes text, "Files"
+      assert_includes text, "File P95"
+      # Aggregates section
+      assert_includes text, "File-affinity aggregates:"
+      assert_includes text, "Files run total:     8"
+      assert_includes text, "Tests discovered:    32"
+      assert_match(/Per-file wall clock: P50=.* P95=.* P99=.* max=14\.80s/, text)
+      assert_includes text, "Slowest files:"
+      assert_includes text, "sample_image_test.rb"
+      assert_includes text, "graphql_sorbet_enum_test.rb"
+      # Leader / non-leader 1st-test summary still surfaces
+      assert_includes text, "Leader time to 1st test: 0.5s"
+      assert_includes text, "Avg non-leader time to 1st test: 0.6s"
+    ensure
+      ENV['CI_QUEUE_DEBUG'] = original
+      CI::Queue.reset_debug!
+    end
+
+    def test_print_summary_file_affinity_handles_empty_timings
+      profiles = {
+        '0' => {
+          'worker_id' => '0',
+          'mode' => 'file_affinity',
+          'role' => 'leader',
+          'time_to_first_test' => 1.0,
+          'total_wall_clock' => 5.0,
+          'memory_rss_kb' => 100_000,
+          'files_run' => 0,
+          # no file_timings_ms (e.g. all files filtered out)
+        },
+      }
+
+      supervisor = Struct.new(:workers_count, :build).new(
+        1,
+        Struct.new(:worker_profiles).new(profiles),
+      )
+      out = StringIO.new
+
+      original = ENV['CI_QUEUE_DEBUG']
+      ENV['CI_QUEUE_DEBUG'] = '1'
+      CI::Queue.reset_debug!
+      WorkerProfileReporter.new(supervisor, out: out).print_summary
+
+      text = out.string
+      # No File-affinity aggregates section when no timings collected.
+      refute_includes text, "File-affinity aggregates:"
+      assert_includes text, "file_affinity"
+    ensure
+      ENV['CI_QUEUE_DEBUG'] = original
+      CI::Queue.reset_debug!
+    end
   end
 end
