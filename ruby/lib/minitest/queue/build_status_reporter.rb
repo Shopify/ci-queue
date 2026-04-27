@@ -209,6 +209,16 @@ module Minitest
         build.progress
       end
 
+      # Number of tests run. Prefer the explicit `tests` counter (introduced
+      # alongside file-affinity mode) so the summary stays test-shaped even
+      # when `progress` is file-shaped. Falls back to `progress` for older
+      # builds where the counter is absent / zero.
+      def tests_run
+        explicit = fetch_summary['tests'].to_i
+        return explicit if explicit > 0
+        progress
+      end
+
       def write_failure_file(file)
         File.open(file, 'w') do |f|
           JSON.dump(error_reports.map(&:to_h), f)
@@ -279,7 +289,7 @@ module Minitest
         end
 
         step([
-          'Ran %d tests, %d assertions,' % [progress, assertions],
+          'Ran %d tests, %d assertions,' % [tests_run, assertions],
           success ? green(failures_count) : red(failures_count),
           yellow("#{skips} skips, #{requeues} requeues"),
           'in %.2fs (aggregated)' % total_time,

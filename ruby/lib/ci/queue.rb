@@ -40,6 +40,7 @@ module CI
 
     module Warnings
       RESERVED_LOST_TEST = :RESERVED_LOST_TEST
+      FILE_AFFINITY_FILE_OVER_CAP = :FILE_AFFINITY_FILE_OVER_CAP
     end
 
     GET_NOW = ::Time.method(:now)

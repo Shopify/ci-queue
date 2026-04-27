@@ -108,7 +108,7 @@ module Minitest
   end
 
   module ResultMetadata
-    attr_accessor :queue_id, :queue_entry
+    attr_accessor :queue_id, :queue_entry, :queue_acknowledge
   end
 
   module Queue
@@ -162,12 +162,14 @@ module Minitest
       def run(reporter, *)
         rescue_run_errors do
           begin
-            queue.poll do |example|
-              result = queue.with_heartbeat(example.queue_entry, lease: queue.lease_for(example.queue_entry)) do
+            queue.poll do |example, reservation = nil|
+              heartbeat_entry = reservation&.entry || example.queue_entry
+              heartbeat_lease = reservation&.lease || queue.lease_for(example.queue_entry)
+              result = queue.with_heartbeat(heartbeat_entry, lease: heartbeat_lease) do
                 example.run
               end
 
-              handle_test_result(reporter, example, result)
+              handle_test_result(reporter, example, result, reservation)
             end
 
             report_load_stats(queue)
@@ -178,10 +180,16 @@ module Minitest
         end
       end
 
-      def handle_test_result(reporter, example, result)
+      def handle_test_result(reporter, example, result, reservation = nil)
         if result.respond_to?(:queue_id=)
           result.queue_id = example.id
           result.queue_entry = example.queue_entry if result.respond_to?(:queue_entry=)
+          if result.respond_to?(:queue_acknowledge=)
+            # When the reservation is a file, the test entry was never
+            # individually reserved — BuildStatusRecorder must record the
+            # result without calling queue.acknowledge on the test entry.
+            result.queue_acknowledge = !reservation&.file?
+          end
         end
 
         failed = !(result.passed? || result.skipped?)
@@ -197,7 +205,15 @@ module Minitest
           failed = false
         end
 
-        if failed && CI::Queue.requeueable?(result) && queue.requeue(example.queue_entry)
+        # In file-affinity mode, the test entry is not individually reserved
+        # (the enclosing file is), so queue.requeue cannot run here. Inline
+        # per-test requeue lands in a follow-up commit that adds a dedicated
+        # requeue_test_entry path. For now, in-file failures fall through to
+        # the standard failure-recording path; Buildkite-level retry can
+        # still pick them up via the existing retry_queue.
+        in_file_reservation = reservation&.file?
+
+        if failed && CI::Queue.requeueable?(result) && !in_file_reservation && queue.requeue(example.queue_entry)
           result.requeue!
           if CI::Queue.debug?
             $stderr.puts "[ci-queue][requeue] test_id=#{example.id} error_class=#{result.failures.first&.class} error=#{result.failures.first&.message&.lines&.first&.chomp}"
@@ -248,9 +264,16 @@ module Minitest
         return unless run_start
 
         run_end = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        mode = if config.file_affinity
+          'file_affinity'
+        elsif config.lazy_load
+          'lazy'
+        else
+          'eager'
+        end
         profile = {
           'worker_id' => config.worker_id,
-          'mode' => config.lazy_load ? 'lazy' : 'eager',
+          'mode' => mode,
           'role' => queue.master? ? 'leader' : 'non-leader',
           'total_wall_clock' => (run_end - run_start).round(2),
         }
@@ -258,8 +281,14 @@ module Minitest
         first_test = queue.respond_to?(:first_reserve_at) ? queue.first_reserve_at : nil
         profile['time_to_first_test'] = (first_test - run_start).round(2) if first_test
 
-        tests_run = queue.rescue_connection_errors { queue.worker_queue_length } if queue.respond_to?(:worker_queue_length)
-        profile['tests_run'] = tests_run.to_i if tests_run
+        # In file-affinity mode, worker_queue_length counts reserved work
+        # units (mostly files plus retried test entries) — not tests — so
+        # don't surface it as `tests_run`. The test count comes from the
+        # build's `tests` stat counter aggregated by BuildStatusReporter.
+        unless config.file_affinity
+          tests_run = queue.rescue_connection_errors { queue.worker_queue_length } if queue.respond_to?(:worker_queue_length)
+          profile['tests_run'] = tests_run.to_i if tests_run
+        end
 
         load_tests_duration = Minitest::Queue::Runner.load_tests_duration
         profile['load_tests_duration'] = load_tests_duration.round(2) if load_tests_duration
@@ -271,6 +300,27 @@ module Minitest
         end
 
         profile['total_files'] = Minitest::Queue::Runner.total_files if Minitest::Queue::Runner.total_files
+
+        # File-affinity-specific fields. files_run and slow_files come from
+        # process_file_entry's per-file timings; tests_discovered is the
+        # cluster-wide counter incremented by record_file_affinity_discovery.
+        if config.file_affinity
+          if queue.respond_to?(:file_affinity_files_run)
+            profile['files_run'] = queue.file_affinity_files_run
+          end
+          if queue.respond_to?(:file_affinity_slowest_files)
+            slowest = queue.file_affinity_slowest_files
+            profile['slow_files'] = slowest.map { |path, dur| [path, dur.round(3)] } if slowest && !slowest.empty?
+          end
+          if queue.respond_to?(:file_affinity_per_file_timings)
+            timings = queue.file_affinity_per_file_timings
+            profile['file_timings_ms'] = timings.map { |t| (t * 1000).round } if timings && !timings.empty?
+          end
+          if queue.respond_to?(:file_affinity_discovered_tests)
+            discovered = queue.rescue_connection_errors { queue.file_affinity_discovered_tests }
+            profile['tests_discovered'] = discovered.to_i if discovered
+          end
+        end
 
         rss_kb = begin
           if File.exist?("/proc/#{Process.pid}/statm")

@@ -56,9 +56,17 @@ module CI
           redis.rpush(key('warnings'), Marshal.dump([type, attributes]))
         end
 
-        def record_error(entry, payload, stat_delta: nil)
-          # Run acknowledge first so we know whether we're the first to ack
-          acknowledged = @queue.acknowledge(entry, error: payload)
+        def record_error(entry, payload, stat_delta: nil, acknowledge: true)
+          if acknowledge
+            # Run acknowledge first so we know whether we're the first to ack
+            acknowledged = @queue.acknowledge(entry, error: payload)
+          else
+            # File-affinity per-test path: the test entry was never
+            # individually reserved, only the enclosing file. Use
+            # record_test_result.lua to write the failure and dedup via
+            # the processed-tests set (idempotent under mid-file reclaim).
+            acknowledged = record_test_result_failure(entry, payload)
+          end
 
           if acknowledged
             # We were the first to ack; another worker already ack'd would get falsy from SADD
@@ -71,13 +79,21 @@ module CI
           !!acknowledged
         end
 
-        def record_success(entry, skip_flaky_record: false)
-          acknowledged, error_reports_deleted_count, requeued_count, delta_json = redis.multi do |transaction|
-            @queue.acknowledge(entry, pipeline: transaction)
-            transaction.hdel(key('error-reports'), entry)
-            transaction.hget(key('requeues-count'), entry)
-            transaction.hget(key('error-report-deltas'), entry)
+        def record_success(entry, skip_flaky_record: false, acknowledge: true)
+          if acknowledge
+            acknowledged, error_reports_deleted_count, requeued_count, delta_json = redis.multi do |transaction|
+              @queue.acknowledge(entry, pipeline: transaction)
+              transaction.hdel(key('error-reports'), entry)
+              transaction.hget(key('requeues-count'), entry)
+              transaction.hget(key('error-report-deltas'), entry)
+            end
+          else
+            # File-affinity per-test success path: dedup via processed-tests,
+            # clear any prior error-report and apply stat-delta correction.
+            added, error_reports_deleted_count, requeued_count, delta_json = record_test_result_success(entry)
+            acknowledged = added.to_i > 0
           end
+
           # When we're replacing a failure, subtract the (single) acknowledging worker's stat contribution
           if error_reports_deleted_count.to_i > 0 && delta_json
             apply_error_report_delta_correction(delta_json)
@@ -199,6 +215,35 @@ module CI
 
         def key(*args)
           ['build', config.build_id, *args].join(':')
+        end
+
+        def record_test_result_failure(entry, payload)
+          result = @queue.send(:eval_script,
+            :record_test_result,
+            keys: [
+              key('processed-tests'),
+              key('error-reports'),
+              key('requeues-count'),
+              key('error-report-deltas'),
+            ],
+            argv: ['failure', entry, payload.to_s, config.redis_ttl],
+          )
+          result.is_a?(Array) ? result[0].to_i == 1 : !!result
+        end
+
+        def record_test_result_success(entry)
+          result = @queue.send(:eval_script,
+            :record_test_result,
+            keys: [
+              key('processed-tests'),
+              key('error-reports'),
+              key('requeues-count'),
+              key('error-report-deltas'),
+            ],
+            argv: ['success', entry, '', config.redis_ttl],
+          )
+          # Lua returns: { added, deleted_error_reports, requeues_count|false, delta_json|false }
+          result.is_a?(Array) ? result : [0, 0, false, false]
         end
 
         def store_error_report_delta(entry, stat_delta)

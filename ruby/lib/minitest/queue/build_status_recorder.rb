@@ -5,6 +5,7 @@ module Minitest
   module Queue
     class BuildStatusRecorder < Minitest::Reporters::BaseReporter
       COUNTERS = %w(
+        tests
         assertions
         errors
         failures
@@ -43,12 +44,18 @@ module Minitest
         entry = test.queue_entry
         delta = delta_for(test)
 
+        # File-affinity per-test path: when the test ran inside a file
+        # reservation, do not call queue.acknowledge on the test entry
+        # (it was never individually reserved). Use record_test_result.lua
+        # via BuildRecord's `acknowledge: false` path instead.
+        acknowledge = !test.respond_to?(:queue_acknowledge) || test.queue_acknowledge != false
+
         acknowledged = if (test.failure || test.error?) && !test.skipped?
-          build.record_error(entry, dump(test), stat_delta: delta)
+          build.record_error(entry, dump(test), stat_delta: delta, acknowledge: acknowledge)
         elsif test.requeued?
           build.record_requeue(entry)
         else
-          build.record_success(entry, skip_flaky_record: test.skipped?)
+          build.record_success(entry, skip_flaky_record: test.skipped?, acknowledge: acknowledge)
         end
 
         if acknowledged
@@ -67,13 +74,19 @@ module Minitest
       private
 
       def delta_for(test)
-        h = { 'assertions' => (test.assertions || 0).to_i, 'errors' => 0, 'failures' => 0, 'skips' => 0, 'requeues' => 0, 'total_time' => test.time.to_f }
+        h = { 'tests' => 0, 'assertions' => (test.assertions || 0).to_i, 'errors' => 0, 'failures' => 0, 'skips' => 0, 'requeues' => 0, 'total_time' => test.time.to_f }
         if (test.failure || test.error?) && !test.skipped?
           test.error? ? h['errors'] = 1 : h['failures'] = 1
+          h['tests'] = 1
         elsif test.requeued?
+          # Requeued attempts are intermediate, not terminal results. They do
+          # not increment the test count; the eventual terminal result will.
           h['requeues'] = 1
         elsif test.skipped?
           h['skips'] = 1
+          h['tests'] = 1
+        else
+          h['tests'] = 1
         end
         h
       end

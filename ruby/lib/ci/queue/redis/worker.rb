@@ -18,6 +18,20 @@ module CI
       # downstream code doesn't crash with NoMethodError on a raw String.
       UnresolvedEntry = Struct.new(:id, :queue_entry)
 
+      # Describes the current reservation context yielded out of `poll`.
+      # Callers in file-affinity mode use this to learn whether the example
+      # they are running came from a per-test reservation or from inside a
+      # file reservation.
+      Reservation = Struct.new(:type, :entry, :lease, keyword_init: true) do
+        def file?
+          type == :file
+        end
+
+        def test?
+          type == :test
+        end
+      end
+
       class Worker < Base
         attr_accessor :entry_resolver
         attr_reader :first_reserve_at
@@ -109,21 +123,18 @@ module CI
 
         DEFAULT_SLEEP_SECONDS = 0.5
 
-        def poll
+        def poll(&block)
           wait_for_master(timeout: config.queue_init_timeout, allow_streaming: true)
           attempt = 0
           until shutdown_required? || config.circuit_breakers.any?(&:open?) || exhausted? || max_test_failed?
             if entry = reserve
               attempt = 0
               if CI::Queue::QueueEntry.file_entry?(entry)
-                # Step 3: file entries are accepted at the queue layer but the
-                # worker dispatch path lands in the next commit. Raise loudly
-                # so misconfiguration is caught immediately.
-                raise NotImplementedError,
-                  "file-affinity worker dispatch is not yet implemented (entry=#{entry.inspect}). " \
-                  "Wait for process_file_entry to land before enabling --file-affinity end-to-end."
+                process_file_entry(entry, &block)
+              else
+                reservation = Reservation.new(type: :test, entry: entry, lease: lease_for(entry))
+                yield_reservation(resolve_entry(entry), reservation, &block)
               end
-              yield resolve_entry(entry)
             else
               if still_streaming?
                 raise LostMaster, "Streaming stalled for more than #{config.lazy_load_streaming_timeout}s" if streaming_stale?
@@ -200,6 +211,39 @@ module CI
           @reserved_leases[CI::Queue::QueueEntry.reservation_key(entry)]
         end
 
+        # Reservation context for the work unit currently being yielded out
+        # of poll. Set by `process_file_entry` while it iterates examples
+        # inside a file; nil otherwise. Used by `Minitest::Queue.run` to
+        # heartbeat against the file's lease.
+        attr_reader :current_reservation
+
+        def current_reservation_entry
+          @current_reservation&.entry
+        end
+
+        def current_reservation_lease
+          @current_reservation&.lease
+        end
+
+        # File-affinity worker-profile accessors. Read by `store_worker_profile`
+        # to surface per-worker file-affinity metrics. Empty/zero in non-
+        # file-affinity mode.
+        def file_affinity_files_run
+          @file_affinity_files_run ||= 0
+        end
+
+        def file_affinity_per_file_timings
+          @file_affinity_per_file_timings ||= []
+        end
+
+        # Top-N slowest files this worker processed, sorted descending by
+        # wall-clock duration. Surfaced in WorkerProfileReporter when debug
+        # is enabled. N defaults to 10; the supervisor aggregates across
+        # workers to compute global P50/P95/P99.
+        def file_affinity_slowest_files(limit: 10)
+          (@file_affinity_slow_files || []).first(limit)
+        end
+
         def report_worker_error(error)
           build.report_worker_error(error)
         end
@@ -263,6 +307,130 @@ module CI
         private
 
         attr_reader :index
+
+        # File-affinity: load the file once, discover its tests, and run all
+        # of them under the file's reservation/lease. The file is the work
+        # unit ci-queue tracks; per-test results are recorded out-of-band
+        # via BuildStatusRecorder + record_test_result.lua.
+        def process_file_entry(entry)
+          file_path = CI::Queue::QueueEntry.file_path(entry)
+          lease = lease_for(entry)
+          reservation = Reservation.new(type: :file, entry: entry, lease: lease)
+          deadline = file_affinity_deadline
+          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+          examples = file_entry_discovery.enumerator([file_path]).to_a
+          record_file_affinity_discovery(examples.size)
+
+          examples.each do |example|
+            yield_reservation(example, reservation) { |*args| yield(*args) }
+            warn_file_over_soft_cap(file_path, deadline) if deadline && over_soft_cap?(deadline)
+          end
+
+          record_file_affinity_completion(file_path, started_at)
+          acknowledge(entry)
+        rescue ReservationError
+          # The file is no longer reserved by us (already acked, or lease
+          # was reassigned via reserve_lost). Nothing more to do.
+        rescue *CONNECTION_ERRORS
+          raise
+        rescue => e
+          build.report_worker_error(e)
+          # Leave the file unacked: reserve_lost.lua will reclaim it for
+          # another worker.
+          raise
+        end
+
+        # Yield the example with optional reservation context for callers
+        # that opt in to a 2-arg block. Sets `current_reservation` for the
+        # duration of the yield so heartbeat/requeue paths can read it.
+        def yield_reservation(example, reservation)
+          previous = @current_reservation
+          @current_reservation = reservation
+          if block_given?
+            yield example, reservation
+          end
+        ensure
+          @current_reservation = previous
+        end
+
+        # Lazily construct a LazyTestDiscovery on first file entry. Defer
+        # the require so non-file-affinity workers don't pay for loading
+        # discovery infrastructure.
+        def file_entry_discovery
+          @file_entry_discovery ||= begin
+            require 'minitest/queue/lazy_test_discovery'
+            Minitest::Queue::LazyTestDiscovery.new(
+              loader: file_loader,
+              resolver: CI::Queue::ClassResolver,
+            )
+          end
+        end
+
+        def file_affinity_deadline
+          cap = config.file_affinity_max_file_seconds
+          return nil unless cap && cap > 0
+          Process.clock_gettime(Process::CLOCK_MONOTONIC) + cap
+        end
+
+        def over_soft_cap?(deadline)
+          Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+        end
+
+        # Idempotent: only emit one warning per file even if many tests
+        # cross the cap inside the same file.
+        def warn_file_over_soft_cap(file_path, deadline)
+          @file_affinity_warned_for ||= {}
+          return if @file_affinity_warned_for[file_path]
+          @file_affinity_warned_for[file_path] = true
+          build.record_warning(
+            Warnings::FILE_AFFINITY_FILE_OVER_CAP,
+            file_path: file_path,
+            cap_seconds: config.file_affinity_max_file_seconds,
+          )
+        end
+
+        # Increment a Redis counter of total examples discovered across all
+        # workers. Feeds (1) the global requeue-tolerance denominator (so
+        # `--requeue-tolerance` is closer to the per-test denominator we'd
+        # have under eager mode) and (2) the worker profile `tests_discovered`
+        # field.
+        def record_file_affinity_discovery(count)
+          return if count.to_i <= 0
+          redis.pipelined do |pipeline|
+            pipeline.incrby(key('file-affinity-discovered-tests'), count)
+            pipeline.expire(key('file-affinity-discovered-tests'), config.redis_ttl)
+          end
+        rescue *CONNECTION_ERRORS
+          # Counter is best-effort; failure here just means the global
+          # denominator stays at the file count for a bit longer.
+        end
+
+        def file_affinity_discovered_tests
+          redis.get(key('file-affinity-discovered-tests')).to_i
+        rescue *CONNECTION_ERRORS
+          0
+        end
+
+        # Per-file completion bookkeeping for the worker profile.
+        SLOW_FILE_TRACK_LIMIT = 100
+        private_constant :SLOW_FILE_TRACK_LIMIT
+
+        def record_file_affinity_completion(file_path, started_at)
+          duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+          @file_affinity_files_run = file_affinity_files_run + 1
+          file_affinity_per_file_timings << duration
+
+          slow_list = (@file_affinity_slow_files ||= [])
+          slow_list << [file_path, duration]
+          # Keep only the top SLOW_FILE_TRACK_LIMIT slowest entries to bound memory.
+          if slow_list.size > SLOW_FILE_TRACK_LIMIT
+            slow_list.sort_by! { |_, d| -d }
+            slow_list.slice!(SLOW_FILE_TRACK_LIMIT..-1)
+          else
+            slow_list.sort_by! { |_, d| -d }
+          end
+        end
 
         def reserved_tests
           @reserved_tests ||= Concurrent::Set.new

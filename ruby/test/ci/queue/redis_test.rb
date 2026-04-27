@@ -84,38 +84,185 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_includes consumer.send(:reserved_tests), 'FooTest#test_bar'
   end
 
-  def test_poll_raises_for_file_entry_until_dispatch_is_implemented
-    # Step 3 contract: the queue layer accepts file entries (so the leader
-    # can stream them under --file-affinity), but the worker dispatch path
-    # is implemented in a later commit. Until then the worker raises a
-    # clear NotImplementedError when it actually tries to run a file entry.
+  def test_record_test_result_failure_is_idempotent_under_reclaim
     @redis.flushdb
-    build_id = 'file-entry-gate'
+    consumer = worker(1)
+    test_entry = CI::Queue::QueueEntry.format('FooTest#test_bar', '/tmp/foo_test.rb')
+
+    # First failure recording: writes to error-reports and increments
+    # test_failed_count.
+    refute consumer.build.record_test_result_failure(test_entry, 'first error')
+    # ^ private; call via send
+  rescue NoMethodError
+    # Use the public path instead.
+    @redis.flushdb
+    consumer = worker(1)
+    test_entry = CI::Queue::QueueEntry.format('FooTest#test_bar', '/tmp/foo_test.rb')
+
+    assert consumer.build.record_error(test_entry, 'first error', acknowledge: false)
+    assert_equal 'first error', @redis.hget(consumer.send(:key, 'error-reports'), test_entry)
+    assert_includes @redis.smembers(consumer.send(:key, 'processed-tests')), test_entry
+
+    # Second failure for the same test entry (e.g. mid-file reclaim re-runs):
+    # is a no-op for stats (returns false), error-reports payload stays
+    # whatever was first written.
+    refute consumer.build.record_error(test_entry, 'second error', acknowledge: false)
+    assert_equal 'first error', @redis.hget(consumer.send(:key, 'error-reports'), test_entry)
+    # test_failed_count must not double-increment.
+    assert_equal 1, @redis.get(consumer.send(:key, 'test_failed_count')).to_i
+  end
+
+  def test_record_test_result_success_clears_prior_failure
+    @redis.flushdb
+    consumer = worker(1)
+    test_entry = CI::Queue::QueueEntry.format('FooTest#test_bar', '/tmp/foo_test.rb')
+
+    # Record a failure first (with a stat delta so we can verify correction).
+    assert consumer.build.record_error(test_entry, 'first error',
+                                       stat_delta: { 'tests' => 1, 'failures' => 1 },
+                                       acknowledge: false)
+    assert_equal 'first error', @redis.hget(consumer.send(:key, 'error-reports'), test_entry)
+
+    # Now success. processed-tests already has the entry, so SADD returns 0
+    # but the error report should be cleared and the delta correction applied.
+    consumer.build.record_success(test_entry, acknowledge: false)
+    assert_nil @redis.hget(consumer.send(:key, 'error-reports'), test_entry)
+  end
+
+  def test_file_affinity_end_to_end_records_per_test_results
+    @redis.flushdb
+    build_id = 'file-affinity-e2e'
+    leader = worker(1, populate: false, lazy_load_streaming_timeout: 2, queue_init_timeout: 2,
+                       file_affinity: true, build_id: build_id)
+    consumer = worker(2, populate: false, lazy_load_streaming_timeout: 2, queue_init_timeout: 2,
+                         file_affinity: true, build_id: build_id)
+    consumer.entry_resolver = ->(entry) { entry }
+
+    leader_thread = nil
+    Dir.mktmpdir do |dir|
+      file_path = File.join(dir, "e2e_test.rb")
+      class_name = "FAE2E#{Process.pid}#{rand(1_000_000)}"
+      File.write(file_path, <<~RUBY)
+        class #{class_name} < Minitest::Test
+          def test_pass; assert true; end
+          def test_fail; assert false, "intentional"; end
+        end
+      RUBY
+
+      leader_thread = Thread.new do
+        leader.stream_populate([CI::Queue::QueueEntry.format_file(file_path)].each,
+                               random: Random.new(0), batch_size: 10)
+      end
+      wait_until_master_ready(leader)
+
+      consumer.poll do |example, reservation|
+        result = example.run
+        # Mimic Minitest::Queue.handle_test_result + BuildStatusRecorder:
+        result.queue_entry = example.queue_entry if result.respond_to?(:queue_entry=)
+        result.queue_acknowledge = !reservation&.file? if result.respond_to?(:queue_acknowledge=)
+        delta = { 'tests' => 1 }
+        if result.failure || result.error?
+          delta['failures'] = 1
+          consumer.build.record_error(example.queue_entry, 'failed payload',
+                                      stat_delta: delta, acknowledge: !reservation.file?)
+        else
+          consumer.build.record_success(example.queue_entry,
+                                        acknowledge: !reservation.file?)
+        end
+        consumer.build.record_stats_delta(delta)
+      end
+      Object.send(:remove_const, class_name) if Object.const_defined?(class_name)
+    end
+    leader_thread.join(2)
+
+    # Exactly one file entry in processed (the file).
+    assert_equal 1, @redis.scard(consumer.send(:key, 'processed'))
+    # Two test entries in processed-tests (per-test idempotency set).
+    assert_equal 2, @redis.scard(consumer.send(:key, 'processed-tests'))
+    # One failure recorded in error-reports keyed by test entry.
+    failed = @redis.hkeys(consumer.send(:key, 'error-reports'))
+    assert_equal 1, failed.size
+    assert_equal 'FAE2E', CI::Queue::QueueEntry.test_id(failed.first).split('#').first[0, 5]
+    assert_match(/test_fail/, CI::Queue::QueueEntry.test_id(failed.first))
+    # test_failed_count incremented exactly once (only the failure was acknowledged).
+    assert_equal 1, @redis.get(consumer.send(:key, 'test_failed_count')).to_i
+    # tests stat counter incremented twice across the worker's stats hash.
+    tests_total = consumer.build.fetch_stats(['tests'])['tests'].to_i
+    assert_equal 2, tests_total
+    # Cluster-wide discovered-tests counter reflects the file's 2 tests.
+    assert_equal 2, consumer.send(:file_affinity_discovered_tests)
+  end
+
+  def test_poll_processes_file_entry_yielding_examples_with_file_reservation
+    # End-to-end smoke for file-affinity dispatch: the leader streams a
+    # file entry, the consumer reserves the file, discovers its tests,
+    # yields each example with a :file reservation, and acknowledges the
+    # file when done.
+    @redis.flushdb
+    build_id = 'file-entry-dispatch'
     leader = worker(1, populate: false, lazy_load_streaming_timeout: 2, queue_init_timeout: 2, build_id: build_id)
     consumer = worker(2, populate: false, lazy_load_streaming_timeout: 2, queue_init_timeout: 2, build_id: build_id)
+    consumer.entry_resolver = ->(entry) { entry }
 
-    file_entries = [
-      CI::Queue::QueueEntry.format_file('/tmp/file_gate_a_test.rb'),
-    ]
-    leader_thread = Thread.new do
-      leader.stream_populate(file_entries.each, random: Random.new(0), batch_size: 10)
+    yielded = []
+    Dir.mktmpdir do |dir|
+      file_path = File.join(dir, "poll_dispatch_test.rb")
+      class_name = "PollDispatch#{Process.pid}#{rand(1_000_000)}"
+      File.write(file_path, <<~RUBY)
+        class #{class_name} < Minitest::Test
+          def test_one; assert true; end
+          def test_two; assert true; end
+        end
+      RUBY
+
+      leader_thread = Thread.new do
+        leader.stream_populate([CI::Queue::QueueEntry.format_file(file_path)].each,
+                               random: Random.new(0), batch_size: 10)
+      end
+      wait_until_master_ready(leader)
+
+      consumer.poll do |example, reservation|
+        yielded << [example.id, reservation&.file?]
+      end
+      leader_thread.join(2)
+      Object.send(:remove_const, class_name) if Object.const_defined?(class_name)
     end
 
-    timeout_at = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2
+    yielded_ids = yielded.map(&:first)
+    assert_equal 2, yielded_ids.size
+    assert(yielded_ids.all? { |id| id.match?(/PollDispatch\d+#test_(one|two)/) }, "unexpected ids: #{yielded_ids.inspect}")
+    assert(yielded.all? { |_, is_file| is_file }, "all examples must come with a :file reservation")
+
+    # File entry must have been acked into processed.
+    processed = @redis.smembers(consumer.send(:key, 'processed'))
+    assert_equal 1, processed.size
+    assert CI::Queue::QueueEntry.file_entry?(processed.first)
+
+    # Per-file metrics surfaced for the worker profile.
+    assert_equal 1, consumer.file_affinity_files_run
+    assert_equal 1, consumer.file_affinity_per_file_timings.size
+    slowest = consumer.file_affinity_slowest_files
+    assert_equal 1, slowest.size
+    assert_equal "poll_dispatch_test.rb", File.basename(slowest.first.first)
+    assert slowest.first.last > 0
+
+    # Cluster-wide discovered-tests counter incremented for the requeue-tolerance denominator.
+    assert_equal 2, consumer.send(:file_affinity_discovered_tests)
+  end
+
+  private
+
+  def wait_until_master_ready(leader, timeout: 2)
+    timeout_at = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
     loop do
       status = @redis.get(leader.send(:key, 'master-status'))
-      break if status == 'ready'
+      return if status == 'ready'
       raise "streaming status not set" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > timeout_at
       sleep 0.01
     end
-
-    error = assert_raises(NotImplementedError) do
-      consumer.poll { |_example| flunk "poll should raise before yielding for a file entry in step 3" }
-    end
-    assert_match(/file-affinity/, error.message)
-  ensure
-    leader_thread&.kill
   end
+
+  public
 
   def test_retry_queue_with_all_tests_passing_2
     poll(@queue)
