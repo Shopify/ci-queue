@@ -78,6 +78,100 @@ Backward-compatible env var aliases: `CI_QUEUE_STREAM_BATCH_SIZE`, `CI_QUEUE_STR
 
 When `CI_QUEUE_DEBUG=1` is set, file loading stats are printed at the end of the run.
 
+#### File-affinity mode (opt-in)
+
+File-affinity mode treats each **test file** as the queue's work unit instead of each
+test method. The leader streams file paths to Redis; each worker reserves one file
+at a time, loads it once, runs all of its tests, and acknowledges the file. Per-test
+results, error reporting, and per-test inline retries are unchanged.
+
+This amortizes per-file fixed costs (Rails boot for a fresh worker, one-shot file
+`require`, fixture file `setup_all`) across all of a file's tests instead of paying
+them once per test. For Rails-heavy suites where a single worker may run many tests
+from the same file, this can substantially reduce wall-clock and per-worker memory.
+
+```bash
+minitest-queue --queue redis://example.com --file-affinity \
+  --heartbeat 30 --heartbeat-max-test-duration 600 \
+  run -Itest test/**/*_test.rb
+```
+
+**Semantics**
+
+- *First pass* is file-granular. Each file is reserved by exactly one worker.
+- *Failed tests* are requeued individually as test entries (not the whole file)
+  via a separate Lua path, so retries are picked up by any worker. Per-test
+  `--max-requeues` and `--requeue-tolerance` work as today.
+- *Mid-file reclaim* (worker crashes / heartbeat expires) re-runs the entire
+  file on another worker. A separate `processed-tests` Redis set deduplicates
+  per-test results across reclaim, so stats stay correct.
+- *Soft-cap warning*: if a single file takes longer than
+  `--file-affinity-max-file-seconds`, a `FILE_AFFINITY_FILE_OVER_CAP` warning
+  is recorded but the file finishes (warn-only in v1).
+- Implies `--lazy-load`. The leader requires only `lazy_load_test_helpers`,
+  not test files.
+- Incompatible with `--preresolved-tests`, bisect, and grind. Redis-only.
+
+**CLI flags**
+
+| Flag | Description |
+|---|---|
+| `--file-affinity` | Enable file-affinity mode |
+| `--file-affinity-max-file-seconds SECONDS` | Soft per-file cap. Warn-only in v1; the file still finishes. |
+
+**Environment variables**
+
+| Variable | Description |
+|---|---|
+| `CI_QUEUE_FILE_AFFINITY=1` | Equivalent to `--file-affinity` |
+| `CI_QUEUE_FILE_AFFINITY_MAX_FILE_SECONDS=N` | Same as `--file-affinity-max-file-seconds` |
+
+**Worker profile**
+
+With `CI_QUEUE_DEBUG=1`, the supervisor prints a file-affinity-specific
+summary at the end of the run:
+
+```
+Worker profile summary (90 workers, mode: file_affinity):
+  Worker       Role          Files    Tests       1st Test     Wall Clock     File P95     Memory
+  ----------------------------------------------------------------------------------------------------
+  0            leader          412      28012        0.36s        540.12s       12.04s     934 MB
+  1            non-leader      407      28012        0.41s        538.55s       11.92s     921 MB
+  ...
+
+  File-affinity aggregates:
+    Files run total:     36000
+    Tests discovered:    28012
+    Per-file wall clock: P50=0.42s  P95=12.04s  P99=24.81s  max=87.30s
+    Slowest files:
+       87.30s  test/integration/some_pathological_test.rb
+       ...
+```
+
+The `Per-file wall clock` percentiles are the headline metric for evaluating
+file-affinity wins vs lazy / eager modes.
+
+**Tag filtering bridge**
+
+In lazy and file-affinity modes the leader does not call `Minitest.loaded_tests`,
+so a host app's tag-filtering code that hooks `loaded_tests` is bypassed. Wire
+filtering through the new extension point instead:
+
+```ruby
+require 'ci/queue'
+
+CI::Queue.test_inclusion_filter = ->(runnable, method_name) {
+  MyApp::Tagging.match?(runnable, method_name)
+}
+```
+
+The filter is consulted inside lazy discovery (and the eager `loaded_tests`
+fallback for symmetry), so tagged-out tests never become queue entries.
+Load-error synthetic examples bypass the filter so broken files still surface.
+
+For the full design, semantics, and rollout plan, see
+[`docs/file-affinity-mode-implementation-plan.md`](../docs/file-affinity-mode-implementation-plan.md).
+
 #### Preresolved test names (opt-in)
 
 For large test suites, you can pre-compute the full list of test names on a stable branch
