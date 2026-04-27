@@ -205,5 +205,89 @@ module Minitest::Queue
       assert_equal 7, queue.streamed_with[:batch_size]
       assert_nil queue.populated_with
     end
+
+    def test_file_affinity_mode_streams_file_entries
+      queue = FakeQueue.new
+      config = CI::Queue::Configuration.new(file_affinity: true, lazy_load_stream_batch_size: 4)
+      streamed_entries = nil
+
+      Dir.mktmpdir do |dir|
+        file_a = File.join(dir, "a_test.rb")
+        file_b = File.join(dir, "b_test.rb")
+        File.write(file_a, "# noop\n")
+        File.write(file_b, "# noop\n")
+
+        strategy = QueuePopulationStrategy.new(
+          queue: queue,
+          queue_config: config,
+          argv: [file_b, file_a], # leader sorts before streaming
+          test_files_file: nil,
+          ordering_seed: Random.new(0),
+        )
+        strategy.load_and_populate!
+
+        streamed_entries = queue.streamed_with[:tests].to_a
+      end
+
+      assert queue.streamed_with, "file-affinity should stream entries"
+      assert_nil queue.populated_with
+      assert_equal 4, queue.streamed_with[:batch_size]
+      assert_equal 2, streamed_entries.size
+      streamed_entries.each do |entry|
+        assert CI::Queue::QueueEntry.file_entry?(entry), "expected file entry, got #{entry.inspect}"
+      end
+      file_paths = streamed_entries.map { |e| CI::Queue::QueueEntry.file_path(e) }
+      assert_equal file_paths.sort, file_paths, "file entries should be streamed in sorted order"
+    end
+
+    def test_file_affinity_mode_does_not_require_test_files_on_leader
+      # The leader must not load any test files — only helpers if configured.
+      queue = FakeQueue.new
+      config = CI::Queue::Configuration.new(file_affinity: true)
+      sentinel = "FILE_AFFINITY_LEADER_LOADED_#{rand(1_000_000)}"
+
+      Dir.mktmpdir do |dir|
+        # If the leader were to require this file, it would set the constant.
+        file = File.join(dir, "#{sentinel.downcase}_test.rb")
+        File.write(file, "#{sentinel} = true\n")
+
+        strategy = QueuePopulationStrategy.new(
+          queue: queue,
+          queue_config: config,
+          argv: [file],
+          test_files_file: nil,
+          ordering_seed: Random.new(0),
+        )
+        strategy.load_and_populate!
+
+        refute Object.const_defined?(sentinel),
+          "file-affinity leader must not require test files"
+        assert_equal 1, queue.streamed_with[:tests].to_a.size
+      end
+    end
+
+    def test_file_affinity_total_files_reflects_streamed_count
+      queue = FakeQueue.new
+      config = CI::Queue::Configuration.new(file_affinity: true)
+
+      Dir.mktmpdir do |dir|
+        files = 3.times.map do |i|
+          path = File.join(dir, "foo_#{i}_test.rb")
+          File.write(path, "# noop\n")
+          path
+        end
+
+        strategy = QueuePopulationStrategy.new(
+          queue: queue,
+          queue_config: config,
+          argv: files,
+          test_files_file: nil,
+          ordering_seed: Random.new(0),
+        )
+        strategy.load_and_populate!
+
+        assert_equal 3, strategy.total_files
+      end
+    end
   end
 end

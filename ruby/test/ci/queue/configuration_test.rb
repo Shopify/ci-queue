@@ -214,5 +214,47 @@ module CI::Queue
       assert_equal 3, config.heartbeat_max_test_duration
     end
 
+    def test_file_affinity_defaults
+      config = Configuration.new
+      refute config.file_affinity
+      assert_nil config.file_affinity_max_file_seconds
+    end
+
+    def test_file_affinity_from_env
+      config = Configuration.from_env(
+        "CI_QUEUE_FILE_AFFINITY" => "1",
+        "CI_QUEUE_FILE_AFFINITY_MAX_FILE_SECONDS" => "600",
+      )
+      assert config.file_affinity
+      assert_equal 600.0, config.file_affinity_max_file_seconds
+    end
+
+    def test_file_affinity_from_env_disabled
+      config = Configuration.from_env("CI_QUEUE_FILE_AFFINITY" => "0")
+      refute config.file_affinity
+
+      config = Configuration.from_env("CI_QUEUE_FILE_AFFINITY" => "")
+      refute config.file_affinity
+    end
+
+    def test_file_affinity_implies_lazy_load
+      config = Configuration.new(file_affinity: true)
+      assert config.lazy_load, "file_affinity must imply lazy_load so the runner picks the lazy execution branch"
+      assert config.file_affinity
+    end
+
+    def test_lazy_load_independent_of_file_affinity
+      config = Configuration.new(lazy_load: true)
+      refute config.file_affinity
+      assert config.lazy_load
+    end
+
+    def test_file_affinity_setter
+      config = Configuration.new
+      refute config.lazy_load
+      config.file_affinity = true
+      assert config.lazy_load, "setting file_affinity at runtime must also imply lazy_load"
+    end
+
   end
 end

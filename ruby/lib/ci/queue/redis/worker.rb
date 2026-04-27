@@ -115,6 +115,14 @@ module CI
           until shutdown_required? || config.circuit_breakers.any?(&:open?) || exhausted? || max_test_failed?
             if entry = reserve
               attempt = 0
+              if CI::Queue::QueueEntry.file_entry?(entry)
+                # Step 3: file entries are accepted at the queue layer but the
+                # worker dispatch path lands in the next commit. Raise loudly
+                # so misconfiguration is caught immediately.
+                raise NotImplementedError,
+                  "file-affinity worker dispatch is not yet implemented (entry=#{entry.inspect}). " \
+                  "Wait for process_file_entry to land before enabling --file-affinity end-to-end."
+              end
               yield resolve_entry(entry)
             else
               if still_streaming?

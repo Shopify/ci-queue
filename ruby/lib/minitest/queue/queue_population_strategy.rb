@@ -28,7 +28,10 @@ module Minitest
       attr_reader :queue, :queue_config, :argv, :test_files_file, :ordering_seed, :preresolved_test_list
 
       def populate_queue
-        if preresolved_test_list && queue.respond_to?(:stream_populate)
+        if queue_config.file_affinity && queue.respond_to?(:stream_populate)
+          configure_lazy_queue
+          queue.stream_populate(file_entry_enumerator, random: ordering_seed, batch_size: queue_config.lazy_load_stream_batch_size)
+        elsif preresolved_test_list && queue.respond_to?(:stream_populate)
           configure_lazy_queue
           queue.stream_populate(preresolved_entry_enumerator, random: ordering_seed, batch_size: queue_config.lazy_load_stream_batch_size)
         elsif queue_config.lazy_load && queue.respond_to?(:stream_populate)
@@ -158,6 +161,18 @@ module Minitest
         files = test_file_list.sort
 
         Minitest::Queue::LazyTestDiscovery.new(loader: loader, resolver: resolver).enumerator(files)
+      end
+
+      # File-affinity mode: stream one entry per test file. The leader does
+      # not require any test files; workers load each file on demand and run
+      # all of its tests under the file's reservation.
+      def file_entry_enumerator
+        files = test_file_list.sort
+        Enumerator.new do |yielder|
+          files.each do |file_path|
+            yielder << CI::Queue::QueueEntry.format_file(file_path)
+          end
+        end
       end
 
       # Returns the list of test files to process. Prefers --test-files FILE

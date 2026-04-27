@@ -7,10 +7,13 @@ module CI
       attr_accessor :max_test_duration, :max_test_duration_percentile, :track_test_duration
       attr_accessor :max_test_failed, :redis_ttl, :warnings_file, :debug_log, :max_missed_heartbeat_seconds
       attr_writer :heartbeat_max_test_duration
-      attr_accessor :lazy_load, :lazy_load_stream_batch_size
+      attr_writer :lazy_load
+      attr_accessor :lazy_load_stream_batch_size
       attr_writer :lazy_load_streaming_timeout
       attr_accessor :lazy_load_test_helpers
       attr_accessor :skip_stale_tests
+      attr_accessor :file_affinity
+      attr_accessor :file_affinity_max_file_seconds
       attr_reader :circuit_breakers
       attr_writer :seed, :build_id
       attr_writer :queue_init_timeout, :report_timeout, :inactive_workers_timeout
@@ -34,6 +37,8 @@ module CI
             lazy_load_streaming_timeout: (env['CI_QUEUE_LAZY_LOAD_STREAM_TIMEOUT'] || env['CI_QUEUE_STREAM_TIMEOUT'])&.to_i,
             lazy_load_test_helpers: env['CI_QUEUE_LAZY_LOAD_TEST_HELPERS'] || env['CI_QUEUE_TEST_HELPERS'],
             skip_stale_tests: %w(1 true).include?(env['CI_QUEUE_SKIP_STALE_TESTS']&.strip&.downcase),
+            file_affinity: %w(1 true).include?(env['CI_QUEUE_FILE_AFFINITY']&.strip&.downcase),
+            file_affinity_max_file_seconds: env['CI_QUEUE_FILE_AFFINITY_MAX_FILE_SECONDS']&.to_f,
           )
         end
 
@@ -60,7 +65,7 @@ module CI
         queue_init_timeout: nil, redis_ttl: 8 * 60 * 60, report_timeout: nil, inactive_workers_timeout: nil,
         export_flaky_tests_file: nil, warnings_file: nil, debug_log: nil, max_missed_heartbeat_seconds: nil, heartbeat_max_test_duration: nil,
         lazy_load: false, lazy_load_stream_batch_size: nil, lazy_load_streaming_timeout: nil, lazy_load_test_helpers: nil,
-        skip_stale_tests: false)
+        skip_stale_tests: false, file_affinity: false, file_affinity_max_file_seconds: nil)
         @build_id = build_id
         @circuit_breakers = [CircuitBreaker::Disabled]
         @failure_file = failure_file
@@ -93,6 +98,16 @@ module CI
         @lazy_load_streaming_timeout = lazy_load_streaming_timeout
         @lazy_load_test_helpers = lazy_load_test_helpers
         @skip_stale_tests = skip_stale_tests
+        @file_affinity = file_affinity
+        @file_affinity_max_file_seconds = file_affinity_max_file_seconds
+      end
+
+      # File-affinity is a stricter form of lazy_load: the leader does not
+      # require any test files (only helpers), workers load each file on
+      # demand. Treat any file_affinity = true config as lazy_load = true so
+      # the runner picks the lazy execution branch.
+      def lazy_load
+        @lazy_load || @file_affinity
       end
 
       def lazy_load_test_helper_paths

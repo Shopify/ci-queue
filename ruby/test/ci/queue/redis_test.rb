@@ -84,6 +84,39 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_includes consumer.send(:reserved_tests), 'FooTest#test_bar'
   end
 
+  def test_poll_raises_for_file_entry_until_dispatch_is_implemented
+    # Step 3 contract: the queue layer accepts file entries (so the leader
+    # can stream them under --file-affinity), but the worker dispatch path
+    # is implemented in a later commit. Until then the worker raises a
+    # clear NotImplementedError when it actually tries to run a file entry.
+    @redis.flushdb
+    build_id = 'file-entry-gate'
+    leader = worker(1, populate: false, lazy_load_streaming_timeout: 2, queue_init_timeout: 2, build_id: build_id)
+    consumer = worker(2, populate: false, lazy_load_streaming_timeout: 2, queue_init_timeout: 2, build_id: build_id)
+
+    file_entries = [
+      CI::Queue::QueueEntry.format_file('/tmp/file_gate_a_test.rb'),
+    ]
+    leader_thread = Thread.new do
+      leader.stream_populate(file_entries.each, random: Random.new(0), batch_size: 10)
+    end
+
+    timeout_at = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2
+    loop do
+      status = @redis.get(leader.send(:key, 'master-status'))
+      break if status == 'ready'
+      raise "streaming status not set" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > timeout_at
+      sleep 0.01
+    end
+
+    error = assert_raises(NotImplementedError) do
+      consumer.poll { |_example| flunk "poll should raise before yielding for a file entry in step 3" }
+    end
+    assert_match(/file-affinity/, error.message)
+  ensure
+    leader_thread&.kill
+  end
+
   def test_retry_queue_with_all_tests_passing_2
     poll(@queue)
     retry_queue = @queue.retry_queue

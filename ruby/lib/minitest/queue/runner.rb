@@ -39,12 +39,33 @@ module Minitest
         invalid_usage!('Missing queue URL') unless queue_url
 
         @queue = CI::Queue.from_uri(queue_url, queue_config)
+        validate_file_affinity!
 
         method = "#{command}_command"
         if respond_to?(method)
           public_send(method)
         else
           invalid_usage!("Unknown command: #{command}")
+        end
+      end
+
+      def validate_file_affinity!
+        return unless queue_config.file_affinity
+
+        unless queue.distributed?
+          invalid_usage!("--file-affinity requires a Redis queue")
+        end
+        if preresolved_test_list
+          invalid_usage!("--file-affinity is incompatible with --preresolved-tests")
+        end
+        if queue_config.failing_test
+          invalid_usage!("--file-affinity is incompatible with bisect (--failing-test)")
+        end
+        if queue_config.grind_count
+          invalid_usage!("--file-affinity is incompatible with grind")
+        end
+        unless command == 'run' || command == 'retry'
+          invalid_usage!("--file-affinity is only supported for the `run` subcommand")
         end
       end
 
@@ -593,6 +614,28 @@ module Minitest
           opts.separator ""
           opts.on('--lazy-load-stream-timeout SECONDS', Integer, help) do |seconds|
             queue_config.lazy_load_streaming_timeout = seconds
+          end
+
+          help = <<~EOS
+            Treat each test file as the queue's work unit instead of each test method.
+            The leader streams file paths to Redis; workers reserve one file at a time,
+            load it once, run all of its tests, then acknowledge the file. Failed tests
+            are requeued individually as test entries.
+            Implies --lazy-load. Incompatible with --preresolved-tests, bisect, and grind.
+            Redis-only.
+          EOS
+          opts.separator ""
+          opts.on('--file-affinity', help) do
+            queue_config.file_affinity = true
+          end
+
+          help = <<~EOS
+            Soft cap on how many seconds a worker is allowed to spend in a single file
+            before logging a warning. v1 is warn-only; the file still finishes.
+          EOS
+          opts.separator ""
+          opts.on('--file-affinity-max-file-seconds SECONDS', Float, help) do |seconds|
+            queue_config.file_affinity_max_file_seconds = seconds
           end
 
           help = <<~EOS
