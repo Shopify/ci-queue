@@ -556,7 +556,8 @@ module Minitest
 
     def loaded_tests
       Minitest::Test.runnables.flat_map do |runnable|
-        runnable.runnable_methods.map do |method_name|
+        runnable.runnable_methods.filter_map do |method_name|
+          next unless CI::Queue.include_test?(runnable, method_name)
           SingleExample.new(runnable, method_name)
         end
       end

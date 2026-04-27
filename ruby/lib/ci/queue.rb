@@ -22,7 +22,7 @@ module CI
   module Queue
     extend self
 
-    attr_accessor :shuffler, :requeueable
+    attr_accessor :shuffler, :requeueable, :test_inclusion_filter
 
     Error = Class.new(StandardError)
     ClassNotFoundError = Class.new(Error)
@@ -53,6 +53,19 @@ module CI
 
     def requeueable?(test_result)
       requeueable.nil? || requeueable.call(test_result)
+    end
+
+    # Returns true if the given test should be enqueued / discovered.
+    # When `test_inclusion_filter` is unset, all tests are kept.
+    #
+    # The filter is invoked with the test's runnable class and method name.
+    # Hosting apps (e.g. shop-server) can wire this up to their tagging system
+    # so that tag filtering applies uniformly across eager, lazy, and
+    # file-affinity discovery paths.
+    def include_test?(runnable, method_name)
+      filter = test_inclusion_filter
+      return true unless filter
+      filter.call(runnable, method_name)
     end
 
     def shuffle(tests, random)

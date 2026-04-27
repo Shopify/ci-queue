@@ -138,6 +138,7 @@ module Minitest
           runnable.runnable_methods.each do |method_name|
             test_id = "#{runnable.name}##{method_name}"
             next if seen.include?(test_id)
+            next unless CI::Queue.include_test?(runnable, method_name)
 
             seen.add(test_id)
             yield Minitest::Queue::LazySingleExample.new(
