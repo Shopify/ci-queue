@@ -126,6 +126,13 @@ module Minitest
 
       def debug_discovery_profile(discovery_start:, total_files:, new_runnable_files:, reopened_files:, reopened_candidates:, reopened_scan_time:)
         return unless CI::Queue.debug?
+        # Skip single-file discoveries: in file-affinity mode the worker calls
+        # each_test([single_file]) once per reserved file, producing tens of
+        # thousands of nearly-identical log lines per build. The interesting
+        # case for this log is the leader's bulk discovery (lazy mode) or
+        # preresolved-reconcile (multi-file). Per-file timings in file-affinity
+        # mode are surfaced via the worker profile (slow_files, file_timings_ms).
+        return if total_files <= 1
 
         total_time = Process.clock_gettime(Process::CLOCK_MONOTONIC) - discovery_start
         puts "[ci-queue][lazy-discovery] files=#{total_files} new_runnable_files=#{new_runnable_files} " \
