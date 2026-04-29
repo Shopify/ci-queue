@@ -15,6 +15,7 @@ module Minitest
       def to_s
         s = +"#{header}\n#{body}\n\n"
         s.encode!(Encoding::UTF_8, invalid: :replace, undef: :replace)
+        s.scrub!
         s
       end
 
