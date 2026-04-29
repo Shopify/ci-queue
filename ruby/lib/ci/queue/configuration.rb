@@ -100,7 +100,21 @@ module CI
       end
 
       def flaky?(test)
-        @flaky_tests.include?(test.id)
+        lazy_normalized_flaky_tests.include?(normalize_test_id(test.id))
+      end
+
+      def normalize_test_id(id)
+        id
+      end
+
+      def lazy_normalized_flaky_tests
+        @normalized_flaky_tests ||= @flaky_tests.to_set { |test_id| normalize_test_id(test_id) }
+      end
+
+      def test_id_normalizer=(normalizer)
+        normalizer = normalizer.to_proc if Method === normalizer
+        define_singleton_method(:normalize_test_id, normalizer)
+        @normalized_flaky_tests = nil
       end
 
       def seed
