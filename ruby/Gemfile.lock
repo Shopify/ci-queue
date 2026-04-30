@@ -38,6 +38,7 @@ GEM
     lint_roller (1.1.0)
     logger (1.7.0)
     minitest (5.27.0)
+    minitest-mock (5.27.0)
     minitest-reporters (1.7.1)
       ansi
       builder
@@ -106,6 +107,7 @@ GEM
 
 PLATFORMS
   arm64-darwin-23
+  arm64-darwin-24
   ruby
 
 DEPENDENCIES
@@ -113,7 +115,8 @@ DEPENDENCIES
   benchmark
   bundler
   ci-queue!
-  minitest (~> 5.11)
+  minitest (>= 5.11)
+  minitest-mock
   minitest-reporters (~> 1.1)
   mocha
   msgpack

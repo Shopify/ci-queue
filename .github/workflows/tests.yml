@@ -22,6 +22,13 @@ jobs:
           - '3.4'
           - '4.0'
           - 'truffleruby'
+        minitest:
+          - '~> 5.11'
+          - '~> 6.0'
+        exclude:
+          # minitest 6 requires Ruby >= 3.2
+          - ruby: '3.1'
+            minitest: '~> 6.0'
     steps:
       - uses: actions/checkout@v2
       - name: Install deps
@@ -38,6 +45,7 @@ jobs:
         env:
           SUITE: ruby
           REDIS_HOST: localhost
+          MINITEST_VERSION: ${{ matrix.minitest }}
 
   python-tests:
     runs-on: ubuntu-latest
