@@ -318,8 +318,10 @@ module CI
             end
           end
 
-          def tick!(id, lease)
-            send_message(TICK_COMMAND, id: id, lease: lease.to_s)
+          def tick!(id, lease = nil)
+            payload = { id: id }
+            payload[:lease] = lease.to_s if lease
+            send_message(TICK_COMMAND, **payload)
             @restart_attempts = 0
           rescue IOError, Errno::EPIPE => error
             @restart_attempts = (@restart_attempts || 0) + 1

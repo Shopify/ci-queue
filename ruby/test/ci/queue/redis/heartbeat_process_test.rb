@@ -21,6 +21,18 @@ class CI::Queue::Redis::Base::HeartbeatProcessTest < Minitest::Test
     end
   end
 
+  class PipedHeartbeatProcess < CI::Queue::Redis::Base::HeartbeatProcess
+    attr_reader :pipe
+
+    def initialize(pipe, *args)
+      super(*args)
+      @pipe = pipe
+    end
+
+    def boot!; end
+    def restart!; end
+  end
+
   def setup
     @hp = CI::Queue::Redis::Base::HeartbeatProcess.new(
       'redis://localhost:6379/0',
@@ -71,12 +83,12 @@ class CI::Queue::Redis::Base::HeartbeatProcessTest < Minitest::Test
   end
 
   def test_tick_does_not_allocate_tick_marker_string
-    @hp.instance_variable_set(:@pipe, FakePipe.new)
-    @hp.tick!("test_id", "lease_id") # warm up any one-time caches
+    hp = PipedHeartbeatProcess.new(FakePipe.new, 'redis://localhost:6379/0', 'zset', 'owners', 'leases')
+    hp.tick!("test_id", "lease_id") # warm up any one-time caches
 
     ObjectSpace.trace_object_allocations_start
     begin
-      @hp.tick!("test_id", "lease_id")
+      hp.tick!("test_id", "lease_id")
     ensure
       ObjectSpace.trace_object_allocations_stop
     end
@@ -97,15 +109,29 @@ class CI::Queue::Redis::Base::HeartbeatProcessTest < Minitest::Test
 
   def test_tick_sends_valid_tick_payload
     pipe = FakePipe.new
-    @hp.instance_variable_set(:@pipe, pipe)
+    hp = PipedHeartbeatProcess.new(pipe, 'redis://localhost:6379/0', 'zset', 'owners', 'leases')
 
-    @hp.tick!("test_id", "lease_id")
+    hp.tick!("test_id", "lease_id")
 
     raw = pipe.buffer
     header_size = [0].pack("L").bytesize
     size = raw.byteslice(0, header_size).unpack1("L")
     payload = raw.byteslice(header_size, size)
 
-    assert_equal ["tick!", { "id" => "test_id", "lease" => "lease_id" }], JSON.parse(payload)
+    assert_equal(["tick!", { "id" => "test_id", "lease" => "lease_id" }], JSON.parse(payload))
+  end
+
+  def test_tick_without_lease_omits_lease_from_payload
+    pipe = FakePipe.new
+    hp = PipedHeartbeatProcess.new(pipe, 'redis://localhost:6379/0', 'zset', 'owners', 'leases')
+
+    hp.tick!("test_id")
+
+    raw = pipe.buffer
+    header_size = [0].pack("L").bytesize
+    size = raw.byteslice(0, header_size).unpack1("L")
+    payload = raw.byteslice(header_size, size)
+
+    assert_equal(["tick!", { "id" => "test_id" }], JSON.parse(payload))
   end
 end
