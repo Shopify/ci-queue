@@ -35,11 +35,12 @@ Gem::Specification.new do |spec|
 
   spec.add_development_dependency 'bundler'
   spec.add_development_dependency 'rake'
-  spec.add_development_dependency 'minitest', ENV.fetch('MINITEST_VERSION', '~> 5.11')
+  spec.add_development_dependency 'minitest', ENV.fetch('MINITEST_VERSION', '>= 5.11')
   spec.add_development_dependency 'rspec', '~> 3.10'
   spec.add_development_dependency 'redis'
   spec.add_development_dependency 'simplecov', '~> 0.12'
   spec.add_development_dependency 'minitest-reporters', '~> 1.1'
+  spec.add_development_dependency 'minitest-mock'
   spec.add_development_dependency 'mocha'
 
   spec.add_development_dependency 'rexml'

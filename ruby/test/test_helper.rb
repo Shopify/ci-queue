@@ -9,6 +9,14 @@ require 'ci/queue'
 require 'ci/queue/redis'
 require 'minitest/queue'
 require 'minitest/autorun'
+
+# minitest 6 extracted mock into a separate gem
+begin
+  require 'minitest/mock'
+rescue LoadError
+  require 'minitest-mock'
+end
+
 require 'mocha/minitest'
 
 Minitest::Reporters.use!([Minitest::Reporters::SpecReporter.new])

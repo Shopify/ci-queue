@@ -359,7 +359,7 @@ module Minitest
 
       def run
         with_timestamps do
-          Minitest.run_one_method(@runnable, @method_name)
+          @runnable.new(@method_name).run
         end
       end
 
@@ -450,7 +450,7 @@ module Minitest
           elsif skip_stale_tests? && !(runnable.method_defined?(@method_name) || runnable.private_method_defined?(@method_name))
             build_stale_skip_result
           else
-            Minitest.run_one_method(runnable, @method_name)
+            runnable.new(@method_name).run
           end
         rescue StandardError, ScriptError => error
           build_error_result(error)
@@ -552,6 +552,12 @@ module Minitest
       Reporters.use!(((Reporters.reporters || []) - @queue_reporters) + reporters)
       Minitest.backtrace_filter.add_filter(%r{exe/minitest-queue|lib/ci/queue/})
       @queue_reporters = reporters
+
+      # minitest 6 made plugin loading opt-in (no longer called from
+      # Minitest.run). Ensure minitest-reporters' plugin is loaded so
+      # that its DelegateReporter wires our reporters into the
+      # CompositeReporter that Minitest.run creates.
+      Minitest.load_plugins if Minitest.respond_to?(:load_plugins)
     end
 
     def loaded_tests
@@ -562,19 +568,34 @@ module Minitest
       end
     end
 
-    def __run(*args)
-      if queue
-        Queue.run(*args)
+    # minitest 5 calls __run; minitest 6 renamed it to run_all_suites.
+    # Define both so the prepend intercepts whichever version is active.
+    %i[__run run_all_suites].each do |name|
+      define_method(name) do |*args|
+        if queue
+          Queue.run(*args)
 
-        if queue.config.circuit_breakers.any?(&:open?)
-          STDERR.puts queue.config.circuit_breakers.map(&:message).join(' ').strip
-        end
+          if queue.config.circuit_breakers.any?(&:open?)
+            STDERR.puts queue.config.circuit_breakers.map(&:message).join(' ').strip
+          end
 
-        if queue.max_test_failed?
-          STDERR.puts 'This worker is exiting early because too many failed tests were encountered.'
+          if queue.max_test_failed?
+            STDERR.puts 'This worker is exiting early because too many failed tests were encountered.'
+          end
+
+          # minitest 6 starts a Parallel::Executor thread pool before
+          # calling run_all_suites, then joins those threads in shutdown
+          # afterward. ci-queue bypasses the executor entirely (it has
+          # its own Redis poll loop), so the worker threads sit idle and
+          # shutdown hangs forever. Drain them here so the later
+          # shutdown in Minitest.run is a no-op.
+          if Minitest.respond_to?(:parallel_executor)
+            executor = Minitest.parallel_executor
+            executor.shutdown if executor.respond_to?(:shutdown)
+          end
+        else
+          super(*args)
         end
-      else
-        super
       end
     end
   end
