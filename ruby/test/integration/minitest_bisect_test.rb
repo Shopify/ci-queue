@@ -11,10 +11,12 @@ module Integration
     end
 
     def test_bisect
+      result = nil
       out, err = capture_subprocess_io do
-        run_bisect('log/leaky_test_order.log', 'LeakyTest#test_sensible_to_leak')
+        result = run_bisect('log/leaky_test_order.log', 'LeakyTest#test_sensible_to_leak')
       end
 
+      assert_equal true, result, "bisect should exit 0 when a leaky test is identified"
       assert_empty filter_deprecation_warnings(err)
       expected_output = strip_heredoc <<-EOS
         --- Testing the failing test in isolation
@@ -101,10 +103,12 @@ module Integration
     end
 
     def test_inconclusive
+      result = nil
       out, err = capture_subprocess_io do
-        run_bisect('log/unconclusive_test_order.log', 'LeakyTest#test_sensible_to_leak')
+        result = run_bisect('log/unconclusive_test_order.log', 'LeakyTest#test_sensible_to_leak')
       end
 
+      assert_equal true, result, "inconclusive bisect should exit 0; it ran successfully and reported a valid diagnostic outcome"
       assert_empty filter_deprecation_warnings(err)
       expected_output = strip_heredoc <<-EOS
         --- Testing the failing test in isolation
@@ -178,10 +182,12 @@ module Integration
     end
 
     def test_failing_test_is_the_first_entry_in_the_test_order
+      result = nil
       out, err = capture_subprocess_io do
-        run_bisect('log/unconclusive_test_order.log', 'LeakyTest#test_useless_0')
+        result = run_bisect('log/unconclusive_test_order.log', 'LeakyTest#test_useless_0')
       end
 
+      assert_equal true, result, "should exit 0 when there is nothing to bisect; the run completed normally"
       assert_empty filter_deprecation_warnings(err)
       expected_output = strip_heredoc <<-EOS
         --- Testing the failing test in isolation
@@ -193,10 +199,12 @@ module Integration
     end
 
     def test_broken_tests_which_are_not_evaluated_are_ignored
+      result = nil
       out, err = capture_subprocess_io do
-        run_bisect('log/leaky_with_broken_test_order.log', 'LeakyTest#test_sensible_to_leak')
+        result = run_bisect('log/leaky_with_broken_test_order.log', 'LeakyTest#test_sensible_to_leak')
       end
 
+      assert_equal true, result, "inconclusive bisect should exit 0 even when broken tests are skipped along the way"
       assert_empty filter_deprecation_warnings(err)
       expected_output = strip_heredoc <<-EOS
         --- Testing the failing test in isolation
@@ -270,10 +278,12 @@ module Integration
     end
 
     def test_broken
+      result = nil
       out, err = capture_subprocess_io do
-        run_bisect('log/broken_test_order.log', 'LeakyTest#test_broken_test')
+        result = run_bisect('log/broken_test_order.log', 'LeakyTest#test_broken_test')
       end
 
+      assert_equal true, result, "should exit 0 when the failing test fails in isolation; bisect ran and produced a useful diagnostic"
       assert_empty filter_deprecation_warnings(err)
       expected_output = strip_heredoc <<-EOS
         --- Testing the failing test in isolation
@@ -287,10 +297,12 @@ module Integration
     end
 
     def test_failing_test_is_not_present
+      result = nil
       out, err = capture_subprocess_io do
-        run_bisect('log/leaky_test_order.log', 'LeakyTestDoesNotExist#test_sensible_to_leak')
+        result = run_bisect('log/leaky_test_order.log', 'LeakyTestDoesNotExist#test_sensible_to_leak')
       end
 
+      assert_equal false, result, "should exit non-zero when the failing test cannot be found; the run could not actually execute"
       assert_empty filter_deprecation_warnings(err)
       expected_output = strip_heredoc <<-EOS
         --- Testing the failing test in isolation

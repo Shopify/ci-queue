@@ -254,7 +254,9 @@ module Minitest
           step(yellow("The failing test was the first test in the test order so there is nothing to bisect."))
           File.write('log/test_order.log', "")
           File.write('log/bisect_test_details.log', "")
-          exit! 1
+          # Bisect ran successfully; there is simply nothing to bisect against.
+          # Reserve non-zero exits for cases where the bisect could not run (see failing_test_present? above).
+          exit! 0
         end
 
         failing_order = queue.candidates
@@ -263,7 +265,10 @@ module Minitest
           step(yellow("The bisection was inconclusive, there might not be any leaky test here."))
           File.write('log/test_order.log', "")
           File.write('log/bisect_test_details.log', "")
-          exit! 1
+          # Bisect ran successfully; the failure did not reproduce on the narrowed-down order.
+          # This is the expected outcome for genuinely flaky tests (timing/async) rather than order-dependent ones.
+          # Reserve non-zero exits for cases where the bisect could not run.
+          exit! 0
         else
           step(green('The following command should reproduce the leak on your machine:'), collapsed: false)
           command = %w(bundle exec minitest-queue --queue - run)
