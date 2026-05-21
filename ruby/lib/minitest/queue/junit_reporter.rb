@@ -3,6 +3,7 @@
 require 'minitest/reporters'
 require 'rexml/document'
 require 'fileutils'
+require 'tempfile'
 
 module Minitest
   module Queue
@@ -40,9 +41,16 @@ module Minitest
       def report
         super
 
-        FileUtils.mkdir_p(File.dirname(@report_path))
-        File.open(@report_path, 'w+') do |file|
-          format_document(generate_document, file)
+        dir = File.dirname(@report_path)
+        FileUtils.mkdir_p(dir)
+        tmp = Tempfile.new([File.basename(@report_path), '.tmp'], dir)
+        begin
+          format_document(generate_document, tmp)
+          tmp.close
+          File.rename(tmp.path, @report_path)
+        rescue
+          tmp.close!
+          raise
         end
       end
 

@@ -175,6 +175,52 @@ module Minitest::Reporters
       end
     end
 
+    def test_report_writes_file_atomically
+      Dir.mktmpdir do |dir|
+        report_path = File.join(dir, 'junit.xml')
+        reporter = Minitest::Queue::JUnitReporter.new(report_path)
+        reporter.start
+        reporter.record(result("test_foo"))
+        reporter.report
+
+        assert File.exist?(report_path), "expected report file to exist"
+        contents = File.read(report_path)
+        assert_includes contents, '</testsuites>'
+        assert_empty Dir.glob(File.join(dir, '*.tmp*')), "no tempfile should be left behind"
+      end
+    end
+
+    def test_report_does_not_leave_partial_file_on_error
+      Dir.mktmpdir do |dir|
+        report_path = File.join(dir, 'junit.xml')
+        reporter = Minitest::Queue::JUnitReporter.new(report_path)
+        reporter.start
+        reporter.record(result("test_foo"))
+
+        reporter.define_singleton_method(:format_document) do |_doc, _io|
+          raise IOError, "simulated mid-write crash"
+        end
+
+        assert_raises(IOError) { reporter.report }
+
+        refute File.exist?(report_path), "no partial file should remain at the report path"
+        assert_empty Dir.glob(File.join(dir, '*.tmp*')), "no orphaned tempfile should remain"
+      end
+    end
+
+    def test_report_creates_parent_directories
+      Dir.mktmpdir do |dir|
+        report_path = File.join(dir, 'nested', 'deeper', 'junit.xml')
+        reporter = Minitest::Queue::JUnitReporter.new(report_path)
+        reporter.start
+        reporter.record(result("test_foo"))
+        reporter.report
+
+        assert File.exist?(report_path), "expected report file to exist in nested dir"
+        assert_includes File.read(report_path), '</testsuites>'
+      end
+    end
+
     private
 
     def generate_xml(junitxml)
