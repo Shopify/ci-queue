@@ -48,8 +48,17 @@ def parse_worker_args(query_string, tests_index):
 def parse_redis_args(spec):
     query = urlparse.parse_qs(spec.query)
 
-    result = {'host': spec.authority.split(':')[0],
+    result = {'host': spec.host,
               'db': int(spec.path[1:] or 0)}
+
+    if spec.userinfo:
+        parts = spec.userinfo.split(':', 1)
+        if len(parts) == 2:
+            if parts[0]:
+                result['username'] = parts[0]
+            result['password'] = parts[1]
+        else:
+            result['password'] = parts[0]
 
     if spec.port:
         result['port'] = spec.port
