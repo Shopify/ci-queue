@@ -624,6 +624,11 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_instance_of CI::Queue::Redis::Worker, queue
   end
 
+  def test_initialise_from_unix_uri
+    queue = CI::Queue.from_uri('unix:///tmp/redis.sock', config)
+    assert_instance_of CI::Queue::Redis::Worker, queue
+  end
+
   def test_first_reserve_at_is_set_on_first_reserve
     queue = worker(1)
     assert_nil queue.first_reserve_at
