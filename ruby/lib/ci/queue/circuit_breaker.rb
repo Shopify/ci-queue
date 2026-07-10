@@ -8,6 +8,9 @@ module CI
         def report_failure!
         end
 
+        def report_requeue!
+        end
+
         def report_success!
         end
 
@@ -30,6 +33,9 @@ module CI
         end
 
         def report_failure!
+        end
+
+        def report_requeue!
         end
 
         def report_success!
@@ -60,6 +66,9 @@ module CI
           @consecutive_failures += 1
         end
 
+        def report_requeue!
+        end
+
         def report_success!
           @consecutive_failures = 0
         end
@@ -70,6 +79,33 @@ module CI
 
         def message
           'This worker is exiting early because it encountered too many consecutive test failures, probably because of some corrupted state.'
+        end
+      end
+
+      class MaxConsecutiveRequeues
+        def initialize(max_consecutive_requeues:)
+          @max = max_consecutive_requeues
+          @consecutive_requeues = 0
+        end
+
+        def report_failure!
+          @consecutive_requeues = 0
+        end
+
+        def report_requeue!
+          @consecutive_requeues += 1
+        end
+
+        def report_success!
+          @consecutive_requeues = 0
+        end
+
+        def open?
+          @consecutive_requeues >= @max
+        end
+
+        def message
+          'This worker is exiting early because it requeued too many consecutive tests, probably because of some corrupted state.'
         end
       end
     end

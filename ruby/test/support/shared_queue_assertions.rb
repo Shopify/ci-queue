@@ -31,6 +31,33 @@ module SharedQueueAssertions
     assert_equal TEST_LIST.size, @queue.size
   end
 
+  def test_consecutive_requeue_circuit_breaker
+    3.times { @queue.report_requeue! }
+    assert requeue_circuit_breaker.open?
+
+    poll(@queue) do
+      assert false, "The queue shouldn't have popped a test"
+    end
+    assert_equal TEST_LIST.size, @queue.size
+  end
+
+  def test_success_resets_consecutive_requeues
+    2.times { @queue.report_requeue! }
+    @queue.report_success!
+    2.times { @queue.report_requeue! }
+
+    refute requeue_circuit_breaker.open?
+  end
+
+  def test_final_failure_resets_consecutive_requeues_and_advances_failure_breaker
+    2.times { @queue.report_requeue! }
+    @queue.report_failure!
+
+    refute requeue_circuit_breaker.open?
+    9.times { @queue.report_failure! }
+    assert failure_circuit_breaker.open?
+  end
+
   def test_size
     assert_equal TEST_LIST.size, @queue.size
     poll(@queue)
@@ -100,7 +127,16 @@ module SharedQueueAssertions
       max_requeues: 1,
       requeue_tolerance: 0.1,
       max_consecutive_failures: 10,
+      max_consecutive_requeues: 3,
     )
+  end
+
+  def failure_circuit_breaker
+    config.circuit_breakers.find { |breaker| breaker.is_a?(CI::Queue::CircuitBreaker::MaxConsecutiveFailures) }
+  end
+
+  def requeue_circuit_breaker
+    config.circuit_breakers.find { |breaker| breaker.is_a?(CI::Queue::CircuitBreaker::MaxConsecutiveRequeues) }
   end
 
   def populate(queue, tests: TEST_LIST.dup)

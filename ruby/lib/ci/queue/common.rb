@@ -27,6 +27,10 @@ module CI
         config.circuit_breakers.each(&:report_failure!)
       end
 
+      def report_requeue!
+        config.circuit_breakers.each(&:report_requeue!)
+      end
+
       def report_success!
         config.circuit_breakers.each(&:report_success!)
       end

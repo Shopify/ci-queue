@@ -701,6 +701,78 @@ module Integration
         "Expected more than 3 tests to run (requeues shouldn't trip breaker), got: #{output}"
     end
 
+    def test_consecutive_requeue_circuit_breaker_fences_unhealthy_worker
+      build_id = 'consecutive-requeue-breaker'
+      worker_a_status = nil
+      out, err = capture_subprocess_io do
+        system(
+          { 'CORRUPTED_WORKER' => '1' },
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', build_id,
+          '--worker', 'corrupted',
+          '--timeout', '1',
+          '--max-requeues', '1',
+          '--requeue-tolerance', '1',
+          '--max-consecutive-failures', '1',
+          '--max-consecutive-requeues', '3',
+          '-Itest',
+          'test/requeue_circuit_breaker_test.rb',
+          chdir: 'test/fixtures/',
+        )
+        worker_a_status = $?.exitstatus
+      end
+
+      assert_equal 0, worker_a_status
+      assert_match(/Ran 3 tests, 3 assertions, 0 failures, 0 errors, 0 skips, 3 requeues/, normalize(out))
+      assert_equal "This worker is exiting early because it requeued too many consecutive tests, probably because of some corrupted state.\n", filter_deprecation_warnings(err)
+      refute_includes err, 'too many consecutive test failures'
+      assert_equal '3', @redis.hget("build:#{build_id}:requeues-count", '___total___')
+      assert_equal 3, @redis.llen("build:#{build_id}:worker:corrupted:queue")
+      assert_equal 6, @redis.llen("build:#{build_id}:queue"), 'Requeued tests should remain available'
+
+      worker_b_status = nil
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', build_id,
+          '--worker', 'healthy',
+          '--timeout', '1',
+          '--max-requeues', '1',
+          '--requeue-tolerance', '1',
+          '--max-consecutive-failures', '1',
+          '--max-consecutive-requeues', '3',
+          '-Itest',
+          'test/requeue_circuit_breaker_test.rb',
+          chdir: 'test/fixtures/',
+        )
+        worker_b_status = $?.exitstatus
+      end
+
+      assert_equal 0, worker_b_status
+      assert_empty filter_deprecation_warnings(err)
+      assert_match(/Ran 6 tests, 6 assertions, 0 failures, 0 errors, 0 skips, 0 requeues/, normalize(out))
+
+      report_status = nil
+      out, err = capture_subprocess_io do
+        system(
+          @exe, 'report',
+          '--queue', @redis_url,
+          '--build', build_id,
+          '--timeout', '1',
+          chdir: 'test/fixtures/',
+        )
+        report_status = $?.exitstatus
+      end
+
+      assert_equal 0, report_status
+      assert_empty filter_deprecation_warnings(err)
+      assert_match(/Ran 6 tests, 9 assertions, 0 failures, 0 errors, 0 skips, 3 requeues/, normalize(out))
+    end
+
     def test_circuit_breaker_without_requeues
       out, err = capture_subprocess_io do
         system(

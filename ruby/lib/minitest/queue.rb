@@ -198,6 +198,7 @@ module Minitest
         end
 
         if failed && CI::Queue.requeueable?(result) && queue.requeue(example.queue_entry)
+          queue.report_requeue!
           result.requeue!
           if CI::Queue.debug?
             $stderr.puts "[ci-queue][requeue] test_id=#{example.id} error_class=#{result.failures.first&.class} error=#{result.failures.first&.message&.lines&.first&.chomp}"
@@ -576,7 +577,7 @@ module Minitest
           Queue.run(*args)
 
           if queue.config.circuit_breakers.any?(&:open?)
-            STDERR.puts queue.config.circuit_breakers.map(&:message).join(' ').strip
+            STDERR.puts queue.config.circuit_breakers.select(&:open?).map(&:message).join(' ').strip
           end
 
           if queue.max_test_failed?

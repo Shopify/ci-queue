@@ -36,7 +36,7 @@ Assuming you use one of the supported CI providers, the command can be as simple
 minitest-queue --queue redis://example.com run -Itest test/**/*_test.rb
 ```
 
-Additionally you can configure the requeue settings (see main README) with `--max-requeues` and `--requeue-tolerance`.
+Additionally you can configure the requeue settings (see main README) with `--max-requeues` and `--requeue-tolerance`. Worker-health circuit breakers are available through `--max-consecutive-failures` and `--max-consecutive-requeues`.
 
 #### Lazy loading (opt-in)
 
@@ -157,6 +157,30 @@ rspec-queue --queue redis://example.com --timeout 600 --report
 #### Limitations
 
 Because of how `ci-queue` executes the examples, `before(:all)` and `after(:all)` hooks are not supported. `rspec-queue` will explicitly reject them.
+
+### Worker circuit breakers
+
+Both runners support two independent, disabled-by-default circuit breakers:
+
+- `--max-consecutive-failures MAX` stops a worker after `MAX` consecutive final test failures.
+- `--max-consecutive-requeues MAX` stops a worker after `MAX` consecutive failures were accepted for requeueing.
+
+The requeue count is local to each worker and resets whenever that worker produces any non-requeued result, including a pass, skip, ignored flaky result, or final failure. An accepted requeue neither increments nor resets the consecutive-final-failure count. Requeue attempts rejected because of an ownership race or an exhausted retry budget follow the final-failure path and do not increment the requeue count.
+
+For example:
+
+```bash
+minitest-queue --max-consecutive-requeues 10 --queue redis://example.com run test/**/*_test.rb
+rspec-queue --max-consecutive-requeues 10 --queue redis://example.com
+```
+
+The breaker can also be configured programmatically:
+
+```ruby
+CI::Queue::Configuration.new(max_consecutive_requeues: 10)
+# or
+config.max_consecutive_requeues = 10
+```
 
 ## Releasing a New Version
 

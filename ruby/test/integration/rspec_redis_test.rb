@@ -15,6 +15,76 @@ module Integration
       File.delete(@order_path) if File.exist?(@order_path)
     end
 
+    def test_consecutive_requeue_circuit_breaker_fences_unhealthy_worker
+      build_id = 'rspec-consecutive-requeue-breaker'
+      worker_a_status = nil
+      out, err = capture_subprocess_io do
+        system(
+          { 'CORRUPTED_WORKER' => '1' },
+          @exe,
+          '--queue', @redis_url,
+          '--seed', '123',
+          '--build', build_id,
+          '--worker', 'corrupted',
+          '--timeout', '1',
+          '--max-requeues', '1',
+          '--requeue-tolerance', '1',
+          '--max-consecutive-failures', '1',
+          '--max-consecutive-requeues', '3',
+          'spec/requeue_circuit_breaker_spec.rb',
+          chdir: 'test/fixtures/requeue_circuit_breaker_suite/',
+        )
+        worker_a_status = $?.exitstatus
+      end
+
+      assert_equal 0, worker_a_status
+      assert_empty filter_deprecation_warnings(err)
+      assert_match(/3 examples, 0 failures, 3 pending/, normalize(out))
+      assert_equal '3', @redis.hget("build:#{build_id}:requeues-count", '___total___')
+      assert_equal 3, @redis.llen("build:#{build_id}:worker:corrupted:queue")
+      assert_equal 6, @redis.llen("build:#{build_id}:queue"), 'Requeued examples should remain available'
+
+      worker_b_status = nil
+      out, err = capture_subprocess_io do
+        system(
+          @exe,
+          '--queue', @redis_url,
+          '--seed', '123',
+          '--build', build_id,
+          '--worker', 'healthy',
+          '--timeout', '1',
+          '--max-requeues', '1',
+          '--requeue-tolerance', '1',
+          '--max-consecutive-failures', '1',
+          '--max-consecutive-requeues', '3',
+          'spec/requeue_circuit_breaker_spec.rb',
+          chdir: 'test/fixtures/requeue_circuit_breaker_suite/',
+        )
+        worker_b_status = $?.exitstatus
+      end
+
+      assert_equal 0, worker_b_status
+      assert_empty filter_deprecation_warnings(err)
+      assert_match(/6 examples, 0 failures/, normalize(out))
+
+      report_status = nil
+      out, err = capture_subprocess_io do
+        system(
+          @exe,
+          '--queue', @redis_url,
+          '--build', build_id,
+          '--report',
+          '--timeout', '5',
+          chdir: 'test/fixtures/requeue_circuit_breaker_suite/',
+        )
+        report_status = $?.exitstatus
+      end
+
+      assert_equal 0, report_status
+      assert_empty filter_deprecation_warnings(err)
+      assert_match(/No errors found/, normalize(out))
+    end
+
     def test_redis_runner
       out, err = capture_subprocess_io do
         system(

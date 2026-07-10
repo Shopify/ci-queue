@@ -55,7 +55,7 @@ module CI
       def initialize(
         timeout: 30, build_id: nil, worker_id: nil, max_requeues: 0, requeue_tolerance: 0,
         namespace: nil, seed: nil, flaky_tests: [], statsd_endpoint: nil, max_consecutive_failures: nil,
-        grind_count: nil, max_duration: nil, failure_file: nil, max_test_duration: nil,
+        max_consecutive_requeues: nil, grind_count: nil, max_duration: nil, failure_file: nil, max_test_duration: nil,
         max_test_duration_percentile: 0.5, track_test_duration: false, max_test_failed: nil,
         queue_init_timeout: nil, redis_ttl: 8 * 60 * 60, report_timeout: nil, inactive_workers_timeout: nil,
         export_flaky_tests_file: nil, warnings_file: nil, debug_log: nil, max_missed_heartbeat_seconds: nil, heartbeat_max_test_duration: nil,
@@ -79,6 +79,7 @@ module CI
         @track_test_duration = track_test_duration
         @worker_id = worker_id
         self.max_consecutive_failures = max_consecutive_failures
+        self.max_consecutive_requeues = max_consecutive_requeues
         self.max_duration = max_duration
         @redis_ttl = redis_ttl
         @report_timeout = report_timeout
@@ -162,6 +163,12 @@ module CI
       def max_consecutive_failures=(max)
         if max
           @circuit_breakers << CircuitBreaker::MaxConsecutiveFailures.new(max_consecutive_failures: max)
+        end
+      end
+
+      def max_consecutive_requeues=(max)
+        if max
+          @circuit_breakers << CircuitBreaker::MaxConsecutiveRequeues.new(max_consecutive_requeues: max)
         end
       end
 
