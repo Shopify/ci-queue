@@ -1,4 +1,3 @@
-from distutils import util  # pylint: disable=no-name-in-module, import-modules-only
 from future.moves.urllib import parse as urlparse
 import ciqueue
 import ciqueue.distributed
@@ -12,6 +11,16 @@ class InvalidRedisUrl(Exception):
 
 def key_item(item):
     return item.nodeid
+
+
+def strtobool(value):
+    # Replacement for distutils.util.strtobool, removed in Python 3.12.
+    value = value.lower()
+    if value in ('y', 'yes', 't', 'true', 'on', '1'):
+        return True
+    if value in ('n', 'no', 'f', 'false', 'off', '0'):
+        return False
+    raise ValueError("invalid truth value {!r}".format(value))
 
 
 def parse_worker_args(query_string, tests_index):
@@ -51,7 +60,7 @@ def parse_redis_args(spec):
     if 'socket_connect_timeout' in query:
         result['socket_connect_timeout'] = int(query['socket_connect_timeout'][0])
     if 'retry_on_timeout' in query:
-        result['retry_on_timeout'] = bool(util.strtobool(query['retry_on_timeout'][0] or 'false'))
+        result['retry_on_timeout'] = strtobool(query['retry_on_timeout'][0] or 'false')
     if spec.scheme == "rediss":
         result['ssl'] = True
 
