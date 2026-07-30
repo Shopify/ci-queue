@@ -35,6 +35,7 @@ setuplib.setup(
     name='ciqueue',
     version='0.1',
     packages=['ciqueue', 'ciqueue._pytest'],
+    python_requires='>=3.10',
     install_requires=[
         'dill>=0.2.7',
         'pytest>=2.7',
