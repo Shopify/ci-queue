@@ -10,7 +10,7 @@ module QueueHelper
       failed = !(success.respond_to?(:call) ? success.call(test) : success)
       if failed
         if queue.requeue(test.queue_entry)
-          # Requeued — don't report to circuit breaker
+          queue.report_requeue!
         else
           queue.report_failure!
           queue.acknowledge(test.queue_entry)

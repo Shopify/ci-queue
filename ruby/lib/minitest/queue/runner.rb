@@ -693,6 +693,15 @@ module Minitest
           end
 
           help = <<~EOS
+            Defines after how many consecutive accepted requeues the worker will be considered unhealthy and stop reserving tests.
+            Defaults to disabled.
+          EOS
+          opts.separator ""
+          opts.on('--max-consecutive-requeues MAX', Integer, help) do |max|
+            queue_config.max_consecutive_requeues = max
+          end
+
+          help = <<~EOS
             Must set this option in report and report_grind command if you set --max-test-duration in the report_grind
           EOS
           opts.on('--track-test-duration', help) do

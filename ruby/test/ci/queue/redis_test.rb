@@ -762,6 +762,26 @@ class CI::Queue::RedisTest < Minitest::Test
     threads&.each(&:kill)
   end
 
+  def test_requeue_does_not_advance_breaker_until_runner_reports_acceptance
+    queue = worker(
+      1,
+      tests: [TEST_LIST.first],
+      max_requeues: 1,
+      requeue_tolerance: 1.0,
+      max_consecutive_requeues: 1,
+    )
+
+    queue.poll do |test|
+      assert_equal true, queue.requeue(test.queue_entry)
+      break
+    end
+
+    breaker = queue.config.circuit_breakers.find do |candidate|
+      candidate.is_a?(CI::Queue::CircuitBreaker::MaxConsecutiveRequeues)
+    end
+    refute breaker.open?
+  end
+
   def test_circuit_breaker_does_not_count_requeued_failures
     # Bug: report_failure! was called before the requeue check, so successfully
     # requeued tests incremented the consecutive failure counter. With
@@ -837,7 +857,13 @@ class CI::Queue::RedisTest < Minitest::Test
   def test_stolen_test_requeue_is_rejected_by_ownership_check
     @redis.flushdb
     single_test = [TEST_LIST.first]
-    queue_a = worker(1, tests: single_test, max_requeues: 5, requeue_tolerance: 1.0)
+    queue_a = worker(
+      1,
+      tests: single_test,
+      max_requeues: 5,
+      requeue_tolerance: 1.0,
+      max_consecutive_requeues: 1,
+    )
     queue_b = worker(2, tests: single_test, max_requeues: 5, requeue_tolerance: 1.0)
 
     acquired = false
@@ -879,6 +905,15 @@ class CI::Queue::RedisTest < Minitest::Test
     thread.join(5)
 
     assert_equal false, worker_a_requeue_result, "Stale worker's requeue should be rejected"
+    if worker_a_requeue_result
+      queue_a.report_requeue!
+    else
+      queue_a.report_failure!
+    end
+    breaker = queue_a.config.circuit_breakers.find do |candidate|
+      candidate.is_a?(CI::Queue::CircuitBreaker::MaxConsecutiveRequeues)
+    end
+    refute breaker.open?, "A rejected requeue must not count as an accepted requeue"
     assert_predicate queue_a, :exhausted?
   end
 
@@ -984,7 +1019,14 @@ class CI::Queue::RedisTest < Minitest::Test
   end
 
   def build_queue
-    worker(1, max_requeues: 1, requeue_tolerance: 0.1, populate: false, max_consecutive_failures: 10)
+    worker(
+      1,
+      max_requeues: 1,
+      requeue_tolerance: 0.1,
+      populate: false,
+      max_consecutive_failures: 10,
+      max_consecutive_requeues: 3,
+    )
   end
 
   def populate(worker, tests: TEST_LIST.dup)

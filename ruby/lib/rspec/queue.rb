@@ -159,6 +159,15 @@ module RSpec
         end
 
         help = <<~EOS
+          Defines after how many consecutive accepted requeues the worker will be considered unhealthy and stop reserving tests.
+          Defaults to disabled.
+        EOS
+        parser.separator ""
+        parser.on('--max-consecutive-requeues MAX', *help) do |max|
+          queue_config.max_consecutive_requeues = Integer(max)
+        end
+
+        help = <<~EOS
           Defines how long the test report remain after the test run, in seconds.
           Defaults to 28,800 (8 hours)
         EOS
@@ -215,22 +224,21 @@ module RSpec
 
       def finish(reporter, acknowledge: true)
         if acknowledge && reporter.respond_to?(:requeue)
+          if @exception && CI::Queue.requeueable?(@exception) && reporter.requeue
+            reporter.report_requeue!
+            reporter.cancel_run!
+            dup.mark_as_requeued!(reporter)
+            return true
+          end
+
           if @exception
             reporter.report_failure!
           else
             reporter.report_success!
           end
-
-          if @exception && CI::Queue.requeueable?(@exception) && reporter.requeue
-            reporter.cancel_run!
-            dup.mark_as_requeued!(reporter)
-            return true
-          else
-            super(reporter)
-          end
-        else
-          super(reporter)
         end
+
+        super(reporter)
       end
 
       def reset!
@@ -415,6 +423,10 @@ module RSpec
 
       def report_failure!
         @queue.report_failure!
+      end
+
+      def report_requeue!
+        @queue.report_requeue!
       end
 
       def requeue

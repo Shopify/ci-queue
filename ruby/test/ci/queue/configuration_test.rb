@@ -214,5 +214,25 @@ module CI::Queue
       assert_equal 3, config.heartbeat_max_test_duration
     end
 
+    def test_max_consecutive_requeues_is_disabled_by_default
+      config = Configuration.new
+
+      refute(config.circuit_breakers.any? { |breaker| breaker.is_a?(CircuitBreaker::MaxConsecutiveRequeues) })
+    end
+
+    def test_max_consecutive_requeues_can_be_set_during_initialization
+      config = Configuration.new(max_consecutive_requeues: 3)
+
+      assert(config.circuit_breakers.any? { |breaker| breaker.is_a?(CircuitBreaker::MaxConsecutiveRequeues) })
+    end
+
+    def test_max_consecutive_requeues_can_be_assigned
+      config = Configuration.new
+
+      config.max_consecutive_requeues = 3
+
+      assert(config.circuit_breakers.any? { |breaker| breaker.is_a?(CircuitBreaker::MaxConsecutiveRequeues) })
+    end
+
   end
 end
