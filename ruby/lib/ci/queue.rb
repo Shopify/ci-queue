@@ -81,7 +81,13 @@ module CI
         Static
       when 'file', nil
         File
-      when 'redis', 'rediss'
+      when 'redis', 'rediss', 'unix'
+        # `unix://` URLs are forwarded to the Redis backend as-is;
+        # redis-client's URL parser accepts the unix:// scheme natively
+        # and treats the path as the socket path. This lets workloads
+        # that already run an in-process Redis on a unix socket (Nix
+        # build sandboxes, hermetic test harnesses, etc.) point ci-queue
+        # at it without exposing a TCP port.
         require 'ci/queue/redis'
         Redis
       else
