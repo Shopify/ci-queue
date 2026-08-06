@@ -42,7 +42,7 @@ module Minitest
 
       def load_tests
         start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-        if preresolved_test_list || queue_config.lazy_load
+        if preresolved_test_list || (queue_config.lazy_load && queue.respond_to?(:stream_populate))
           # In preresolved or lazy-load mode, test files are loaded on-demand by the entry resolver.
           # Load test helpers (e.g., test/test_helper.rb via CI_QUEUE_LAZY_LOAD_TEST_HELPERS)
           # to boot the app for all workers.
