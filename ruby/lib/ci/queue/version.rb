@@ -2,7 +2,7 @@
 
 module CI
   module Queue
-    VERSION = '0.97.0'
+    VERSION = '0.98.0'
     DEV_SCRIPTS_ROOT = ::File.expand_path('../../../../../redis', __FILE__)
     RELEASE_SCRIPTS_ROOT = ::File.expand_path('../redis', __FILE__)
   end
