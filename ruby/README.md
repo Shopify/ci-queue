@@ -158,6 +158,41 @@ rspec-queue --queue redis://example.com --timeout 600 --report
 
 Because of how `ci-queue` executes the examples, `before(:all)` and `after(:all)` hooks are not supported. `rspec-queue` will explicitly reject them.
 
+### Parallel worker metadata
+
+Each recorded result is stamped, in the process that ran the test, with:
+
+- `parallel_worker_pid`: the pid of the worker process at result creation.
+- `parallel_worker_test_index`: a 0-based, per-process monotonic counter incremented as each test runs (requeued executions get their own index).
+- `parallel_worker_id`: an identifier injected by the embedding environment (e.g. a Rails parallel-testing worker number); `nil` when not applicable.
+
+All three fields are included (nil-safe) in `log/test_data.json` emitted by the test data reporter, making per-worker-process execution order reconstructable downstream (`PARTITION BY parallel_worker_id, parallel_worker_pid ORDER BY parallel_worker_test_index`).
+
+The worker id can be provided either programmatically or via the environment:
+
+```ruby
+Minitest::Queue.parallel_worker_id = 3
+```
+
+Stamping is first-writer-wins. When ci-queue runs tests in-process (the normal
+`minitest-queue` flow), results are stamped automatically as they are recorded.
+Embedding environments that run tests in forked workers and transport results to
+another process (e.g. over DRb to a central reporting server) must stamp in the
+worker **before** sending:
+
+```ruby
+# in the forked worker, after running the test and before the DRb send
+Minitest::Queue.stamp_parallel_worker_metadata(result)
+```
+
+Otherwise the automatic stamp during reporting would capture the reporting
+process's pid and an arrival-order index interleaved across workers. Pre-stamped
+results pass through reporting untouched.
+
+| Variable | Description |
+|---|---|
+| `CI_QUEUE_PARALLEL_WORKER_ID=N` | Sets `parallel_worker_id` for results produced by this process. The setter takes precedence. |
+
 ### Worker circuit breakers
 
 Both runners support two independent, disabled-by-default circuit breakers:

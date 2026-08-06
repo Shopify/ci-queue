@@ -1477,7 +1477,10 @@ module Integration
     def test_test_data_reporter
       out, err = capture_subprocess_io do
         system(
-          {'CI_QUEUE_FLAKY_TESTS' => 'test/ci_queue_flaky_tests_list.txt'},
+          {
+            'CI_QUEUE_FLAKY_TESTS' => 'test/ci_queue_flaky_tests_list.txt',
+            'CI_QUEUE_PARALLEL_WORKER_ID' => '7',
+          },
           @exe, 'run',
           '--queue', @redis_url,
           '--seed', 'foobar',
@@ -1544,6 +1547,15 @@ module Integration
 
       assert_equal 'ATest#test_flaky_passes', failures[4][:test_id]
       assert_equal 'success', failures[4][:test_result]
+
+      # Parallel worker metadata is stamped per execution, in the worker
+      # process, so per-process execution order is reconstructable.
+      assert_equal [7], failures.map { |f| f[:parallel_worker_id] }.uniq
+      assert_equal 1, failures.map { |f| f[:parallel_worker_pid] }.uniq.size
+      assert_kind_of Integer, failures.first[:parallel_worker_pid]
+      assert_equal (0...failures.size).to_a, failures.map { |f| f[:parallel_worker_test_index] }.sort
+      # The requeued execution of ATest#test_bar ran before its final one.
+      assert failures[0][:parallel_worker_test_index] < failures[1][:parallel_worker_test_index]
     end
 
     def test_test_data_time_reporter

@@ -111,6 +111,15 @@ module Minitest
     attr_accessor :queue_id, :queue_entry
   end
 
+  # Per-worker-process execution metadata, stamped on each result in the
+  # process that ran the test (before any DRb send in embedding
+  # environments), so that per-process execution order is reconstructable
+  # downstream: PARTITION BY parallel_worker_id, parallel_worker_pid
+  # ORDER BY parallel_worker_test_index.
+  module ParallelWorkerMetadata
+    attr_accessor :parallel_worker_id, :parallel_worker_test_index, :parallel_worker_pid
+  end
+
   module Queue
     extend ::CI::Queue::OutputHelpers
     attr_writer :run_command_formatter, :project_root
@@ -155,6 +164,45 @@ module Minitest
     end
 
     class << self
+      # Identifies which parallel worker this process is (e.g. Rails'
+      # parallel testing worker number). Injected by the embedding
+      # environment via this setter or the CI_QUEUE_PARALLEL_WORKER_ID
+      # environment variable; nil when not applicable.
+      attr_writer :parallel_worker_id
+
+      def parallel_worker_id
+        @parallel_worker_id || parallel_worker_id_from_env
+      end
+
+      # Stamps per-process execution metadata on a result. Must be called
+      # in the process that ran the test so pid and per-process test index
+      # are captured worker-side.
+      #
+      # First writer wins: results that were already stamped are left
+      # untouched. Embedding environments that run tests in forked workers
+      # and transport results to another process (e.g. over DRb) MUST call
+      # this in the worker before sending, otherwise the stamp applied
+      # during reporting would carry the reporting process's pid and an
+      # arrival-order index interleaved across workers.
+      def stamp_parallel_worker_metadata(result)
+        return unless result.respond_to?(:parallel_worker_pid=)
+        return if result.parallel_worker_pid # already stamped worker-side
+
+        pid = Process.pid
+        if @parallel_worker_metadata_pid != pid
+          # Restart the per-process counter in forked workers so that
+          # (parallel_worker_id, parallel_worker_pid, parallel_worker_test_index)
+          # always reflects execution order within a single process.
+          @parallel_worker_metadata_pid = pid
+          @parallel_worker_next_test_index = 0
+        end
+
+        result.parallel_worker_id = parallel_worker_id
+        result.parallel_worker_pid = pid
+        result.parallel_worker_test_index = @parallel_worker_next_test_index
+        @parallel_worker_next_test_index += 1
+      end
+
       def queue
         Minitest.queue
       end
@@ -179,6 +227,8 @@ module Minitest
       end
 
       def handle_test_result(reporter, example, result)
+        stamp_parallel_worker_metadata(result)
+
         if result.respond_to?(:queue_id=)
           result.queue_id = example.id
           result.queue_entry = example.queue_entry if result.respond_to?(:queue_entry=)
@@ -212,6 +262,17 @@ module Minitest
       end
 
       private
+
+      def parallel_worker_id_from_env
+        value = ENV['CI_QUEUE_PARALLEL_WORKER_ID']
+        return nil if value.nil? || value.empty?
+
+        begin
+          Integer(value)
+        rescue ArgumentError
+          value
+        end
+      end
 
       def report_load_stats(queue)
         return unless CI::Queue.debug?
@@ -608,11 +669,13 @@ if defined? Minitest::Result
   Minitest::Result.prepend(Minitest::Flakiness)
   Minitest::Result.prepend(Minitest::WithTimestamps)
   Minitest::Result.prepend(Minitest::ResultMetadata)
+  Minitest::Result.prepend(Minitest::ParallelWorkerMetadata)
 else
   Minitest::Test.prepend(Minitest::Requeueing)
   Minitest::Test.prepend(Minitest::Flakiness)
   Minitest::Test.prepend(Minitest::WithTimestamps)
   Minitest::Test.prepend(Minitest::ResultMetadata)
+  Minitest::Test.prepend(Minitest::ParallelWorkerMetadata)
 
   module MinitestBackwardCompatibility
     def source_location

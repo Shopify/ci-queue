@@ -73,6 +73,22 @@ module Minitest
         @test.source_location.last
       end
 
+      # The parallel_worker_* fields are stamped by
+      # Minitest::Queue.stamp_parallel_worker_metadata in the worker process
+      # that ran the test. They are nil for embedders that don't produce
+      # them (results lacking the accessors, or no worker id configured).
+      def parallel_worker_id
+        @test.parallel_worker_id if @test.respond_to?(:parallel_worker_id)
+      end
+
+      def parallel_worker_test_index
+        @test.parallel_worker_test_index if @test.respond_to?(:parallel_worker_test_index)
+      end
+
+      def parallel_worker_pid
+        @test.parallel_worker_pid if @test.respond_to?(:parallel_worker_pid)
+      end
+
       # Error class only considers failures wheras the other error fields also consider skips
       def error_class
         return nil unless @test.failure
@@ -119,6 +135,9 @@ module Minitest
           test_finish_timestamp: test_finish_timestamp,
           test_file_path: test_file_path,
           test_file_line_number: test_file_line_number,
+          parallel_worker_id: parallel_worker_id,
+          parallel_worker_test_index: parallel_worker_test_index,
+          parallel_worker_pid: parallel_worker_pid,
           error_class: error_class,
           error_message: error_message,
           error_file_path: error_file_path,
