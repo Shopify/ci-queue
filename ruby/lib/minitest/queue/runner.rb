@@ -238,6 +238,25 @@ module Minitest
           exit! 0
         end
 
+        if queue.suspects_left == 0
+          step(yellow("The failing test was the first test in the test order so there is nothing to bisect."))
+          File.write('log/test_order.log', "")
+          File.write('log/bisect_test_details.log', "")
+          # Bisect ran successfully; there is simply nothing to bisect against.
+          # Reserve non-zero exits for cases where the bisect could not run (see failing_test_present? above).
+          exit! 0
+        end
+
+        step("Verifying the leak reproduces against every suspect")
+        if run_tests_in_fork(queue.all_candidates)
+          puts reopen_previous_step
+          puts yellow("The failing test passes after every suspect, so there is no leak to bisect here.")
+          File.write('log/test_order.log', "")
+          File.write('log/bisect_test_details.log', "")
+          exit! 0
+        end
+        puts
+
         run_index = 0
         while queue.suspects_left > 1
           run_index += 1
@@ -248,15 +267,6 @@ module Minitest
             queue.failed!
           end
           puts
-        end
-
-        if queue.suspects_left == 0
-          step(yellow("The failing test was the first test in the test order so there is nothing to bisect."))
-          File.write('log/test_order.log', "")
-          File.write('log/bisect_test_details.log', "")
-          # Bisect ran successfully; there is simply nothing to bisect against.
-          # Reserve non-zero exits for cases where the bisect could not run (see failing_test_present? above).
-          exit! 0
         end
 
         failing_order = queue.candidates
