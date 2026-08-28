@@ -25,6 +25,16 @@ module Minitest::Queue
       end
     end
 
+    # Simulates CI::Queue::Bisect — no stream_populate
+    class FakeQueueWithoutStreamPopulate
+      attr_accessor :entry_resolver
+      attr_reader :populated_with
+
+      def populate(tests, random:)
+        @populated_with = { tests: tests, random: random }
+      end
+    end
+
     def test_eager_mode_populates_loaded_tests
       queue = FakeQueue.new
       config = CI::Queue::Configuration.new(lazy_load: false)
@@ -204,6 +214,32 @@ module Minitest::Queue
       assert_instance_of Enumerator, queue.streamed_with[:tests]
       assert_equal 7, queue.streamed_with[:batch_size]
       assert_nil queue.populated_with
+    end
+
+    def test_lazy_mode_falls_back_to_eager_loading_when_queue_lacks_stream_populate
+      queue = FakeQueueWithoutStreamPopulate.new
+      config = CI::Queue::Configuration.new(lazy_load: true)
+      class_name = "StrategyLazyFallback#{Process.pid}#{rand(1000)}"
+
+      Dir.mktmpdir do |dir|
+        file = File.join(dir, "strategy_lazy_fallback_test.rb")
+        File.write(file, "class #{class_name} < Minitest::Test\n  def test_fallback\n    assert true\n  end\nend\n")
+        strategy = QueuePopulationStrategy.new(
+          queue: queue,
+          queue_config: config,
+          argv: [file],
+          test_files_file: nil,
+          ordering_seed: Random.new(123),
+        )
+        strategy.load_and_populate!
+      end
+
+      assert queue.populated_with, "expected populate to be called"
+      ids = queue.populated_with[:tests].map(&:id)
+      assert_includes ids, "#{class_name}#test_fallback",
+        "lazy_load=true should not prevent test files from being loaded when stream_populate is unavailable"
+    ensure
+      Object.send(:remove_const, class_name) if class_name && Object.const_defined?(class_name)
     end
   end
 end
