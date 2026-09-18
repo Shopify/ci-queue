@@ -3,10 +3,11 @@
 lib = File.expand_path('../lib', __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 require 'ci/queue/version'
-require 'pathname'
 
-dir = Pathname.new(CI::Queue::RELEASE_SCRIPTS_ROOT).relative_path_from(Pathname.new(__dir__).realpath)
-lua_scripts = Dir[dir.join('*.lua').to_s]
+# Release Lua scripts are gitignored copies made by `rake scripts:copy`, so
+# `git ls-files` misses them. Glob without touching CI::Queue constants:
+# Dependabot evaluates this file with the `require` above rescued away.
+lua_scripts = Dir.glob('lib/ci/queue/redis/*.lua', base: __dir__)
 
 Gem::Specification.new do |spec|
   spec.name          = 'ci-queue'
