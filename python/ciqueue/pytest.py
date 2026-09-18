@@ -5,10 +5,8 @@ py.test -p ciqueue.pytest --queue redis://<host>:6379?worker=<worker_id>&build=<
 """
 from __future__ import absolute_import
 from __future__ import print_function
-import zlib
 from ciqueue._pytest import test_queue
-from ciqueue._pytest import outcomes
-import dill
+from ciqueue._pytest import reports
 import pytest
 from _pytest import terminal
 
@@ -73,19 +71,21 @@ class RedisReporter(object):
 
         terminal.TerminalReporter._get_progress_information_message = _get_progress  # pylint: disable=protected-access
 
-    def record(self, item):
-        # if the test passed, we remove it from the errors queue
-        # otherwise we add it
-        if hasattr(item, 'error_reports'):
-            self.redis.hset(
-                self.errors_key,
-                test_queue.key_item(item),
-                zlib.compress(dill.dumps(item.error_reports)))
+    def record(self, item, test_failed):
+        # Serialize before acknowledging so encoding errors cannot lose a failure.
+        payload = reports.dumps(self.config, item.error_reports) if hasattr(item, 'error_reports') else None
+        test_name = test_queue.key_item(item)
+        # A late worker may replace an earlier failure only if it succeeded.
+        if not self.queue.acknowledge(test_name) and test_failed:
+            return False
+        if payload is not None:
+            self.redis.hset(self.errors_key, test_name, payload)
         else:
-            self.redis.hdel(self.errors_key, test_queue.key_item(item))
+            self.redis.hdel(self.errors_key, test_name)
+        return True
 
-    def mark_as_skipped(self, call, item, msg):
-        assert call.when == 'teardown'
+    def mark_as_skipped(self, report, item, msg):
+        assert report.when == 'teardown'
 
         stats = self.terminalreporter.stats
 
@@ -106,54 +106,48 @@ class RedisReporter(object):
         if self.logxml:
             self.logxml.node_reporters_ordered[-1].nodes = []
 
-        # the call is converted to a skip
-        call.excinfo = outcomes.skipped_excinfo(item, msg)
+        # Render retries locally; no exception or traceback objects go on the wire.
+        path, lineno, _ = item.location
+        report.outcome = 'skipped'
+        report.longrepr = (path, (lineno or 0) + 1, msg)
+        if hasattr(report, 'wasxfail'):
+            del report.wasxfail
 
         # clear out the stats like the test never happened
         for key in ('passed', 'error', 'failed'):
             clear_out_stats(key)
 
         # rollback the testsfailed number like it never happened
-        item.session.testsfailed -= len([v for k, v in item.error_reports.items()
-                                         if not issubclass(v['excinfo'].type, outcomes.Skipped) and k != 'teardown'])
+        item.session.testsfailed -= sum(
+            report.failed for when, report in item.error_reports.items() if when != 'teardown')
 
         # and clear out any state on the item like it never happened
         if hasattr(item, 'error_reports'):
             del item.error_reports
 
-    @pytest.hookimpl(tryfirst=True)
+    @pytest.hookimpl(hookwrapper=True, tryfirst=True)
     def pytest_runtest_makereport(self, item, call):
-        """This function hooks into pytest's reporting of test results, and pushes a failed test's error report
-        onto the redis queue. A test can fail in any of the 3 call stages: setup, test, or teardown.
-        This is captured by pushing a dict of {call_state: error} for each failed test."""
-        if call.excinfo:
-            payload = call.__dict__.copy()
-            payload['excinfo'] = outcomes.swap_in_serializable(payload['excinfo'])
-
+        """Record final reports after pytest has applied skip and xfail outcomes."""
+        result = yield
+        report = result.get_result()
+        if not report.passed:
             if not hasattr(item, 'error_reports'):
-                item.error_reports = {call.when: payload}
-            else:
-                item.error_reports[call.when] = payload
+                item.error_reports = {}
+            item.error_reports[report.when] = report
 
-        if call.when == 'teardown':
+        if report.when == 'teardown':
             test_name = test_queue.key_item(item)
-            test_failed = outcomes.failed(item)
+            test_failed = any(report.failed for report in getattr(item, 'error_reports', {}).values())
 
             # Only attempt to requeue if the test failed.
             # The method will return `False` if the test couldn't be requeued
             if test_failed and self.queue.requeue(test_name):
-                self.mark_as_skipped(call, item, "WILL_RETRY")
+                self.mark_as_skipped(report, item, "WILL_RETRY")
                 self.terminalwriter.write(' WILL_RETRY ', green=True)
 
-            # If the test was already acknowledged by another worker (we timed out)
-            # Then we only record it if it was successful.
-            elif self.queue.acknowledge(test_name) or not test_failed:
-                self.record(item)
-
-            # The test timed out and failed, mark it as skipped so that it doesn't
-            # fail the build
-            else:
-                self.mark_as_skipped(call, item, "TIMED OUT")
+            # Ignore a late failure if another worker already acknowledged the test.
+            elif not self.record(item, test_failed):
+                self.mark_as_skipped(report, item, "TIMED OUT")
                 self.terminalwriter.write(' TIMED OUT ', green=True)
 
 

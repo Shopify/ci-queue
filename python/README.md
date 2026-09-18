@@ -24,6 +24,15 @@ Then, to then get a summary report of all the tests, run the following on anothe
 py.test -p ciqueue.pytest_report --queue redis://<host>:6379?build=<build_id>&retry=<n>
 ```
 
+Workers store rendered pytest reports as compressed JSON in Redis; the reporter never loads Python objects from the queue.
+Upgrade workers and the reporter together, using the same `ciqueue` and pytest versions within a build.
+Legacy dill records and malformed reports are rejected with a non-zero exit status, not treated as passing tests.
+After upgrading, rerun all workers with a fresh build ID; do not reuse an old build's records.
+
+Traceback formatting (for example, `--tb` and `--showlocals`) is determined by the worker's options.
+The queue transports standard `TestReport` fields, including captured output, user properties rendered as strings,
+and xfail reasons; plugin-specific report attributes are not transported.
+
 ## Implementing a new integration
 
 The reference implementation is the minitest one (Ruby).
