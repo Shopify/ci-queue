@@ -35,9 +35,9 @@ module CI
           end
         end
 
-        # Mirrors CI::Queue::Redis::Base.redis_ssl_params. This script runs with
-        # --disable-gems and does not load ci-queue, so the parent passes the
-        # setting through the environment.
+        # Mirrors CI::Queue::Redis::Base.redis_ssl_params. This script runs as a
+        # standalone subprocess that doesn't load ci-queue or its Configuration,
+        # so the parent passes the setting through the environment.
         def ssl_params
           if %w(0 false).include?(ENV['CI_QUEUE_REDIS_SSL_VERIFY']&.strip&.downcase)
             { verify_mode: OpenSSL::SSL::VERIFY_NONE }
