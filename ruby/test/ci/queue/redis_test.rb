@@ -624,6 +624,65 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_instance_of CI::Queue::Redis::Worker, queue
   end
 
+  def test_rediss_uri_rejects_untrusted_server_certificate_by_default
+    stub = TLSRedisStub.new
+    queue = without_reconnect_attempts { CI::Queue.from_uri(stub.url, config) }
+
+    error = assert_raises(Redis::CannotConnectError) { queue.send(:redis).ping }
+    assert_match(/certificate verify failed/, error.message)
+    assert_equal :handshake_failed, stub.next_event
+  ensure
+    stub&.close
+  end
+
+  def test_rediss_uri_verifies_server_hostname_by_default
+    queue = CI::Queue.from_uri('rediss://localhost:6379/0', config)
+    context = queue.send(:redis)._client.config.ssl_context
+    assert_equal OpenSSL::SSL::VERIFY_PEER, context.verify_mode
+    assert context.verify_hostname
+  end
+
+  def test_rediss_uri_can_explicitly_opt_out_of_certificate_verification
+    stub = TLSRedisStub.new
+    config.redis_ssl_verify = false
+    queue = CI::Queue.from_uri(stub.url, config)
+
+    queue.send(:redis).ping
+    assert stub.wait_for_command('PING')
+  ensure
+    stub&.close
+  end
+
+  def test_heartbeat_monitor_rejects_untrusted_server_certificate_by_default
+    stub = TLSRedisStub.new
+    config.max_missed_heartbeat_seconds = 1
+    queue = CI::Queue.from_uri(stub.url, config)
+    queue.boot_heartbeat_process!
+
+    queue.send(:heartbeat_process).tick!('entry', 'lease')
+    assert_equal :handshake_failed, stub.next_event
+  ensure
+    kill_heartbeat_process(queue)
+    stub&.close
+  end
+
+  def test_heartbeat_monitor_follows_certificate_verification_opt_out
+    stub = TLSRedisStub.new
+    config.max_missed_heartbeat_seconds = 1
+    config.redis_ssl_verify = false
+    queue = CI::Queue.from_uri(stub.url, config)
+    queue.boot_heartbeat_process!
+
+    queue.send(:heartbeat_process).tick!('entry', 'lease')
+    event = stub.next_event
+    refute_equal :handshake_failed, event, 'monitor did not honor the verification opt-out'
+    assert_equal %w(script load), event.first(2).map(&:downcase)
+    assert_predicate queue.stop_heartbeat!, :success?
+  ensure
+    kill_heartbeat_process(queue)
+    stub&.close
+  end
+
   def test_first_reserve_at_is_set_on_first_reserve
     queue = worker(1)
     assert_nil queue.first_reserve_at
@@ -1050,5 +1109,30 @@ class CI::Queue::RedisTest < Minitest::Test
     else
       populate(queue, tests: tests)
     end
+  end
+
+  # A failed TLS handshake is otherwise retried for ~10 seconds.
+  def without_reconnect_attempts
+    original = ENV['CI_QUEUE_DISABLE_RECONNECT_ATTEMPTS']
+    ENV['CI_QUEUE_DISABLE_RECONNECT_ATTEMPTS'] = '1'
+    yield
+  ensure
+    if original.nil?
+      ENV.delete('CI_QUEUE_DISABLE_RECONNECT_ATTEMPTS')
+    else
+      ENV['CI_QUEUE_DISABLE_RECONNECT_ATTEMPTS'] = original
+    end
+  end
+
+  # A monitor that can't connect keeps retrying for ~10 seconds, so don't wait
+  # for a clean exit.
+  def kill_heartbeat_process(queue)
+    pid = queue&.send(:heartbeat_process)&.instance_variable_get(:@pid)
+    return unless pid
+
+    Process.kill(:KILL, pid)
+    Process.wait(pid)
+  rescue Errno::ESRCH, Errno::ECHILD
+    nil
   end
 end

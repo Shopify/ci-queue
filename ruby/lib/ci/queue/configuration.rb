@@ -11,6 +11,7 @@ module CI
       attr_writer :lazy_load_streaming_timeout
       attr_accessor :lazy_load_test_helpers
       attr_accessor :skip_stale_tests
+      attr_accessor :redis_ssl_verify
       attr_reader :circuit_breakers
       attr_writer :seed, :build_id
       attr_writer :queue_init_timeout, :report_timeout, :inactive_workers_timeout
@@ -34,6 +35,7 @@ module CI
             lazy_load_streaming_timeout: (env['CI_QUEUE_LAZY_LOAD_STREAM_TIMEOUT'] || env['CI_QUEUE_STREAM_TIMEOUT'])&.to_i,
             lazy_load_test_helpers: env['CI_QUEUE_LAZY_LOAD_TEST_HELPERS'] || env['CI_QUEUE_TEST_HELPERS'],
             skip_stale_tests: %w(1 true).include?(env['CI_QUEUE_SKIP_STALE_TESTS']&.strip&.downcase),
+            redis_ssl_verify: !%w(0 false).include?(env['CI_QUEUE_REDIS_SSL_VERIFY']&.strip&.downcase),
           )
         end
 
@@ -60,7 +62,7 @@ module CI
         queue_init_timeout: nil, redis_ttl: 8 * 60 * 60, report_timeout: nil, inactive_workers_timeout: nil,
         export_flaky_tests_file: nil, warnings_file: nil, debug_log: nil, max_missed_heartbeat_seconds: nil, heartbeat_max_test_duration: nil,
         lazy_load: false, lazy_load_stream_batch_size: nil, lazy_load_streaming_timeout: nil, lazy_load_test_helpers: nil,
-        skip_stale_tests: false)
+        skip_stale_tests: false, redis_ssl_verify: true)
         @build_id = build_id
         @circuit_breakers = [CircuitBreaker::Disabled]
         @failure_file = failure_file
@@ -94,6 +96,7 @@ module CI
         @lazy_load_streaming_timeout = lazy_load_streaming_timeout
         @lazy_load_test_helpers = lazy_load_test_helpers
         @skip_stale_tests = skip_stale_tests
+        @redis_ssl_verify = redis_ssl_verify
       end
 
       def lazy_load_test_helper_paths
