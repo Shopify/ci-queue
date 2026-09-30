@@ -77,6 +77,20 @@ module CI::Queue
       assert_equal(14_400, config.redis_ttl)
     end
 
+    def test_redis_ssl_verify_defaults_to_true
+      assert Configuration.new.redis_ssl_verify
+      assert Configuration.from_env({}).redis_ssl_verify
+    end
+
+    def test_redis_ssl_verify_from_env
+      %w(0 false FALSE).each do |value|
+        refute Configuration.from_env("CI_QUEUE_REDIS_SSL_VERIFY" => value).redis_ssl_verify, value
+      end
+      %w(1 true).each do |value|
+        assert Configuration.from_env("CI_QUEUE_REDIS_SSL_VERIFY" => value).redis_ssl_verify, value
+      end
+    end
+
     def test_parses_file_correctly
       Tempfile.open('flaky_test_file') do |file|
         file.write(SharedTestCases::TEST_NAMES.join("\n") + "\n")

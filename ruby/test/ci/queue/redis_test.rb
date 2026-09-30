@@ -624,6 +624,27 @@ class CI::Queue::RedisTest < Minitest::Test
     assert_instance_of CI::Queue::Redis::Worker, queue
   end
 
+  def test_rediss_uri_verifies_server_certificate_by_default
+    queue = CI::Queue.from_uri('rediss://localhost:6379/0', config)
+    ssl_params = queue.send(:redis)._client.config.ssl_params || {}
+    refute_equal OpenSSL::SSL::VERIFY_NONE, ssl_params[:verify_mode]
+  end
+
+  def test_rediss_uri_can_explicitly_opt_out_of_certificate_verification
+    config.redis_ssl_verify = false
+    queue = CI::Queue.from_uri('rediss://localhost:6379/0', config)
+    ssl_params = queue.send(:redis)._client.config.ssl_params
+    assert_equal OpenSSL::SSL::VERIFY_NONE, ssl_params[:verify_mode]
+  end
+
+  def test_redis_ssl_params
+    assert_equal({}, CI::Queue::Redis::Base.redis_ssl_params(ssl_verify: true))
+    assert_equal(
+      { verify_mode: OpenSSL::SSL::VERIFY_NONE },
+      CI::Queue::Redis::Base.redis_ssl_params(ssl_verify: false),
+    )
+  end
+
   def test_first_reserve_at_is_set_on_first_reserve
     queue = worker(1)
     assert_nil queue.first_reserve_at

@@ -41,17 +41,31 @@ module CI
               # it makes sense to retry for a while before giving up.
               reconnect_attempts: reconnect_attempts,
               middlewares: custom_middlewares,
-              # Hosted Redis servers use self signed certificates
-              # (because they do not own the domain they're running on such as compute-1.amazonaws.com)
-              # therefore a full SSL connection verification will fail.
-              # ci-queue should not contain any sensitive data, so we can just disable the verification.
-              ssl_params: { verify_mode: OpenSSL::SSL::VERIFY_NONE },
+              ssl_params: self.class.redis_ssl_params(ssl_verify: redis_ssl_verify?),
               custom: custom_config,
               timeout: DEFAULT_TIMEOUT,
             )
           else
-            @redis = ::Redis.new(url: redis_url, timeout: DEFAULT_TIMEOUT)
+            @redis = ::Redis.new(
+              url: redis_url,
+              timeout: DEFAULT_TIMEOUT,
+              ssl_params: self.class.redis_ssl_params(ssl_verify: redis_ssl_verify?),
+            )
           end
+        end
+
+        # TLS (`rediss://`) connections verify the server certificate and hostname
+        # by default. Some hosted Redis providers present self-signed certificates;
+        # those deployments can either trust the issuing CA (e.g. via `SSL_CERT_FILE`)
+        # or explicitly opt out of verification with `CI_QUEUE_REDIS_SSL_VERIFY=0`.
+        def self.redis_ssl_params(ssl_verify:)
+          ssl_verify ? {} : { verify_mode: OpenSSL::SSL::VERIFY_NONE }
+        end
+
+        def redis_ssl_verify?
+          return true unless @config.respond_to?(:redis_ssl_verify)
+
+          @config.redis_ssl_verify != false
         end
 
         def reconnect_attempts
@@ -271,8 +285,9 @@ module CI
           # on every heartbeat, which fires once per running test per worker.
           TICK_COMMAND = 'tick!'.freeze
 
-          def initialize(redis_url, zset_key, owners_key, leases_key)
+          def initialize(redis_url, zset_key, owners_key, leases_key, ssl_verify: true)
             @redis_url = redis_url
+            @ssl_verify = ssl_verify
             @zset_key = zset_key
             @owners_key = owners_key
             @leases_key = leases_key
@@ -283,6 +298,7 @@ module CI
             ready_pipe, child_write = IO.pipe
             @pipe.binmode
             @pid = Process.spawn(
+              { 'CI_QUEUE_REDIS_SSL_VERIFY' => @ssl_verify ? '1' : '0' },
               RbConfig.ruby,
               ::File.join(__dir__, "monitor.rb"),
               @redis_url,
@@ -380,6 +396,7 @@ module CI
             key('running'),
             key('owners'),
             key('leases'),
+            ssl_verify: redis_ssl_verify?,
           )
         end
 

@@ -260,3 +260,15 @@ After merging changes to `main`, follow these steps to release and propagate the
 `ci-queue` expects the Redis server to have an [eviction policy](https://redis.io/docs/manual/eviction/#eviction-policies) of `allkeys-lru`.
 
 You can also use `--redis-ttl` to set a custom expiration time for all CI Queue keys, this defaults to 8 hours (28,800 seconds)
+
+## Redis over TLS
+
+Use a `rediss://` queue URL to connect to Redis over TLS. The server certificate and hostname are verified using the system's trusted CAs.
+
+If your Redis server presents a certificate signed by a private CA, point OpenSSL at that CA (for example with `SSL_CERT_FILE=/path/to/ca.pem`).
+
+If your hosted Redis only offers a self-signed certificate that can't be verified, you can opt out of verification with `CI_QUEUE_REDIS_SSL_VERIFY=0` (or `CI::Queue::Configuration#redis_ssl_verify = false`). The connection stays encrypted, but the server isn't authenticated, so anyone who can intercept traffic between your CI workers and Redis can impersonate the server and read the credentials in the queue URL. Only use this when you accept that risk.
+
+| Environment variable | Description |
+|---|---|
+| `CI_QUEUE_REDIS_SSL_VERIFY=0` | Disable TLS certificate verification for `rediss://` connections. Defaults to enabled. No CLI equivalent. |

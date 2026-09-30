@@ -3,6 +3,7 @@
 # frozen_string_literal: true
 
 require 'logger'
+require 'openssl'
 require 'redis'
 require 'json'
 
@@ -18,7 +19,11 @@ module CI
           @owners_key = owners_key
           @leases_key = leases_key
           @logger = logger
-          @redis = ::Redis.new(url: redis_url, reconnect_attempts: [0, 0, 0.1, 0.5, 1, 3, 5])
+          @redis = ::Redis.new(
+            url: redis_url,
+            reconnect_attempts: [0, 0, 0.1, 0.5, 1, 3, 5],
+            ssl_params: ssl_params,
+          )
           @shutdown = false
           @pipe = pipe
           @self_pipe_reader, @self_pipe_writer = IO.pipe
@@ -27,6 +32,17 @@ module CI
           @deadlines = {}
           %i[TERM INT USR1].each do |sig|
             Signal.trap(sig) { soft_signal(sig) }
+          end
+        end
+
+        # Mirrors CI::Queue::Redis::Base.redis_ssl_params. This script runs with
+        # --disable-gems and does not load ci-queue, so the parent passes the
+        # setting through the environment.
+        def ssl_params
+          if %w(0 false).include?(ENV['CI_QUEUE_REDIS_SSL_VERIFY']&.strip&.downcase)
+            { verify_mode: OpenSSL::SSL::VERIFY_NONE }
+          else
+            {}
           end
         end
 
