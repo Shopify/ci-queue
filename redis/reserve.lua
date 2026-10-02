@@ -12,12 +12,23 @@ local current_time = ARGV[1]
 local defer_offset = tonumber(ARGV[2]) or 0
 local max_skip_attempts = 4
 
-local function insert_with_offset(test)
-  local pivot = redis.call('lrange', queue_key, -1 - defer_offset, 0 - defer_offset)[1]
-  if pivot then
-    redis.call('linsert', queue_key, 'BEFORE', pivot, test)
-  else
-    redis.call('lpush', queue_key, test)
+-- Inserts `entry` behind the `offset` + 1 entries nearest the tail, the end RPOP reserves
+-- from: where `LINSERT BEFORE <entry at index -(offset + 1)>` would put it. LINSERT finds its
+-- pivot by scanning from the head, which is O(queue length) and blocks Redis on large queues;
+-- this only touches the tail, so it is O(offset). Queues of at most `offset` + 1 entries, and
+-- offsets of zero or less, push to the head instead.
+-- Keep in sync with requeue.lua: the Python client does not resolve `-- @include`.
+local function insert_with_offset(queue_key, entry, offset)
+  if offset <= 0 or redis.call('llen', queue_key) <= offset + 1 then
+    redis.call('lpush', queue_key, entry)
+    return
+  end
+
+  local ahead = redis.call('lrange', queue_key, -1 - offset, -1)
+  redis.call('ltrim', queue_key, 0, -2 - offset)
+  redis.call('rpush', queue_key, entry)
+  for _, ahead_entry in ipairs(ahead) do
+    redis.call('rpush', queue_key, ahead_entry)
   end
 end
 
@@ -44,7 +55,7 @@ for attempt = 1, max_skip_attempts do
       return claim_test(test)
     end
 
-    insert_with_offset(test)
+    insert_with_offset(queue_key, test, defer_offset)
 
     -- If this worker only finds its own requeued tests, defer once by returning nil,
     -- then allow pickup on a subsequent reserve attempt.

@@ -43,6 +43,46 @@ class CI::Queue::RedisTest < Minitest::Test
     CI::Queue::Redis.requeue_offset = previous_offset
   end
 
+  def test_requeue_runs_the_test_again_after_the_next_offset_plus_one_tests
+    with_requeue_offset(2) do
+      tests = numbered_tests(8)
+      pop_order = CI::Queue.shuffle(tests, Random.new(0))
+      queue = worker(1, tests: tests, build_id: 'requeue-offset', max_requeues: 1, requeue_tolerance: 1.0)
+
+      test_order = poll_failing_once(queue, pop_order.first)
+
+      assert_equal [pop_order[0], *pop_order[1..3], pop_order[0], *pop_order[4..]], test_order
+    end
+  end
+
+  def test_requeue_runs_the_test_last_and_keeps_the_queue_ttl_when_only_offset_plus_one_tests_remain
+    with_requeue_offset(2) do
+      tests = numbered_tests(4)
+      pop_order = CI::Queue.shuffle(tests, Random.new(0))
+      queue = worker(1, tests: tests, build_id: 'requeue-short-queue', max_requeues: 1, requeue_tolerance: 1.0)
+      queue_ttl_after_requeue = nil
+
+      test_order = poll_failing_once(queue, pop_order.first) do |test|
+        queue_ttl_after_requeue = @redis.ttl('build:requeue-short-queue:queue') if test == pop_order[1]
+      end
+
+      assert_equal [*pop_order, pop_order[0]], test_order
+      assert_operator queue_ttl_after_requeue, :>, 0
+    end
+  end
+
+  def test_requeue_with_a_zero_offset_runs_the_test_last
+    with_requeue_offset(0) do
+      tests = numbered_tests(4)
+      pop_order = CI::Queue.shuffle(tests, Random.new(0))
+      queue = worker(1, tests: tests, build_id: 'requeue-zero-offset', max_requeues: 1, requeue_tolerance: 1.0)
+
+      test_order = poll_failing_once(queue, pop_order.first)
+
+      assert_equal [*pop_order, pop_order[0]], test_order
+    end
+  end
+
   def test_retry_queue_with_all_tests_passing
     poll(@queue)
     retry_queue = @queue.retry_queue
@@ -465,6 +505,24 @@ class CI::Queue::RedisTest < Minitest::Test
 
     second_try = queue.send(:try_to_reserve_test)
     assert_equal entry, second_try[0]
+  end
+
+  def test_reserve_defers_own_requeued_test_behind_the_next_offset_plus_one_tests
+    with_requeue_offset(2) do
+      tests = numbered_tests(10)
+      pop_order = CI::Queue.shuffle(tests, Random.new(0))
+      queue = worker(1, tests: tests, build_id: 'defer-offset', max_requeues: 1, requeue_tolerance: 1.0)
+      worker(2, tests: tests, build_id: 'defer-offset')
+      assert_equal 2, queue.workers_count
+      queue_after_deferral = nil
+
+      test_order = poll_failing_once(queue, pop_order.first) do |test|
+        queue_after_deferral = queue.to_a if test == pop_order[4]
+      end
+
+      assert_equal [*pop_order[4..6], pop_order[0], *pop_order[7..]], queue_after_deferral
+      assert_equal [*pop_order, pop_order[0]], test_order
+    end
   end
 
   def test_heartbeat_only_checks_lease
@@ -1109,6 +1167,29 @@ class CI::Queue::RedisTest < Minitest::Test
     else
       populate(queue, tests: tests)
     end
+  end
+
+  def numbered_tests(count)
+    Array.new(count) { |index| SharedTestCases::TestCase.new("ATest#test_#{index}") }
+  end
+
+  def poll_failing_once(queue, failing_test, &block)
+    failed = false
+    passes = ->(test) do
+      next true if failed || test != failing_test
+
+      failed = true
+      false
+    end
+    poll(queue, passes, &block)
+  end
+
+  def with_requeue_offset(offset)
+    previous_offset = CI::Queue::Redis.requeue_offset
+    CI::Queue::Redis.requeue_offset = offset
+    yield
+  ensure
+    CI::Queue::Redis.requeue_offset = previous_offset
   end
 
   # A failed TLS handshake is otherwise retried for ~10 seconds.
