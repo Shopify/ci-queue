@@ -304,7 +304,11 @@ module Minitest
         step("Waiting for workers to complete")
 
         unless supervisor.wait_for_workers { display_warnings(supervisor.build) }
-          unless supervisor.queue_initialized?
+          # A lazy-load leader only marks the queue as initialized once it has
+          # streamed every test, but workers start on the first batch, so the wait
+          # can end (e.g. on --max-test-failed) while it is still streaming.
+          # Check streaming? first: the status only moves from streaming to ready.
+          unless supervisor.streaming? || supervisor.queue_initialized?
             abort! "No leader was elected. This typically means no worker was able to start. Were there any errors during application boot?", 40
           end
 
@@ -314,7 +318,7 @@ module Minitest
             reporter.write_failure_file(queue_config.failure_file) if queue_config.failure_file
             reporter.write_flaky_tests_file(queue_config.export_flaky_tests_file) if queue_config.export_flaky_tests_file
 
-            abort!("#{supervisor.size} tests weren't run.", exit_code)
+            abort!(unrun_tests_message(supervisor), exit_code)
           end
         end
 
@@ -445,6 +449,16 @@ module Minitest
 
       def print_worker_profiles(supervisor)
         Minitest::Queue::WorkerProfileReporter.new(supervisor).print_summary
+      end
+
+      def unrun_tests_message(supervisor)
+        # Read the status before the size: tests a streaming leader hasn't pushed
+        # yet aren't in the queue, so the size is only a lower bound.
+        if supervisor.streaming?
+          "At least #{supervisor.size} tests weren't run (the leader hadn't finished streaming tests to the queue)."
+        else
+          "#{supervisor.size} tests weren't run."
+        end
       end
 
       def parser

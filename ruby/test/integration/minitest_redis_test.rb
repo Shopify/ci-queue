@@ -674,6 +674,78 @@ module Integration
       assert_equal expected.strip, normalize(out.lines[0..2].join.strip)
     end
 
+    def test_max_test_failed_while_leader_is_streaming
+      build_id = 'max-test-failed-while-streaming'
+      test_file = File.expand_path('../../fixtures/test/failing_test.rb', __FILE__)
+      entries = 10.times.map { |i| CI::Queue::QueueEntry.format("FailingTest#test_failing_#{i}", test_file) }
+
+      with_streaming_leader(build_id, entries) do
+        _, err = capture_subprocess_io do
+          system(
+            @exe, 'run',
+            '--queue', @redis_url,
+            '--seed', 'foobar',
+            '--build', build_id,
+            '--worker', '1',
+            '--timeout', '5',
+            '--lazy-load',
+            '--max-test-failed', '1',
+            '-Itest',
+            'test/failing_test.rb',
+            chdir: 'test/fixtures/',
+          )
+        end
+
+        refute_predicate $?, :success?
+        assert_equal 'This worker is exiting early because too many failed tests were encountered.', filter_deprecation_warnings(err).chomp
+
+        out, err = capture_subprocess_io do
+          system(
+            @exe, 'report',
+            '--queue', @redis_url,
+            '--build', build_id,
+            '--timeout', '5',
+            '--max-test-failed', '1',
+            chdir: 'test/fixtures/',
+          )
+        end
+
+        assert_equal 44, $?.exitstatus
+        assert_empty filter_deprecation_warnings(err)
+        output = normalize(out)
+        refute_includes output, 'No leader was elected'
+        assert_includes output, 'Ran 1 tests, 1 assertions, 1 failures, 0 errors, 0 skips, 0 requeues in X.XXs (aggregated)'
+        assert_includes output, 'Encountered too many failed tests. Test run was ended early.'
+        assert_includes output, 'Error 1 of 1'
+        assert_equal "At least 9 tests weren't run (the leader hadn't finished streaming tests to the queue).", output.lines.last.strip
+      end
+    end
+
+    def test_report_timeout_while_leader_is_streaming
+      build_id = 'report-timeout-while-streaming'
+      test_file = File.expand_path('../../fixtures/test/passing_test.rb', __FILE__)
+      entries = 3.times.map { |i| CI::Queue::QueueEntry.format("PassingTest#test_passing_#{i}", test_file) }
+
+      with_streaming_leader(build_id, entries) do
+        out, err = capture_subprocess_io do
+          system(
+            @exe, 'report',
+            '--queue', @redis_url,
+            '--build', build_id,
+            '--timeout', '1',
+            chdir: 'test/fixtures/',
+          )
+        end
+
+        assert_equal 43, $?.exitstatus
+        assert_empty filter_deprecation_warnings(err)
+        output = normalize(out)
+        refute_includes output, 'No leader was elected'
+        assert_includes output, 'Timed out waiting for tests to be executed.'
+        assert_equal "At least 3 tests weren't run (the leader hadn't finished streaming tests to the queue).", output.lines.last.strip
+      end
+    end
+
     def test_circuit_breaker
       out, err = capture_subprocess_io do
         system(
@@ -1965,6 +2037,24 @@ module Integration
 
     def normalize_xml(output)
       normalize_backtrace(freeze_xml_timing(rewrite_paths(output)))
+    end
+
+    # Streams `entries` to the queue like a lazy-load leader, then pauses before
+    # marking the queue ready, so the block runs while the leader is still streaming.
+    def with_streaming_leader(build_id, entries)
+      tests = Enumerator.new do |yielder|
+        entries.each { |entry| yielder << entry }
+        Fiber.yield # pause stream_populate here until the fiber is resumed
+      end
+      leader = CI::Queue::Redis.new(
+        @redis_url,
+        CI::Queue::Configuration.new(build_id: build_id, worker_id: 'leader', timeout: 5),
+      )
+      stream = Fiber.new { leader.stream_populate(tests, batch_size: 1) }
+      capture_io { stream.resume }
+      yield
+    ensure
+      capture_io { stream.resume } if stream&.alive?
     end
   end
 end
