@@ -990,6 +990,50 @@ module Integration
       assert_equal 'All tests were ran already', output
     end
 
+    def test_lazy_load_retry_exits_without_reserving_tests_when_queue_is_almost_empty
+      build_id = 'lazy-load-retry-queue-almost-empty'
+      test_file = File.expand_path('../../fixtures/test/passing_test.rb', __FILE__)
+      entries = 3.times.map { |i| CI::Queue::QueueEntry.format("PassingTest#test_passing_#{i}", test_file) }
+      busy_worker = CI::Queue::Redis.new(
+        @redis_url,
+        CI::Queue::Configuration.new(build_id: build_id, worker_id: '0', timeout: 5),
+      )
+      capture_io { busy_worker.stream_populate(entries) }
+      reserved_count = 0
+      busy_worker.poll do
+        reserved_count += 1
+        break if reserved_count == 2
+      end
+
+      assert_equal 1, @redis.llen("build:#{build_id}:queue")
+      assert_equal 2, @redis.zcard("build:#{build_id}:running")
+
+      out, err = capture_subprocess_io do
+        system(
+          { 'BUILDKITE_RETRY_COUNT' => '1', 'BUILDKITE_RETRY_TYPE' => 'automatic' },
+          @exe, 'run',
+          '--queue', @redis_url,
+          '--seed', 'foobar',
+          '--build', build_id,
+          '--worker', '1',
+          '--timeout', '5',
+          '--lazy-load',
+          '-Itest',
+          'test/passing_test.rb',
+          chdir: 'test/fixtures/',
+        )
+      end
+
+      assert_predicate $?, :success?
+      assert_empty filter_deprecation_warnings(err)
+      assert_equal <<~OUTPUT, normalize(out)
+        1 tests left and 2 workers running.
+        Queue almost empty, exiting early...
+      OUTPUT
+      assert_equal 1, @redis.llen("build:#{build_id}:queue")
+      assert_empty @redis.hgetall("build:#{build_id}:worker-errors")
+    end
+
     def test_automatic_retry_reruns_failed_tests_so_report_can_succeed
       # Simulate the scenario from the Sam O'Brien / Steph Sachrajda incident:
       # A test fails on the first run (flaky infra timeout). Buildkite auto-retries
