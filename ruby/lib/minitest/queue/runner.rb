@@ -103,6 +103,7 @@ module Minitest
         trap('TERM') { Minitest.queue.shutdown! }
         trap('INT') { Minitest.queue.shutdown! }
 
+        queue_prepared = false
         if queue.rescue_connection_errors { queue.exhausted? }
           puts green('All tests were ran already')
         else
@@ -117,9 +118,11 @@ module Minitest
               puts green("Queue almost empty, exiting early...")
             else
               prepare_queue_for_execution
+              queue_prepared = true
             end
           else
             prepare_queue_for_execution
+            queue_prepared = true
           end
         end
 
@@ -132,8 +135,13 @@ module Minitest
           # Re-check exhausted? after booting: slow workers may arrive after the queue
           # has been fully drained by faster workers. In that case exit cleanly (0)
           # rather than letting Minitest return false for a 0-test run.
-          if queue.rescue_connection_errors { queue.exhausted? }
-            puts green('All tests were ran already')
+          #
+          # Also exit when the queue wasn't prepared above, because it was exhausted
+          # or a retried worker found it almost empty. No tests were loaded and the
+          # queue can't resolve entries, so the first test this worker reserved would
+          # crash it.
+          if !queue_prepared || queue.rescue_connection_errors { queue.exhausted? }
+            puts green('All tests were ran already') if queue_prepared
             verify_reporters!(reporters)
             exit!(0)
           end
